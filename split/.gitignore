@@ -39,3 +39,7 @@ blender/out/*.glb
 blender/out/*.png
 *.blend1
 
+
+# Downloaded Sketchfab models (CC-BY, see README credits); converted copies live in frontend/public/models
+blender/source/
+blender/out_real/

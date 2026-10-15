@@ -106,8 +106,8 @@ const skin = (color, base, rim) => new THREE.ShaderMaterial({
 
 const positionsOf = (geo) => (geo.index ? geo.toNonIndexed() : geo).attributes.position.array;
 
-/** View-dependent outline: edges where a face turned towards the camera meets one turned away
- *  (plus open boundaries). Adjacency is built once; each frame only the facing test runs. */
+/** View-dependent outline: edges where a face turned towards the camera meets one turned away.
+ *  Adjacency is built once; each frame only the facing test runs. */
 class Silhouette {
   constructor(meshes, host, style, maxOut = 6000) {
     const parts = meshes.map((m) => {
@@ -169,8 +169,8 @@ class Silhouette {
     const out = this.geo.attributes.instanceStart.data.array;
     let n = 0;
     for (let e = 0; e < ea.length && n < this.max; e++) {
-      const a = facing[f1[e]], b = f2[e] < 0 ? 0 : facing[f2[e]];
-      if (a === b) continue;
+      if (f2[e] < 0) continue;                         // open panel edges are panel gaps: drawn thin elsewhere
+      if (facing[f1[e]] === facing[f2[e]]) continue;
       const p = 3 * ea[e], q = 3 * eb[e], o = 6 * n++;
       out[o] = P[p]; out[o + 1] = P[p + 1]; out[o + 2] = P[p + 2];
       out[o + 3] = P[q]; out[o + 4] = P[q + 1]; out[o + 5] = P[q + 2];
@@ -215,7 +215,7 @@ function styled(scene, zones, opts) {
         o.material = skin(GLASS, 0.012, 0.16);
         o.renderOrder = 1;
       } else {                                          // the shell: depth for hidden lines, plus a fresnel skin
-        o.material = new THREE.MeshBasicMaterial({ colorWrite: false, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
+        o.material = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
         o.renderOrder = -1;
         const sk = new THREE.Mesh(o.geometry, skin('#d9d2c8', 0.008, 0.13));
         sk.renderOrder = 1;
@@ -236,7 +236,7 @@ function styled(scene, zones, opts) {
       } else o.visible = false;
     } else if (mat === 'LightFront' || mat === 'LightRear') {
       const col = mat === 'LightFront' ? '#eef3ff' : '#ff3b2f';
-      o.material = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.75 });
+      o.material = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.18, depthWrite: false });
       jobs.push([o, positionsOf(new THREE.EdgesGeometry(o.geometry, 30)), { color: col, vis: [[3, 0.25], [1, 0.9]], hid: [[1, 0.2]] }, false]);
     } else {                                            // mirrors, handles, grille, rails, silencer: outlines only
       o.material = new THREE.MeshBasicMaterial({ visible: false });

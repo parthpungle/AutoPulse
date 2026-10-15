@@ -84,7 +84,7 @@ Vehicle-only installs can use the smaller `requirements-vehicle.txt` (no PyTorch
 | **Blind diagnosis** | The vehicle never sends what was injected. The dashboard works it out: signatures → SVM, Softmax, ANN, CNN vote (5 s smoothing) → adaptive per-car baseline; OBD-II → hard safety limits |
 | **Live dashboard** | Health score, see-through wireframe car with glowing fault zones, rolling telemetry, the engine's spectrum, spectrogram, envelope, orders and crank speed every second |
 | **Car dropdown** | Pick the car from a menu; its wireframe preview appears only while the menu is open |
-| **Feature-line wireframes** | Blender-built cars drawn by their design lines (sills, shoulder, roof, door cuts, spoked wheels) instead of a grid |
+| **Technical-illustration cars** | Real car models drawn like a CAD X-ray: a bold outline recomputed from every view, thin panel gaps and surface flow, interior and mechanicals faint through the body |
 
 ### Measured on the live pipeline
 
@@ -135,13 +135,30 @@ Same models and data as the single-laptop app. Real-data rows are the numbers th
 | `backend/live.py` | Dashboard side: discovery, pairing, the per-second diagnosis pipeline |
 | `backend/app.py` | Dashboard API: pairing endpoints, `/api/ws/live`, Insights and Evidence data |
 | `frontend/` | React (Vite): `index.html` dashboard, `vehicle.html` control panel, three.js wireframe cars |
-| `blender/build_cars.py` | Procedural cars with feature-line wireframes and named health zones |
+| `blender/convert_models.py` | Turns the downloaded car models into line-art cars with named health zones |
+| `blender/build_cars.py` | Shared helpers, engine bay / radiator / battery / fuel parts; the earlier procedural cars |
 | `autopulse/` | Generator, signatures, models, adaptive baseline, safety rules, OBD drive simulator, real-data loaders |
 | `train.py` · `evaluate_real.py` | Train on simulated engines · train and test on real recordings |
 | `matlab/` · `scripts/` | MATLAB / Simulink cross-checks, dataset download, developer checks |
 | `models/` | Trained models and every results file |
 | `report/` | Concept report source and PDF |
 | `app.py` | Original Streamlit dashboard (fallback) |
+
+---
+
+## Credits
+
+Car models (CC BY 4.0, converted to line art by `blender/convert_models.py`; download the originals into `blender/source/` to rebuild):
+
+| Car | Model | Author |
+|-----|-------|--------|
+| Sedan | [Generic Sedan Car](https://sketchfab.com/3d-models/58c33766470d46e7b2aed542650494e5) | MMC Works |
+| SUV | [MMC Generic Small SUV Car](https://sketchfab.com/3d-models/5db696c6ed5d4bdc87905c1040fa072a) | MMC Works |
+| Coupe | [Generic Sport Coupé Car](https://sketchfab.com/3d-models/820a13c4831c41959ce75e6c2014e882) | MMC Works |
+| Pickup | [Lightbody Lifted '85](https://sketchfab.com/3d-models/67beae18c3d24be68f9c8f0ec382d8e3) | Daniel Zhabotinsky |
+| Hatchback | [Generic passenger car pack](https://sketchfab.com/3d-models/20f9af9b8a404d5cb022ac6fe87f21f5) | Comrade1280 |
+
+Licensed under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/). Changes: re-oriented and scaled, textures removed, parts reclassified, line art extracted, radiator / battery / fuel system (and engine where absent) added.
 
 ---
 

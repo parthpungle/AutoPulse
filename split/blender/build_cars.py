@@ -493,7 +493,7 @@ def build_wheel(name, x, side, spec, mats, root):
 
 
 # ----------------------------------------------------------------------------- engine bay (health zones)
-def build_engine_bay(spec, mats, root, top):
+def build_engine_bay(spec, mats, root, top, engine=True):
     """An engine you can recognise through the bonnet: block, head, cam cover with coils, intake
     plenum and runners, front-end accessory drive with its belt; radiator with fins and fan;
     battery; fuel tank with filler neck and feed line. Every part is named zone_* so the UI can
@@ -506,39 +506,40 @@ def build_engine_bay(spec, mats, root, top):
     z0, z1 = R + 0.02, hood - 0.12
     le, h, wb = e1 - e0, z1 - z0, W * 0.42
     xc = (e0 + e1) / 2
-    box("zone_engine_block", (xc, 0, z0 + 0.40 * h), (le * 0.78, wb * 0.66, h * 0.48), zm, root, 0)
-    box("zone_engine_head", (xc, 0, z0 + 0.73 * h), (le * 0.74, wb * 0.58, h * 0.18), zm, root, 0)
-    box("zone_engine_cover", (xc, 0, z0 + 0.88 * h), (le * 0.68, wb * 0.40, h * 0.12), zm, root, 0)
-    box("zone_engine_sump", (xc - le * 0.04, 0, z0 + 0.09 * h), (le * 0.58, wb * 0.50, h * 0.16), zm, root, 0)
-    for k in range(4):
-        cylinder(f"zone_engine_coil{k}", 0.022, 0.05, (xc - le * 0.27 + k * le * 0.18, 0, z0 + 0.96 * h), zm, root, 12, "Z")
-    yp = wb * 0.50
-    cylinder("zone_engine_plenum", h * 0.10, le * 0.70, (xc, yp, z0 + 0.86 * h), zm, root, 20, "X")
-    run = []
-    for k in range(4):
-        x = xc - le * 0.27 + k * le * 0.18
-        zp, zh = z0 + 0.86 * h, z0 + 0.70 * h          # from the plenum, arching over, into the side of the head
-        path = [V(x, yp - (yp - wb * 0.30) * t, zp + 0.05 * math.sin(math.pi * t) - (zp - zh) * t)
-                for t in (j / 6 for j in range(7))]
-        run += tube(path, 0.016)
-    wire_mesh("zone_engine_runners", run, root, wm)
-    # accessory drive on the front face: crank, water pump, alternator, idler and the belt around them
-    xa = e1 - le * 0.06
-    pulleys = [(0.0, z0 + 0.24 * h, 0.075), (wb * 0.16, z0 + 0.62 * h, 0.055),
-               (-wb * 0.34, z0 + 0.74 * h, 0.045), (-wb * 0.08, z0 + 0.50 * h, 0.03)]
-    for k, (y, z, r) in enumerate(pulleys):
-        cylinder(f"zone_engine_pulley{k}", r, 0.025, (xa, y, z), zm, root, 28, "X")
-    cylinder("zone_engine_alternator", 0.07, 0.11, (xa - 0.075, pulleys[2][0], pulleys[2][1]), zm, root, 24, "X")
-    pts = [(y + (r + 0.004) * math.cos(t * math.pi / 18), z + (r + 0.004) * math.sin(t * math.pi / 18))
-           for y, z, r in pulleys[:3] for t in range(36)]
-    wire_mesh("zone_engine_belt", loop([V(xa + 0.016, y, z) for y, z in hull2d(pts)]), root, wm)
-    # exhaust manifold: four primaries curling down on the other side
-    exh = []
-    for k in range(4):
-        x = xc - le * 0.27 + k * le * 0.18
-        exh += tube([V(x, -wb * 0.33, z0 + 0.62 * h), V(x, -wb * 0.45, z0 + 0.52 * h),
-                     V(xc - le * 0.05 + (k - 1.5) * 0.02, -wb * 0.47, z0 + 0.28 * h)], 0.014)
-    wire_mesh("zone_engine_exhaust_manifold", exh, root, wm)
+    if engine:                                               # skipped when the model brings its own engine
+        box("zone_engine_block", (xc, 0, z0 + 0.40 * h), (le * 0.78, wb * 0.66, h * 0.48), zm, root, 0)
+        box("zone_engine_head", (xc, 0, z0 + 0.73 * h), (le * 0.74, wb * 0.58, h * 0.18), zm, root, 0)
+        box("zone_engine_cover", (xc, 0, z0 + 0.88 * h), (le * 0.68, wb * 0.40, h * 0.12), zm, root, 0)
+        box("zone_engine_sump", (xc - le * 0.04, 0, z0 + 0.09 * h), (le * 0.58, wb * 0.50, h * 0.16), zm, root, 0)
+        for k in range(4):
+            cylinder(f"zone_engine_coil{k}", 0.022, 0.05, (xc - le * 0.27 + k * le * 0.18, 0, z0 + 0.96 * h), zm, root, 12, "Z")
+        yp = wb * 0.50
+        cylinder("zone_engine_plenum", h * 0.10, le * 0.70, (xc, yp, z0 + 0.86 * h), zm, root, 20, "X")
+        run = []
+        for k in range(4):
+            x = xc - le * 0.27 + k * le * 0.18
+            zp, zh = z0 + 0.86 * h, z0 + 0.70 * h          # from the plenum, arching over, into the side of the head
+            path = [V(x, yp - (yp - wb * 0.30) * t, zp + 0.05 * math.sin(math.pi * t) - (zp - zh) * t)
+                    for t in (j / 6 for j in range(7))]
+            run += tube(path, 0.016)
+        wire_mesh("zone_engine_runners", run, root, wm)
+        # accessory drive on the front face: crank, water pump, alternator, idler and the belt around them
+        xa = e1 - le * 0.06
+        pulleys = [(0.0, z0 + 0.24 * h, 0.075), (wb * 0.16, z0 + 0.62 * h, 0.055),
+                   (-wb * 0.34, z0 + 0.74 * h, 0.045), (-wb * 0.08, z0 + 0.50 * h, 0.03)]
+        for k, (y, z, r) in enumerate(pulleys):
+            cylinder(f"zone_engine_pulley{k}", r, 0.025, (xa, y, z), zm, root, 28, "X")
+        cylinder("zone_engine_alternator", 0.07, 0.11, (xa - 0.075, pulleys[2][0], pulleys[2][1]), zm, root, 24, "X")
+        pts = [(y + (r + 0.004) * math.cos(t * math.pi / 18), z + (r + 0.004) * math.sin(t * math.pi / 18))
+               for y, z, r in pulleys[:3] for t in range(36)]
+        wire_mesh("zone_engine_belt", loop([V(xa + 0.016, y, z) for y, z in hull2d(pts)]), root, wm)
+        # exhaust manifold: four primaries curling down on the other side
+        exh = []
+        for k in range(4):
+            x = xc - le * 0.27 + k * le * 0.18
+            exh += tube([V(x, -wb * 0.33, z0 + 0.62 * h), V(x, -wb * 0.45, z0 + 0.52 * h),
+                         V(xc - le * 0.05 + (k - 1.5) * 0.02, -wb * 0.47, z0 + 0.28 * h)], 0.014)
+        wire_mesh("zone_engine_exhaust_manifold", exh, root, wm)
 
     # cooling: radiator core with fins and tanks, fan behind it, hoses to the engine
     xr_ = L - 0.45

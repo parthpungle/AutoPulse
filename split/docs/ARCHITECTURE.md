@@ -132,24 +132,38 @@ frame
 
 ## Wireframe cars
 
-[`blender/build_cars.py`](../blender/build_cars.py) builds the five cars procedurally in Blender (lofted body from real car cross-sections, glass, lights, wheels) plus what a technical illustration shows through the skin: seats, steering wheel, dashboard, an engine with its belt drive, radiator, fan, hoses, battery, fuel tank, brakes, springs and exhaust. It exports glTF with loose edges, grouped so the UI can style each set:
+The five cars are real models (CC BY 4.0, credited in the [README](../README.md#credits)) converted by [`blender/convert_models.py`](../blender/convert_models.py):
+
+```text
+download (blender/source/, not committed)
+  → bake transforms and modifiers, drop rig widgets and hidden variants
+  → square up the footprint (principal axis) → front to +X, ground to z = 0
+  → split multi-material parts → classify by object / material name:
+       body · glass · front / rear lights · interior · underbody · wheels · engine
+  → line art: panel boundaries + creases > 38° (wire_body), every quad edge (wire_flow),
+       interior and mechanical feature edges, rim and brake edges per wheel
+  → add radiator, battery, fuel system (and an engine if the model has none) from the
+       measured wheel positions and bonnet height, all named zone_*
+  → frontend/public/models/<car>.glb
+```
 
 | Group | Lines | Drawn as |
 |-------|-------|----------|
-| `wire_body` | Sills and wheel arches, shoulder, roof edges, spine, door cuts, bonnet and boot shut lines | Bright 1.35 px core + soft 4 px glow |
-| `wire_flow` | Every longitudinal of the loft and a ring every few stations: the surface topology | 0.8 px at 15 %, near side only |
-| `wire_section` · `wire_glass` | Axle and pillar sections · window outlines | Faint · blue with glow |
-| `interior_lines` | Seats, steering wheel and column, dashboard, console, gear lever | Crisp through the glass, faint through the body |
-| `detail_lines` + small meshes | Exhaust and silencer, drive shafts, coil springs, wipers, plates, fog lights, mirrors, handles | Thin outlines |
-| `tyre_*_wire` · `tyre_*_brake` | Tread and sidewalls, rim lips and barrel, ten spokes, lug nuts · disc and caliper | Like parts; glow when that tyre is at fault |
-| `zone_*` | Engine (block, head, cover, coils, plenum, runners, pulleys, belt, manifold), cooling, battery, fuel | Muted green when healthy; pulsing colour and glow when not |
+| outline (computed in the browser) | Silhouette of the body and each tyre for the current view | Bold 2.2 px + soft glow |
+| `wire_body` | Panel gaps (open panel edges) and sharp creases | Thin |
+| `wire_flow` | Every quad edge of the body panels | 0.8 px at 12 %, near side only |
+| `wire_glass` | Window outlines | Thin blue |
+| `interior_lines` · `detail_lines` | Seats, dashboard, steering wheel · chassis, springs, exhaust, wipers | Crisp through glass, faint through the body |
+| `tyre_*` | Tyre mesh (for its outline) plus rim, spoke and caliper edges | Like parts; glow when that tyre is at fault |
+| `zone_*` | The model's engine, plus radiator, fan, hoses, battery, fuel tank and lines | Muted green when healthy; pulsing colour when not |
 
 `frontend/src/components/Car3D.jsx` renders them like a CAD X-ray, with three view-dependent effects:
 
 | Effect | How |
 |--------|-----|
+| **View-dependent outline** | Edges where a face turned towards the camera meets one turned away, found every frame from precomputed adjacency (welded geometry, ~1 ms). Open panel edges are skipped, so panel gaps stay thin |
 | **Hidden-line transparency** | The body shell writes depth only (no colour). Every line set is then drawn twice: a crisp pass where it is in front of the shell and a faint pass (`depthFunc = GreaterDepth`) where the shell hides it. Glass does not hide anything, so the interior reads clearly through the windows |
 | **Depth fade** | Linear fog applied to line alpha, re-centred on the car every frame: the near side leads, the far side recedes |
 | **Fresnel skin** | The shell is almost invisible face-on and glows softly at grazing angles, so it reads as a volume |
 
-Lines use `LineSegments2` for real pixel widths, which plain WebGL lines lack. Rebuild after editing: `blender -b -P blender/build_cars.py -- blender/out`, then copy `blender/out/*.glb` to `frontend/public/models/`.
+Lines use `LineSegments2` for real pixel widths, which plain WebGL lines lack. Rebuild: `blender -b --factory-startup --disable-autoexec -P blender/convert_models.py -- blender/out_real`, then copy `blender/out_real/*.glb` to `frontend/public/models/`.
