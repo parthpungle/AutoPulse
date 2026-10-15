@@ -1,11 +1,11 @@
-﻿"""Check carOBD column sets, sampling and running ranges per trip group."""
+"""Check carOBD column sets, sampling and running ranges per trip group."""
 from collections import Counter
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-RAW = Path(__file__).resolve().parents[1] / "data" / "raw" / "carobd"
+RAW = Path(__file__).resolve().parents[2] / "data" / "raw" / "carobd"
 
 
 def read(f):

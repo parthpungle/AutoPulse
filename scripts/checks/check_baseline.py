@@ -4,12 +4,12 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from autopulse.baseline import simulate_life  # noqa: E402
 from autopulse.generator import make_car, synth_window  # noqa: E402
 from autopulse.signatures import features  # noqa: E402
 
-prior_file = Path(__file__).resolve().parents[1] / "models" / "population_prior.npz"
+prior_file = Path(__file__).resolve().parents[2] / "models" / "population_prior.npz"
 if prior_file.exists():
     p = np.load(prior_file)
     mean, std = p["mean"], p["std"]

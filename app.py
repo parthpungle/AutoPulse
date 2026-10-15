@@ -478,3 +478,23 @@ with tabs[5]:
                      "Delay · static (min)": v["static"]["median_delay_min"]}
                     for f, v in r["injected_fault_detection"].items()]
             st.dataframe(rows, hide_index=True, width="stretch")
+
+    ml_file = MODELS / "matlab_crosscheck.json"
+    if ml_file.exists():
+        ML = json.loads(ml_file.read_text())
+        st.divider()
+        st.header("MATLAB cross-checks")
+        if "crank" in ML:
+            c = ML["crank"]
+            st.subheader("Misfire detection on MATLAB's crankshaft simulation")
+            st.caption(f"{c['source']} · {c['runs']} runs, {c['firing_events']:,} firing events")
+            m = st.columns(2)
+            m[0].metric("Misfire detected (detector trained on our Python simulator)",
+                        f"{c['detector_trained_on_python_sim']['accuracy']:.0%}")
+            m[1].metric("Misfiring cylinder named (crank physics, no training)",
+                        f"{c['cylinder_identification_accuracy']:.0%}")
+        if "dsp" in ML:
+            d = ML["dsp"]
+            st.subheader("Signature features recomputed in MATLAB on real audio")
+            st.caption(f"{d['features_compared']} features on {d['windows']} real windows · worst relative "
+                       f"difference {d['worst_max_rel_diff']:.1e} · minimum correlation {d['min_correlation']:.6f}")

@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy.io import loadmat, wavfile
 
-RAW = Path(__file__).resolve().parents[1] / "data" / "raw"
+RAW = Path(__file__).resolve().parents[2] / "data" / "raw"
 
 ec = RAW / "engine_condition" / "engine_data.csv"
 if ec.exists():

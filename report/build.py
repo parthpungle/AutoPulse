@@ -46,8 +46,12 @@ def write_results() -> None:
     for r in real.values():  # confusion matrices are not needed in the report
         for m in r.get("models", {}).values():
             m.pop("confusion", None)
+    ml_file = HERE.parent / "models" / "matlab_crosscheck.json"
+    ml = json.loads(ml_file.read_text()) if ml_file.exists() else {}
+    ml.get("dsp", {}).pop("per_feature", None)
     (HERE / "src" / "results.js").write_text(
-        f"window.RESULTS = {json.dumps(rows)};\nwindow.REAL = {json.dumps(real)};\n", encoding="utf-8")
+        f"window.RESULTS = {json.dumps(rows)};\nwindow.REAL = {json.dumps(real)};\n"
+        f"window.MATLAB = {json.dumps(ml)};\n", encoding="utf-8")
 
 
 def main() -> None:

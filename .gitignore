@@ -17,3 +17,8 @@ report/src/toc.js
 .idea/
 .DS_Store
 Thumbs.db
+
+# MATLAB cross-check intermediates (regenerate with scripts/matlab_crosscheck.py export + matlab -batch signature_check)
+matlab/out/audio_windows.mat
+matlab/out/matlab_features.mat
+

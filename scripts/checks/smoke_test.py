@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from autopulse.generator import ENGINE_FAULTS, make_car, synth_window  # noqa: E402
 from autopulse.signatures import FEATURE_NAMES, features, stft_image  # noqa: E402
 

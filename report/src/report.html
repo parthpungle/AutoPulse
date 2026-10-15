@@ -112,7 +112,7 @@
       <tr><td>Predict component wear</td><td>Slow degradation trends and remaining useful life</td><td>Health % per component with trend extrapolation, e.g. battery replacement in ~N months (section 09)</td></tr>
       <tr><td>Identify real-time faults</td><td>Classify the fault now</td><td>CNN on spectrograms; SVM, ANN and Softmax on signature features; ensemble vote (section 08)</td></tr>
       <tr><td>Microphones, accelerometers, ECU / OBD-II / CAN telemetry</td><td>Three data families, fused</td><td>Ten engine streams plus six vehicle streams, mapped to where they sit on the car (section 04)</td></tr>
-      <tr><td>Simulink / MATLAB or synthetic / open data</td><td>No hardware build is expected</td><td>Hybrid: our physics generator + public datasets, with Simulink as a cross-check (section 11)</td></tr>
+      <tr><td>Simulink / MATLAB or synthetic / open data</td><td>No hardware build is expected</td><td>Hybrid: our physics generator + public datasets, plus a MATLAB crankshaft simulation as an independent check (section 11)</td></tr>
       <tr><td>Dashboard with signatures and recognised patterns</td><td>Show the evidence, not just the verdict</td><td>Startup health check, live telemetry, signature lab, baseline and wear views (section 12)</td></tr>
     </tbody>
   </table>
@@ -607,7 +607,14 @@
       <tr><td>Cantera IC engine example</td><td>Free thermodynamics to shape pressure and emission curves offline</td><td>4, emissions</td><td>Free</td></tr>
     </tbody>
   </table>
-  <p class="small">Dataset survey and generator design steps 1–7 come from our team's data-sources and simulation plan. MATLAB R2026b with Simulink is installed on our machines; the misfire example additionally needs Powertrain Blockset, which we have asked about.</p>
+  <p class="small">Dataset survey and generator design steps 1–7 come from our team's data-sources and simulation plan.</p>
+
+  <h3>MATLAB: an independent engine and an independent DSP check</h3>
+  <div class="cards two">
+    <div class="card"><div class="card__k">MATLAB engine simulation · crank_sim.m</div><div class="card__t">Crankshaft physics with misfires</div><p>MATLAB solves J·dω/dt = Σ gas torque − load torque for a 4-cylinder engine (firing order 1-3-4-2) and records crank speed as a 60-2 tooth wheel would.</p><p id="ml-crank"></p></div>
+    <div class="card"><div class="card__k">MATLAB DSP re-implementation · signature_check.m</div><div class="card__t">Same signatures, computed twice</div><p>MATLAB recomputes our signature features from first principles on real engine recordings, and Python compares them feature by feature.</p><p id="ml-dsp"></p></div>
+  </div>
+  <p class="small">Our college licence covers Simulink, Powertrain Blockset, AUTOSAR Blockset and Signal Processing Toolbox; installing them next unlocks MathWorks' own misfire example and the five filter-based features.</p>
 </section>
 
 <!-- ======================================================= 12 DASHBOARD -->
@@ -643,7 +650,7 @@
     <circle cx="670" cy="52" r="8" fill="#fff" stroke="#9A9387" stroke-width="2" stroke-dasharray="3 2"/>
     <g font-size="10" font-weight="600" fill="#17150F"><text x="30" y="40">Concept + pipeline</text><text x="250" y="40">Proof on real data</text><text x="470" y="40">Live demo</text><text x="660" y="40">Product</text></g>
     <g font-size="8.4" fill="#3B3731">
-      <text x="30" y="80">✓ problem analysis, sensor plan</text><text x="30" y="96">✓ generator v1 (7 faults)</text><text x="30" y="112">✓ 28-feature DSP pipeline</text><text x="30" y="128">✓ SVM · Softmax · ANN · CNN</text><text x="30" y="144">✓ adaptive baseline, rules</text><text x="30" y="160">✓ dashboard prototype</text><text x="30" y="176">✓ real-data tests, 4 public sets</text>
+      <text x="30" y="80">✓ problem analysis, sensor plan</text><text x="30" y="96">✓ generator v1 (7 faults)</text><text x="30" y="112">✓ 28-feature DSP pipeline</text><text x="30" y="128">✓ SVM · Softmax · ANN · CNN</text><text x="30" y="144">✓ adaptive baseline, rules</text><text x="30" y="160">✓ dashboard prototype</text><text x="30" y="176">✓ real-data tests, 4 public sets</text><text x="30" y="192">✓ MATLAB engine sim + DSP check</text>
       <text x="250" y="80">generator v2: Wiebe pressure,</text><text x="250" y="96">  crank dynamics, emissions</text><text x="250" y="112">calibrate simulator to real sound</text><text x="250" y="128">CNN on longer windows</text><text x="250" y="144">Simulink misfire cross-check</text><text x="250" y="160">wear / RUL on real trends</text>
       <text x="470" y="80">real car: OBD dongle +</text><text x="470" y="96">  phone microphone</text><text x="470" y="112">live startup check</text><text x="470" y="128">guided "rev test"</text><text x="470" y="144">phone-ready models</text>
       <text x="660" y="80">fleet learning</text><text x="660" y="96">service booking</text><text x="660" y="112">digital-twin settings</text><text x="660" y="128">  advisor (stretch)</text>
@@ -673,7 +680,7 @@
   </div>
   <ol>
     <li><strong>IEEE DataPort access.</strong> The UFPB acoustic fault set is the best real engine-sound benchmark we found and sits behind a DataPort login.</li>
-    <li><strong>Powertrain Blockset licence.</strong> MATLAB and Simulink are installed; the MathWorks misfire example also needs Powertrain Blockset.</li>
+    <li><strong>Simulink toolchain.</strong> Our licence covers Simulink and Powertrain Blockset; we are installing them to run MathWorks' misfire example alongside our own MATLAB engine.</li>
     <li><strong>Evaluation data.</strong> Will the organisers provide a held-out engine dataset for the final round, or should we bring our own recordings?</li>
   </ol>
 
@@ -812,7 +819,10 @@ if (REAL.audio) {
 }
 if (REAL.obd) {
   const o = REAL.obd, d = o.injected_fault_detection;
-  set('obd-summary', `Taught by ${o.learning_trips} real trips, with settings and thresholds fixed on ${o.calibration_trips} more, the adaptive baseline raised a false alarm on <strong>${pct(o.false_alarm_trip_rate.adaptive)}</strong> of ${o.test_trips} held-out healthy trips, against ${pct(o.false_alarm_trip_rate.static)} for a fixed baseline. On the same real trips with faults injected from minute 3, it caught ${pct(d.vacuum_leak.adaptive.detection_rate)} of vacuum leaks and ${pct(d.charging_weak.adaptive.detection_rate)} of weak-charging faults. Small sensor drifts mostly hide inside normal driving variation for both methods; predicting each signal from the others (MAP from RPM and load, for example) is the next step.`);
+  const ML = window.MATLAB || {};
+if (ML.crank) set('ml-crank', `<strong>Result:</strong> a misfire detector trained only on our Python simulator detects `+pct(ML.crank.detector_trained_on_python_sim.accuracy)+` of `+ML.crank.runs+` MATLAB runs, and crank physics names the misfiring cylinder in `+pct(ML.crank.cylinder_identification_accuracy)+` of misfire runs, at 800–3,500 rpm.`);
+if (ML.dsp) set('ml-dsp', `<strong>Result:</strong> all `+ML.dsp.features_compared+` features agree on `+ML.dsp.windows+` real windows to within `+ML.dsp.worst_max_rel_diff.toExponential(0)+` (floating-point noise); minimum correlation `+ML.dsp.min_correlation.toFixed(6)+`.`);
+set('obd-summary', `Taught by ${o.learning_trips} real trips, with settings and thresholds fixed on ${o.calibration_trips} more, the adaptive baseline raised a false alarm on <strong>${pct(o.false_alarm_trip_rate.adaptive)}</strong> of ${o.test_trips} held-out healthy trips, against ${pct(o.false_alarm_trip_rate.static)} for a fixed baseline. On the same real trips with faults injected from minute 3, it caught ${pct(d.vacuum_leak.adaptive.detection_rate)} of vacuum leaks and ${pct(d.charging_weak.adaptive.detection_rate)} of weak-charging faults. Small sensor drifts mostly hide inside normal driving variation for both methods; predicting each signal from the others (MAP from RPM and load, for example) is the next step.`);
 }
 
 const obd = REAL.obd, ot = document.getElementById('real-obd');
