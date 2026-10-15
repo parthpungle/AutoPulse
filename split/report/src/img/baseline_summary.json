@@ -1,0 +1,10 @@
+{
+  "static": {
+    "false_alarm_days": 74,
+    "detection_delay_days": 0
+  },
+  "adaptive": {
+    "false_alarm_days": 0,
+    "detection_delay_days": 3
+  }
+}
