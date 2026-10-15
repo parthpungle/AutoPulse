@@ -337,7 +337,8 @@ def build_body(spec, mats, root):
         f.material_index = idx
         f.smooth = True
     # wireframe as a designer draws a car: feature lines, not a grid.
-    #   wire_body    primary lines - sill & wheel arches, belt/shoulder, roof edges, spine, door cuts, shut lines
+    #   wire_body    design lines - sill & wheel arches, belt/shoulder, roof edges, door cuts, shut lines
+    #                (no centre spine: the bold outline is computed per view in the browser)
     #   wire_section secondary lines - a few faint cross-sections at the axles and pillars
     coords = [[v.co.copy() for v in ring] for ring in rings]
     H = HALF_PTS
@@ -356,7 +357,6 @@ def build_body(spec, mats, root):
             feat.setdefault(("belt", side), []).append(coords[i][nearest(i, side, (w * 0.99, min(bl, zt - 0.05)))])
             roof = coords[i][nearest(i, side, (w * 0.76, zt - 0.05))] if zt > bl + 0.18 else None
             feat.setdefault(("roof", side), []).append(roof)
-        feat.setdefault(("spine", 0), []).append(coords[i][H - 1])
     segs = []
     for pts in feat.values():
         segs += [(a, b) for a, b in zip(pts, pts[1:]) if a is not None and b is not None]

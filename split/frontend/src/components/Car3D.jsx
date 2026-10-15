@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export const STATUS_HEX = { ok: '#0ca30c', info: '#c3c2b7', warning: '#fab219', critical: '#d03b3b' };
 const TYPES = ['hatchback', 'sedan', 'suv', 'pickup', 'coupe'];
@@ -26,11 +27,15 @@ const ZONE_OK = '#a4bba9';
 const FOG = '#161514';
 
 // [width px, opacity] passes where the line is in view, and where the body hides it
+// Like a technical illustration: only the outline is bold, and it is recomputed from the view
+// every frame; everything drawn on the surface stays thin.
 const STYLE = {
-  body: { color: INK, vis: [[4, 0.07], [1.35, 0.95]], hid: [[1, 0.12]] },
-  flow: { color: INK, vis: [[0.8, 0.15]], hid: [] },
-  section: { color: INK, vis: [[1, 0.26]], hid: [[1, 0.05]] },
-  glass: { color: GLASS, vis: [[3.5, 0.08], [1.2, 0.85]], hid: [[1, 0.14]] },
+  outline: { color: INK, vis: [[5, 0.06], [2.2, 1]], hid: [[1.2, 0.16]] },
+  tyreOutline: { color: INK, vis: [[1.8, 0.92]], hid: [[1, 0.26]] },
+  body: { color: INK, vis: [[1, 0.5]], hid: [[1, 0.08]] },
+  flow: { color: INK, vis: [[0.8, 0.12]], hid: [] },
+  section: { color: INK, vis: [[0.8, 0.16]], hid: [[0.8, 0.04]] },
+  glass: { color: GLASS, vis: [[1, 0.6]], hid: [[1, 0.1]] },
   interior: { color: '#cfc8be', vis: [[1.1, 0.72]], hid: [[1, 0.24]] },
   detail: { color: PART, vis: [[1, 0.62]], hid: [[1, 0.16]] },
   part: { color: PART, vis: [[1.1, 0.8]], hid: [[1, 0.3]] },
@@ -101,6 +106,80 @@ const skin = (color, base, rim) => new THREE.ShaderMaterial({
 
 const positionsOf = (geo) => (geo.index ? geo.toNonIndexed() : geo).attributes.position.array;
 
+/** View-dependent outline: edges where a face turned towards the camera meets one turned away
+ *  (plus open boundaries). Adjacency is built once; each frame only the facing test runs. */
+class Silhouette {
+  constructor(meshes, host, style, maxOut = 6000) {
+    const parts = meshes.map((m) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', m.geometry.attributes.position.clone());
+      if (m.geometry.index) g.setIndex(m.geometry.index.clone());
+      return g;
+    });
+    const g = mergeVertices(parts.length > 1 ? mergeGeometries(parts) : parts[0], 1e-4);
+    const P = g.attributes.position.array;
+    const I = g.index ? g.index.array : Uint32Array.from({ length: P.length / 3 }, (_, i) => i);
+    const nf = I.length / 3;
+    this.P = P;
+    this.N = new Float32Array(nf * 3);
+    this.C = new Float32Array(nf * 3);
+    const edges = new Map();
+    const ea = [], eb = [], f1 = [], f2 = [];
+    const v = (k) => [P[3 * k], P[3 * k + 1], P[3 * k + 2]];
+    for (let f = 0; f < nf; f++) {
+      const ia = I[3 * f], ib = I[3 * f + 1], ic = I[3 * f + 2];
+      const a = v(ia), b = v(ib), c = v(ic);
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+      const wx = c[0] - a[0], wy = c[1] - a[1], wz = c[2] - a[2];
+      this.N.set([uy * wz - uz * wy, uz * wx - ux * wz, ux * wy - uy * wx], 3 * f);
+      this.C.set([(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3], 3 * f);
+      for (const [p, q] of [[ia, ib], [ib, ic], [ic, ia]]) {
+        const key = p < q ? p * 4194304 + q : q * 4194304 + p;
+        const e = edges.get(key);
+        if (e === undefined) { edges.set(key, ea.length); ea.push(p); eb.push(q); f1.push(f); f2.push(-1); }
+        else if (f2[e] === -1) f2[e] = f;
+      }
+    }
+    Object.assign(this, { ea, eb, f1, f2, nf, facing: new Uint8Array(nf), host, max: maxOut });
+    this.geo = new LineSegmentsGeometry().setPositions(new Float32Array(maxOut * 6));
+    this.geo.instanceCount = 0;
+    this.lines = [];
+    for (const [passes, hidden] of [[style.vis, false], [style.hid, true]]) {
+      for (const [width, opacity] of passes) {
+        const l = new LineSegments2(this.geo, lineMat(style.color, width, opacity, hidden));
+        l.renderOrder = hidden ? 2 : 4;
+        l.frustumCulled = false;
+        this.lines.push(l);
+      }
+    }
+    this.cam = new THREE.Vector3();
+    this.last = new THREE.Vector3(Infinity, 0, 0);
+  }
+
+  update(cameraWorld) {
+    this.cam.copy(cameraWorld);
+    this.host.worldToLocal(this.cam);
+    if (this.cam.distanceToSquared(this.last) < 1e-6) return;
+    this.last.copy(this.cam);
+    const { N, C, P, facing, ea, eb, f1, f2 } = this;
+    const cx = this.cam.x, cy = this.cam.y, cz = this.cam.z;
+    for (let f = 0, k = 0; f < this.nf; f++, k += 3) {
+      facing[f] = N[k] * (cx - C[k]) + N[k + 1] * (cy - C[k + 1]) + N[k + 2] * (cz - C[k + 2]) > 0 ? 1 : 0;
+    }
+    const out = this.geo.attributes.instanceStart.data.array;
+    let n = 0;
+    for (let e = 0; e < ea.length && n < this.max; e++) {
+      const a = facing[f1[e]], b = f2[e] < 0 ? 0 : facing[f2[e]];
+      if (a === b) continue;
+      const p = 3 * ea[e], q = 3 * eb[e], o = 6 * n++;
+      out[o] = P[p]; out[o + 1] = P[p + 1]; out[o + 2] = P[p + 2];
+      out[o + 3] = P[q]; out[o + 4] = P[q + 1]; out[o + 5] = P[q + 2];
+    }
+    this.geo.attributes.instanceStart.data.needsUpdate = true;
+    this.geo.instanceCount = n;
+  }
+}
+
 function styled(scene, zones, opts) {
   const root = scene.clone(true);
   const pulsing = [];
@@ -108,6 +187,8 @@ function styled(scene, zones, opts) {
   const box = new THREE.Box3();
   const jobs = [];                                      // [object, positions, style, pulse]
   const extra = [];                                     // [mesh, skin mesh] attached after traversal
+  const shell = [];                                     // body primitives (incl. glass): one silhouette
+  const tyres = [];
   root.updateMatrixWorld(true);
   root.traverse((o) => {
     const zone = zoneOf(o);
@@ -129,6 +210,7 @@ function styled(scene, zones, opts) {
       centers[zone] = mat === 'Tyre' || !centers[zone] ? c : centers[zone].lerp(c, 0.5);
     }
     if (under(o, 'body')) {
+      shell.push(o);
       if (mat === 'Glass') {                            // see-through: never hides what is behind it
         o.material = skin(GLASS, 0.012, 0.16);
         o.renderOrder = 1;
@@ -147,6 +229,7 @@ function styled(scene, zones, opts) {
       if (bad) pulsing.push(o.material);
       jobs.push([o, positionsOf(new THREE.EdgesGeometry(o.geometry, 25)), style, bad]);
     } else if (mat === 'Tyre') {
+      tyres.push([o, bad ? badStyle(sc) : STYLE.tyreOutline]);
       if (bad) {
         o.material = new THREE.MeshBasicMaterial({ color: sc, transparent: true, opacity: 0.16, depthWrite: false, depthTest: false });
         pulsing.push(o.material);
@@ -161,6 +244,18 @@ function styled(scene, zones, opts) {
     }
   });
   extra.forEach(([o, sk]) => o.add(sk));
+  const silhouettes = [];
+  const attach = (meshes, style) => {
+    const host = meshes[0];                             // body primitives share one transform; tyres may be hidden,
+    const sil = new Silhouette(meshes, host, style);    // so their outline hangs off the parent, aligned to the mesh
+    sil.lines.forEach((l) => {
+      l.position.copy(host.position); l.quaternion.copy(host.quaternion); l.scale.copy(host.scale);
+      host.parent.add(l);
+    });
+    silhouettes.push(sil);
+  };
+  if (shell.length) attach(shell, STYLE.outline);
+  tyres.forEach(([t, style]) => attach([t], style));
   jobs.forEach(([o, pos, style, pulse]) => {
     const geo = new LineSegmentsGeometry().setPositions(pos);
     for (const [passes, hidden] of [[style.vis, false], [style.hid, true]]) {
@@ -173,7 +268,7 @@ function styled(scene, zones, opts) {
       }
     }
   });
-  return { root, pulsing, centers };
+  return { root, pulsing, centers, silhouettes };
 }
 
 function Model({ type, zones, onCenters, hideZones = false }) {
@@ -181,7 +276,10 @@ function Model({ type, zones, onCenters, hideZones = false }) {
   const key = JSON.stringify(zones || {});
   const built = useMemo(() => styled(scene, zones, { hideZones }), [scene, key, hideZones]); // eslint-disable-line
   useEffect(() => { onCenters?.(built.centers); }, [built, onCenters]);
-  useFrame(({ clock }) => {
+  const camWorld = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ clock, camera }) => {
+    camera.getWorldPosition(camWorld);
+    built.silhouettes.forEach((sil) => sil.update(camWorld));
     const k = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 4);
     built.pulsing.forEach((m) => {
       if (m.isLineMaterial) m.opacity = m.userData.base * (0.45 + 0.55 * k);
