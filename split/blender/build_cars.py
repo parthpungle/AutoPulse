@@ -149,7 +149,78 @@ def cylinder(name, radius, depth, center, mat, parent=None, verts=40, axis="Y"):
     ob.location = center
     if axis == "Y":
         ob.rotation_euler = (math.pi / 2, 0, 0)
+    elif axis == "X":
+        ob.rotation_euler = (0, math.pi / 2, 0)
     return link(ob, parent)
+
+
+# ----------------------------------------------------------------------------- line-art helpers
+def V(x, y, z):
+    return Vector((x, y, z))
+
+
+def chaikin(pts, it=2, closed=True):
+    """Corner-cutting: rounds a polygon the way a designer's French curve would."""
+    for _ in range(it):
+        out = []
+        n = len(pts)
+        rng = range(n) if closed else range(n - 1)
+        for i in rng:
+            a, b = pts[i], pts[(i + 1) % n]
+            out += [tuple(0.75 * a[j] + 0.25 * b[j] for j in range(len(a))),
+                    tuple(0.25 * a[j] + 0.75 * b[j] for j in range(len(a)))]
+        pts = out if closed else [pts[0]] + out + [pts[-1]]
+    return pts
+
+
+def loop(pts, closed=True):
+    pts = [p if isinstance(p, Vector) else Vector(p) for p in pts]
+    return [(a, b) for a, b in zip(pts, pts[1:] + ([pts[0]] if closed else []))]
+
+
+def circle(c, r, u, v, n=32, a0=0.0, a1=2 * math.pi, closed=True):
+    pts = [c + r * (math.cos(a0 + (a1 - a0) * k / n) * u + math.sin(a0 + (a1 - a0) * k / n) * v)
+           for k in range(n if closed else n + 1)]
+    return loop(pts, closed)
+
+
+def extrude_profile(profile, x0, z0, ys, links=4):
+    """Side-view outline (u forward, v up) drawn at each lateral slice y, joined at a few points."""
+    pr = chaikin(profile, 2)
+    segs = []
+    rings = [[V(x0 + u, y, z0 + w) for u, w in pr] for y in ys]
+    for r in rings:
+        segs += loop(r)
+    idx = [round(k * len(pr) / links) % len(pr) for k in range(links)]
+    for a, b in zip(rings, rings[1:]):
+        segs += [(a[k], b[k]) for k in idx]
+    return segs
+
+
+def tube(path, r=0.018):
+    """A pipe or hose drawn as its two outlines (offset in z) plus the centre rings at the ends."""
+    segs = []
+    for dz in (-r, r):
+        segs += loop([p + V(0, 0, dz) for p in path], closed=False)
+    return segs
+
+
+def hull2d(pts):
+    pts = sorted(set(pts))
+    if len(pts) < 3:
+        return pts
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo, hi = [], []
+    for p in pts:
+        while len(lo) >= 2 and cross(lo[-2], lo[-1], p) <= 0:
+            lo.pop()
+        lo.append(p)
+    for p in reversed(pts):
+        while len(hi) >= 2 and cross(hi[-2], hi[-1], p) <= 0:
+            hi.pop()
+        hi.append(p)
+    return lo[:-1] + hi[:-1]
 
 
 # ----------------------------------------------------------------------------- body loft
@@ -324,6 +395,15 @@ def build_body(spec, mats, root):
         ring = coords[station(x)]
         sec += [(ring[k], ring[(k + 1) % RING]) for k in range(RING)]
     wire_mesh("wire_section", sec, root, mats["wire"])
+
+    # surface flow: every longitudinal of the loft plus a ring every few stations. Drawn faint and
+    # only where the surface faces the viewer, it reads as the panel topology of a CAD model.
+    flow = []
+    for k in range(RING):
+        flow += [(coords[i][k], coords[i + 1][k]) for i in range(ST - 1)]
+    for i in range(2, ST - 2, 3):
+        flow += [(coords[i][k], coords[i][(k + 1) % RING]) for k in range(RING)]
+    wire_mesh("wire_flow", flow, root, mats["wire"])
     glass_edges = []
     for e in bm.edges:                                       # window outlines: where glass meets body
         if len(e.link_faces) == 2 and (e.link_faces[0].material_index == 1) != (e.link_faces[1].material_index == 1):
@@ -366,48 +446,249 @@ def build_wheel(name, x, side, spec, mats, root):
             bm.faces.new((verts[i][j], verts[(i + 1) % seg][j], verts[(i + 1) % seg][(j + 1) % ring_seg],
                           verts[i][(j + 1) % ring_seg]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    # tyre wire: tread, outer and inner sidewall circles; rim circle and five line spokes on the outer face
+    # tyre wire: tread centre and shoulders, both sidewalls
     tsegs = []
-    for j in (0, 3, 11):
+    for j in (0, 1, 13, 3, 11):
         tsegs += [(verts[i][j].co.copy(), verts[(i + 1) % seg][j].co.copy()) for i in range(seg)]
-    rim_r, fy = R - 0.105, side * 0.06
-    circ = [Vector((rim_r * math.cos(2 * math.pi * k / 40), fy, rim_r * math.sin(2 * math.pi * k / 40))) for k in range(40)]
-    tsegs += [(circ[k], circ[(k + 1) % 40]) for k in range(40)]
-    hubc = [Vector((0.06 * math.cos(2 * math.pi * k / 16), fy, 0.06 * math.sin(2 * math.pi * k / 16))) for k in range(16)]
-    tsegs += [(hubc[k], hubc[(k + 1) % 16]) for k in range(16)]
-    for k in range(5):
-        a = 2 * math.pi * k / 5 + math.pi / 2
-        for off in (-0.035, 0.035):                    # each spoke as a slim pair of lines
-            ca, sa = math.cos(a + off / 0.1), math.sin(a + off / 0.1)
-            cb, sb = math.cos(a + off / rim_r), math.sin(a + off / rim_r)
-            tsegs.append((Vector((0.06 * ca, fy, 0.06 * sa)), Vector((rim_r * 0.96 * cb, fy, rim_r * 0.96 * sb))))
-    wire_mesh(name + "_wire", tsegs, hub, mats["wire"])
     me = bpy.data.meshes.new(name + "_tyre"); bm.to_mesh(me); bm.free()
     me.materials.append(mats["tyre"])
     for p in me.polygons:
         p.use_smooth = True
     link(bpy.data.objects.new(name + "_tyre", me), hub)
-    # rim: outer lip ring, recessed dark dish with brake disc, 5 bright spokes, hub cap
+
+    # rim: outer lip and inner barrel joined by a few lines, ten slim spokes in pairs, hub, lug nuts
     rim_r = R - 0.105
-    face = side * 0.07                         # outward face of the wheel
-    lip = bmesh.new()
-    bmesh.ops.create_cone(lip, cap_ends=False, segments=48, radius1=rim_r, radius2=rim_r, depth=0.05)
-    me = bpy.data.meshes.new(name + "_rimlip"); lip.to_mesh(me); lip.free()
-    me.materials.append(mats["rim"])
-    for p in me.polygons:
-        p.use_smooth = True
-    lo = link(bpy.data.objects.new(name + "_rimlip", me), hub)
-    lo.rotation_euler = (math.pi / 2, 0, 0)
-    lo.location = (0, face * 0.85, 0)
-    cylinder(name + "_dish", rim_r - 0.01, 0.02, (0, -side * 0.02, 0), mats["rimdark"], hub, verts=40)
-    cylinder(name + "_disc", rim_r * 0.72, 0.025, (0, 0.0, 0), mats["trim"], hub, verts=36)
+    U, Wv = V(1, 0, 0), V(0, 0, 1)
+    fo, bi = side * 0.075, -side * 0.055                    # outer face, inner barrel (wheel-local y)
+    tsegs += circle(V(0, fo, 0), rim_r, U, Wv, 48) + circle(V(0, fo, 0), rim_r - 0.02, U, Wv, 48)
+    tsegs += circle(V(0, bi, 0), rim_r, U, Wv, 48)
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        tsegs.append((V(rim_r * math.cos(a), fo, rim_r * math.sin(a)), V(rim_r * math.cos(a), bi, rim_r * math.sin(a))))
+    hub_r = 0.07
+    tsegs += circle(V(0, fo, 0), hub_r, U, Wv, 24) + circle(V(0, fo + side * 0.01, 0), 0.026, U, Wv, 16)
     for k in range(5):
         a = 2 * math.pi * k / 5 + math.pi / 2
-        sp = box(f"{name}_spoke{k}", (math.cos(a) * rim_r * 0.5, face * 0.7, math.sin(a) * rim_r * 0.5),
-                 (rim_r * 0.98, 0.035, 0.07), mats["rim"], hub, bevel=0.012)
-        sp.rotation_euler = (0, -a, 0)
-    cylinder(name + "_cap", 0.055, 0.04, (0, face * 0.85, 0), mats["rimdark"], hub, verts=24)
+        for d in (-0.16, 0.16):                             # a spoke pair splits towards the rim
+            for off in (-0.022, 0.022):
+                ca, sa = math.cos(a + off / hub_r), math.sin(a + off / hub_r)
+                cb, sb = math.cos(a + d + off / rim_r), math.sin(a + d + off / rim_r)
+                tsegs.append((V(hub_r * ca, fo, hub_r * sa), V((rim_r - 0.02) * cb, fo * 0.9, (rim_r - 0.02) * sb)))
+        lug = V(0.045 * math.cos(a + 0.6), fo + side * 0.005, 0.045 * math.sin(a + 0.6))
+        tsegs += circle(lug, 0.011, U, Wv, 8)
+    wire_mesh(name + "_wire", tsegs, hub, mats["wire"])
+
+    # brake: ventilated disc (two faces + hat) and a caliper hugging it at the front-top
+    bsegs = []
+    rd = rim_r * 0.74
+    for y in (-0.012, 0.012):
+        bsegs += circle(V(0, y, 0), rd, U, Wv, 40)
+    bsegs += circle(V(0, side * 0.02, 0), 0.10, U, Wv, 24)
+    cal = [V(r * math.cos(a), side * 0.035, r * math.sin(a))
+           for r, a in ((rd - 0.05, 0.35), (rd + 0.02, 0.35), (rd + 0.03, 0.75), (rd + 0.02, 1.15), (rd - 0.05, 1.15),
+                        (rd - 0.06, 0.75))]
+    bsegs += loop(chaikin([(p.x, p.y, p.z) for p in cal], 1))
+    wire_mesh(name + "_brake", bsegs, hub, mats["wire"])
     return hub
+
+
+# ----------------------------------------------------------------------------- engine bay (health zones)
+def build_engine_bay(spec, mats, root, top):
+    """An engine you can recognise through the bonnet: block, head, cam cover with coils, intake
+    plenum and runners, front-end accessory drive with its belt; radiator with fins and fan;
+    battery; fuel tank with filler neck and feed line. Every part is named zone_* so the UI can
+    light the whole system up by status."""
+    L, W, R, floor = spec["L"], spec["W"], spec["R"], spec["floor"]
+    xf, xr = spec["xf"], spec["xr"]
+    zm, wm = mats["zone"], mats["wire"]
+    hood = min(top(xf), top(L - 0.6))
+    e0, e1 = xf - 0.30, L - 0.62
+    z0, z1 = R + 0.02, hood - 0.12
+    le, h, wb = e1 - e0, z1 - z0, W * 0.42
+    xc = (e0 + e1) / 2
+    box("zone_engine_block", (xc, 0, z0 + 0.40 * h), (le * 0.78, wb * 0.66, h * 0.48), zm, root, 0)
+    box("zone_engine_head", (xc, 0, z0 + 0.73 * h), (le * 0.74, wb * 0.58, h * 0.18), zm, root, 0)
+    box("zone_engine_cover", (xc, 0, z0 + 0.88 * h), (le * 0.68, wb * 0.40, h * 0.12), zm, root, 0)
+    box("zone_engine_sump", (xc - le * 0.04, 0, z0 + 0.09 * h), (le * 0.58, wb * 0.50, h * 0.16), zm, root, 0)
+    for k in range(4):
+        cylinder(f"zone_engine_coil{k}", 0.022, 0.05, (xc - le * 0.27 + k * le * 0.18, 0, z0 + 0.96 * h), zm, root, 12, "Z")
+    yp = wb * 0.50
+    cylinder("zone_engine_plenum", h * 0.10, le * 0.70, (xc, yp, z0 + 0.86 * h), zm, root, 20, "X")
+    run = []
+    for k in range(4):
+        x = xc - le * 0.27 + k * le * 0.18
+        zp, zh = z0 + 0.86 * h, z0 + 0.70 * h          # from the plenum, arching over, into the side of the head
+        path = [V(x, yp - (yp - wb * 0.30) * t, zp + 0.05 * math.sin(math.pi * t) - (zp - zh) * t)
+                for t in (j / 6 for j in range(7))]
+        run += tube(path, 0.016)
+    wire_mesh("zone_engine_runners", run, root, wm)
+    # accessory drive on the front face: crank, water pump, alternator, idler and the belt around them
+    xa = e1 - le * 0.06
+    pulleys = [(0.0, z0 + 0.24 * h, 0.075), (wb * 0.16, z0 + 0.62 * h, 0.055),
+               (-wb * 0.34, z0 + 0.74 * h, 0.045), (-wb * 0.08, z0 + 0.50 * h, 0.03)]
+    for k, (y, z, r) in enumerate(pulleys):
+        cylinder(f"zone_engine_pulley{k}", r, 0.025, (xa, y, z), zm, root, 28, "X")
+    cylinder("zone_engine_alternator", 0.07, 0.11, (xa - 0.075, pulleys[2][0], pulleys[2][1]), zm, root, 24, "X")
+    pts = [(y + (r + 0.004) * math.cos(t * math.pi / 18), z + (r + 0.004) * math.sin(t * math.pi / 18))
+           for y, z, r in pulleys[:3] for t in range(36)]
+    wire_mesh("zone_engine_belt", loop([V(xa + 0.016, y, z) for y, z in hull2d(pts)]), root, wm)
+    # exhaust manifold: four primaries curling down on the other side
+    exh = []
+    for k in range(4):
+        x = xc - le * 0.27 + k * le * 0.18
+        exh += tube([V(x, -wb * 0.33, z0 + 0.62 * h), V(x, -wb * 0.45, z0 + 0.52 * h),
+                     V(xc - le * 0.05 + (k - 1.5) * 0.02, -wb * 0.47, z0 + 0.28 * h)], 0.014)
+    wire_mesh("zone_engine_exhaust_manifold", exh, root, wm)
+
+    # cooling: radiator core with fins and tanks, fan behind it, hoses to the engine
+    xr_ = L - 0.45
+    rz0, rz1 = floor + 0.18, min(top(L - 0.45), hood) - 0.14
+    rw = W * 0.52
+    box("zone_cooling", (xr_, 0, (rz0 + rz1) / 2), (0.04, rw, rz1 - rz0), zm, root, 0)
+    fins = []
+    n = int(rw / 0.035)
+    for k in range(n + 1):
+        y = -rw / 2 + rw * k / n
+        fins.append((V(xr_ - 0.021, y, rz0 + 0.03), V(xr_ - 0.021, y, rz1 - 0.03)))
+    for z in (rz0 + 0.03, rz1 - 0.03):
+        fins.append((V(xr_ - 0.021, -rw / 2, z), V(xr_ - 0.021, rw / 2, z)))
+    wire_mesh("zone_cooling_fins", fins, root, wm)
+    fr = min((rz1 - rz0) * 0.42, 0.17)
+    fc = V(xr_ - 0.07, 0, (rz0 + rz1) / 2)
+    fan = circle(fc, fr, V(0, 1, 0), V(0, 0, 1), 36) + circle(fc, 0.04, V(0, 1, 0), V(0, 0, 1), 12)
+    for k in range(7):
+        a = 2 * math.pi * k / 7
+        tip = fc + V(0, fr * 0.92 * math.cos(a + 0.35), fr * 0.92 * math.sin(a + 0.35))
+        base = fc + V(0, 0.04 * math.cos(a), 0.04 * math.sin(a))
+        mid = fc + V(0, fr * 0.55 * math.cos(a + 0.05), fr * 0.55 * math.sin(a + 0.05))
+        fan += loop([base, mid, tip], closed=False)
+    wire_mesh("zone_cooling_fan", fan, root, wm)
+    hoses = tube([V(xr_ - 0.03, rw * 0.30, rz1 - 0.05), V(e1 + 0.05, rw * 0.22, z0 + 0.80 * h),
+                  V(e1 - le * 0.05, wb * 0.16, z0 + 0.72 * h)], 0.018)
+    hoses += tube([V(xr_ - 0.03, -rw * 0.30, rz0 + 0.06), V(e1 + 0.06, -rw * 0.18, z0 + 0.22 * h),
+                   V(e1 - le * 0.08, -wb * 0.2, z0 + 0.30 * h)], 0.018)
+    wire_mesh("zone_cooling_hoses", hoses, root, wm)
+
+    # battery with terminals and a cable
+    bx, by, bz = e0 - 0.02, W * 0.29, (z0 + 0.15 + z1) / 2
+    bh = z1 - z0 - 0.15
+    box("zone_battery", (bx, by, bz), (0.24, 0.17, bh), zm, root, 0)
+    for k, dy in enumerate((-0.05, 0.05)):
+        cylinder(f"zone_battery_terminal{k}", 0.014, 0.025, (bx + 0.07, by + dy, bz + bh / 2 + 0.012), zm, root, 10, "Z")
+    wire_mesh("zone_battery_cable", tube([V(bx + 0.07, by - 0.05, bz + bh / 2 + 0.02), V(bx + 0.18, by - 0.12, bz + bh / 2 + 0.05),
+                                          V(e0 + le * 0.2, wb * 0.3, z0 + 0.4 * h)], 0.008), root, wm)
+
+    # fuel: tank under the rear seat, filler neck up to the rear quarter, feed line along the floor
+    tx = xr + 0.62
+    box("zone_fuel", (tx, 0, floor + 0.13), (0.62, W * 0.55, 0.20), zm, root, 0)
+    neck = tube([V(tx - 0.25, -W * 0.27, floor + 0.20), V(xr + 0.05, -W * 0.36, floor + 0.40),
+                 V(max(xr - 0.25, 0.25), -W * 0.45, max(R * 2 + 0.05, floor + 0.55))], 0.022)
+    wire_mesh("zone_fuel_neck", neck, root, wm)
+    wire_mesh("zone_fuel_line", loop([V(tx + 0.31, W * 0.12, floor + 0.05), V(e0, W * 0.12, floor + 0.05),
+                                     V(e0 + 0.05, W * 0.10, z0 + 0.5 * h)], closed=False), root, wm)
+
+
+# ----------------------------------------------------------------------------- interior
+def build_interior(spec, mats, root, top, belt, half_w):
+    """Seats, steering wheel, dashboard, console and gear lever, as clean line art."""
+    W, floor = spec["W"], spec["floor"]
+    w1 = spec["windshield"][1]
+    segs = []
+    xs = w1 - 1.15                                           # front seat hip point
+    zh = floor + 0.30
+    xr_seat = max(xs - 0.85, spec["glass"][0] + 0.25)
+    seats = [(xs, W * 0.22), (xs, -W * 0.22)]
+    if xs - xr_seat >= 0.6:
+        seats.append((xr_seat, 0.0))
+
+    for x, y in seats:
+        bench = y == 0.0
+        hw = W * 0.30 if bench else 0.24
+        ys = [y - hw, y, y + hw] if bench else [y - hw, y + hw]
+        bh = max(0.32, min(0.58, top(x - 0.3) - zh - 0.14))
+        lean = bh * 0.22
+        cushion = [(-0.22, 0.03), (0.20, 0.07), (0.28, 0.03), (0.28, -0.06), (0.20, -0.11), (-0.22, -0.11)]
+        back = [(-0.30, -0.03), (-0.20, 0.02), (-0.10 - lean, bh), (-0.20 - lean, bh + 0.03), (-0.33 - lean, bh - 0.02)]
+        segs += extrude_profile(cushion, x, zh, ys, 4) + extrude_profile(back, x, zh, ys, 4)
+        if not bench:
+            hr = [(-0.25 - lean, bh + 0.06), (-0.16 - lean, bh + 0.07), (-0.17 - lean, bh + 0.21), (-0.27 - lean, bh + 0.20)]
+            segs += extrude_profile(hr, x, zh, [y - 0.12, y + 0.12], 2)
+            for dy in (-0.07, 0.07):                         # headrest posts
+                segs.append((V(x - 0.20 - lean, y + dy, zh + bh + 0.02), V(x - 0.21 - lean, y + dy, zh + bh + 0.07)))
+
+    # steering wheel (right-hand drive: driver on -y), tilted towards the driver, on its column
+    t = 0.42
+    xw = w1 - 0.62
+    c = V(xw, -W * 0.22, belt(xw) - 0.04)
+    u, v = V(0, 1, 0), V(math.sin(t), 0, math.cos(t))
+    nrm = V(math.cos(t), 0, -math.sin(t))
+    segs += circle(c, 0.19, u, v, 40) + circle(c, 0.165, u, v, 40) + circle(c, 0.05, u, v, 16)
+    for a in (0.0, math.pi, -math.pi / 2):
+        d = math.cos(a) * u + math.sin(a) * v
+        perp = math.cos(a + math.pi / 2) * u + math.sin(a + math.pi / 2) * v
+        for off in (-0.02, 0.02):
+            segs.append((c + 0.05 * d + off * perp, c + 0.168 * d + off * perp))
+    segs += loop([c + 0.05 * nrm, c + 0.45 * nrm], closed=False)
+
+    # dashboard: a crowned panel across the car, instrument binnacle in front of the driver, centre screen
+    xd = w1 - 0.34
+    zd = belt(xd) - 0.22
+    dw = half_w(xd) * 0.86
+    dash = [(0.0, 0.0), (-0.02, 0.17), (0.06, 0.25), (0.30, 0.24), (0.33, 0.06), (0.20, -0.06), (0.04, -0.06)]
+    segs += extrude_profile(dash, xd, zd, [-dw, -W * 0.06, W * 0.06, dw], 5)
+    segs += circle(V(xd + 0.04, -W * 0.22, zd + 0.27), 0.13, V(0, 1, 0), V(0, 0, 1), 24, 0.15, math.pi - 0.15, closed=False)
+    segs += loop([V(xd + 0.01, -0.13, zd + 0.06), V(xd + 0.01, 0.13, zd + 0.06),
+                  V(xd - 0.02, 0.13, zd + 0.20), V(xd - 0.02, -0.13, zd + 0.20)])
+    # centre console and gear lever
+    xc = xs + 0.25
+    for dy in (-0.09, 0.09):
+        segs += loop([V(xd, dy, zd - 0.04), V(xc, dy, floor + 0.28), V(xc, dy, floor + 0.08), V(xd, dy, floor + 0.08)])
+    for z in (floor + 0.28, floor + 0.08):
+        segs.append((V(xc, -0.09, z), V(xc, 0.09, z)))
+    g = V(xc + 0.25, 0, floor + 0.28 + 0.4 * (zd - 0.04 - floor - 0.28) * 0.25 / max(xd - xc, 0.3))
+    segs += loop([g, g + V(-0.04, 0, 0.16)], closed=False) + circle(g + V(-0.04, 0, 0.185), 0.025, V(1, 0, 0), V(0, 0, 1), 12)
+    wire_mesh("interior_lines", segs, root, mats["wire"])
+
+
+# ----------------------------------------------------------------------------- underbody & small details
+def build_underbody(spec, mats, root, top, belt, half_w):
+    """Exhaust, drive shafts, coil springs, wipers, number plates, fog lights."""
+    L, W, R, floor = spec["L"], spec["W"], spec["R"], spec["floor"]
+    xf, xr = spec["xf"], spec["xr"]
+    w1 = spec["windshield"][1]
+    segs = []
+    # exhaust from the manifold back under the floor to a silencer and a tip
+    e0 = xf - 0.30
+    zp = floor + 0.06
+    segs += tube([V(e0 + 0.10, -W * 0.18, R + 0.06), V(e0 - 0.10, -W * 0.16, zp), V(xr + 1.0, -W * 0.14, zp),
+                  V(xr + 0.25, -W * 0.20, zp + 0.02), V(0.72, -W * 0.25, zp + 0.04)], 0.022)
+    box("exhaust_silencer", (0.52, -W * 0.25, zp + 0.06), (0.40, 0.26, 0.14), mats["trim"], root, 0)
+    cylinder("exhaust_tip", 0.035, 0.12, (0.06, -W * 0.27, zp + 0.06), mats["trim"], root, 16, "X")
+    # front drive shafts
+    for sd in (1, -1):
+        segs.append((V(xf, sd * W * 0.10, R + 0.02), V(xf, sd * (W / 2 - 0.22), R)))
+        segs += circle(V(xf, sd * (W / 2 - 0.24), R), 0.04, V(1, 0, 0), V(0, 0, 1), 12)
+    # coil springs and dampers at each corner
+    for x in (xf, xr):
+        for sd in (1, -1):
+            yc = sd * (W / 2 - 0.34)
+            z0, z1 = R + 0.04, R + min(0.36, top(x) - R - 0.25)
+            helix = [V(x + 0.055 * math.cos(2 * math.pi * k / 14), yc + 0.055 * math.sin(2 * math.pi * k / 14),
+                       z0 + (z1 - z0) * k / 84) for k in range(85)]
+            segs += loop(helix, closed=False)
+            segs.append((V(x, yc, z0 - 0.06), V(x, yc, z1 + 0.06)))
+    # wipers resting on the cowl
+    zc = top(w1 + 0.04) + 0.012
+    for y0, y1 in ((-W * 0.36, W * 0.02), (W * 0.02, W * 0.36)):
+        segs.append((V(w1 + 0.06, y0, zc), V(w1 - 0.02, y1, zc + 0.04)))
+    # number plates and fog lights
+    pz = top(L - 0.05) - 0.30
+    segs += loop([V(L + 0.002, -0.26, pz), V(L + 0.002, 0.26, pz), V(L + 0.002, 0.26, pz + 0.11), V(L + 0.002, -0.26, pz + 0.11)])
+    rz = min(top(0.03) - 0.25, belt(0) - 0.25)
+    segs += loop([V(-0.002, -0.26, rz), V(-0.002, 0.26, rz), V(-0.002, 0.26, rz + 0.11), V(-0.002, -0.26, rz + 0.11)])
+    for sd in (1, -1):
+        segs += circle(V(L - 0.01, sd * W * 0.36, floor + 0.20), 0.045, V(0, 1, 0), V(0, 0, 1), 16)
+    wire_mesh("detail_lines", segs, root, mats["wire"])
 
 
 def build_car(car_type, out_dir):
@@ -446,10 +727,10 @@ def build_car(car_type, out_dir):
         for hx in (spec["xr"] + (spec["xf"] - spec["xr"]) * 0.36, spec["xr"] + (spec["xf"] - spec["xr"]) * 0.68):
             box(f"handle_{s}_{hx:.2f}", (hx, s * (half_w(hx) * 1.004 + 0.006), belt(hx) - 0.07),
                 (0.14, 0.02, 0.025), mats["trim"], root, 0.006)
-    box("grille", (L - 0.03, 0, nose_z - 0.20), (0.06, W * 0.42, 0.13), mats["trim"], root, 0.02)
+    box("grille", (L - 0.03, 0, nose_z - 0.20), (0.06, W * 0.42, 0.13), mats["trim"], root, 0)
     for k in range(3):
         box(f"grille_bar{k}", (L - 0.005, 0, nose_z - 0.245 + k * 0.045), (0.02, W * 0.40, 0.010), mats["rimdark"], root, 0.0)
-    box("rear_diffuser", (0.04, 0, spec["floor"] + 0.08), (0.08, W * 0.60, 0.08), mats["trim"], root, 0.02)
+    box("rear_diffuser", (0.04, 0, spec["floor"] + 0.08), (0.08, W * 0.60, 0.08), mats["trim"], root, 0)
 
     if spec.get("rails"):
         for s in (1, -1):
@@ -463,21 +744,10 @@ def build_car(car_type, out_dir):
     if spec.get("spoiler"):
         box("spoiler", (0.12, 0, top(0.12) + 0.05), (0.18, W * 0.70, 0.025), mats["trim"], root, 0.008)
 
-    # health zones (the UI recolours these by status)
-    # health zones sit inside the body: engine bay between the front axle and the radiator
     xf, xr = spec["xf"], spec["xr"]
-    hood = min(top(xf), top(L - 0.6))
-    e0, e1 = xf - 0.30, L - 0.62
-    ez0, ez1 = R + 0.06, hood - 0.16
-    eng = box("zone_engine", ((e0 + e1) / 2, 0, (ez0 + ez1) / 2), (e1 - e0, W * 0.40, ez1 - ez0), mats["zone"], root, 0.03)
-    for k in range(4):  # cylinder head bolts
-        cylinder(f"zone_engine_cyl{k}", 0.04, 0.035,
-                 (eng.location.x - 0.21 + k * 0.14, 0, ez1 + 0.018), mats["zone"], root, verts=16, axis="Z")
-    box("zone_battery", (e0 - 0.02, W * 0.28, (ez0 + 0.15 + ez1) / 2), (0.22, 0.16, ez1 - ez0 - 0.15), mats["zone"], root, 0.015)
-    rz1 = min(top(L - 0.45), hood) - 0.16
-    box("zone_cooling", (L - 0.45, 0, (spec["floor"] + 0.18 + rz1) / 2), (0.04, W * 0.52, rz1 - spec["floor"] - 0.18),
-        mats["zone"], root, 0.01)
-    box("zone_fuel", (xr + 0.62, 0, spec["floor"] + 0.12), (0.62, W * 0.55, 0.20), mats["zone"], root, 0.05)
+    build_engine_bay(spec, mats, root, top)
+    build_interior(spec, mats, root, top, belt, half_w)
+    build_underbody(spec, mats, root, top, belt, half_w)
 
     for name, x, s in (("tyre_fl", xf, 1), ("tyre_fr", xf, -1), ("tyre_rl", xr, 1), ("tyre_rr", xr, -1)):
         build_wheel(name, x, s, spec, mats, root)

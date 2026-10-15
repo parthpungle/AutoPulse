@@ -364,7 +364,7 @@ class LiveHub:
             add("ecu", "ECU & fault codes", ["engine"], "ok", "No stored or pending codes")
 
         bv = obd["battery_v"]
-        b = sev_of("battery") or sev_of("belt")
+        b = sev_of("battery") or sev_of("belt likely broken")
         add("battery", "Battery & charging", ["battery"], back[b] if b else "ok",
             f"Not charging · {bv:.1f} V" if b else f"Charging · {bv:.1f} V" if on else f"Resting · {bv:.1f} V")
 
@@ -375,7 +375,7 @@ class LiveHub:
                 f"{eng['label']} · {eng['confidence']:.0%}" if eng["status"] != "ok" else
                 f"Normal · {eng['healthy_p']:.0%} healthy, deviation {eng['anomaly']:.1f}")
 
-        c = max(sev_of("overheat"), sev_of("running hot"), sev_of("belt"), sev_of("temperature"))
+        c = max(sev_of("overheat"), sev_of("running hot"), sev_of("belt likely broken"), sev_of("temperature"))
         add("cooling", "Cooling system", ["cooling"], back[c] if c else "ok", f"Coolant {obd['coolant_c']:.0f} °C"
             + (" · warming up" if on and obd["coolant_c"] < 75 and not c else ""))
 

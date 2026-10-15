@@ -1,9 +1,12 @@
-// See-through feature-line car. Lines come from Blender (blender/build_cars.py):
-//   wire_body     primary feature lines: sill & wheel arches, belt/shoulder, roof edges, spine, door cuts, shut lines
-//   wire_section  a few faint cross-sections at the axles and pillars
-//   wire_glass    window outlines           tyre_*_wire  tyre circles, rim and line spokes
-// Rendered with real line weights (glow pass + crisp core). Components inside the body
-// (engine, battery, radiator, fuel tank, tyres) are outlined; faults glow and pulse.
+// See-through technical-illustration car, drawn like a CAD X-ray:
+//   - hidden-line transparency: the body shell writes depth only, then every line set is drawn twice,
+//     crisp where it is in front of the shell and faint where the shell hides it. Rotate the car and
+//     the far side, the interior and the engine bay fade and sharpen as they come into view.
+//   - depth fade: lines also lose opacity with distance from the camera, so the near side leads.
+//   - a fresnel skin: the shell itself is almost invisible face-on and glows softly at grazing angles.
+// Line groups come from Blender (blender/build_cars.py): wire_body (design lines), wire_flow (surface
+// topology), wire_section, wire_glass, interior_lines, detail_lines, tyre_*_wire/_brake and zone_* parts.
+// Health zones (engine, battery, cooling, fuel, tyres) glow and pulse when they are not OK.
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF } from '@react-three/drei';
@@ -17,9 +20,23 @@ const TYPES = ['hatchback', 'sedan', 'suv', 'pickup', 'coupe'];
 TYPES.forEach((t) => useGLTF.preload(`/models/${t}.glb`));
 
 const INK = '#efe9e1';
-const SECTION = '#8f8a83';
 const GLASS = '#8fb6e6';
-const PART = '#a8a29a';
+const PART = '#aaa39a';
+const ZONE_OK = '#a4bba9';
+const FOG = '#161514';
+
+// [width px, opacity] passes where the line is in view, and where the body hides it
+const STYLE = {
+  body: { color: INK, vis: [[4, 0.07], [1.35, 0.95]], hid: [[1, 0.12]] },
+  flow: { color: INK, vis: [[0.8, 0.15]], hid: [] },
+  section: { color: INK, vis: [[1, 0.26]], hid: [[1, 0.05]] },
+  glass: { color: GLASS, vis: [[3.5, 0.08], [1.2, 0.85]], hid: [[1, 0.14]] },
+  interior: { color: '#cfc8be', vis: [[1.1, 0.72]], hid: [[1, 0.24]] },
+  detail: { color: PART, vis: [[1, 0.62]], hid: [[1, 0.16]] },
+  part: { color: PART, vis: [[1.1, 0.8]], hid: [[1, 0.3]] },
+  zone: { color: ZONE_OK, vis: [[1.1, 0.7]], hid: [[1, 0.36]] },
+};
+const badStyle = (c) => ({ color: c, vis: [[5, 0.25], [1.7, 1]], hid: [[5, 0.2], [1.5, 0.9]] });
 
 function zoneOf(obj) {
   for (let o = obj; o; o = o.parent) {
@@ -35,11 +52,53 @@ function zoneOf(obj) {
 }
 const under = (obj, prefix) => { for (let o = obj; o; o = o.parent) if ((o.name || '').startsWith(prefix)) return true; return false; };
 
-function fat(positions, color, width, opacity) {
-  const g = new LineSegmentsGeometry().setPositions(positions);
-  const m = new LineMaterial({ color, linewidth: width, transparent: true, opacity, depthWrite: false, worldUnits: false });
-  return new LineSegments2(g, m);
+function groupOf(o, zone) {
+  if (under(o, 'wire_body')) return 'body';
+  if (under(o, 'wire_flow')) return 'flow';
+  if (under(o, 'wire_section')) return 'section';
+  if (under(o, 'wire_glass')) return 'glass';
+  if (under(o, 'interior')) return 'interior';
+  if (zone) return zone.startsWith('tyre') ? 'part' : 'zone';
+  return 'detail';
 }
+
+/** Linear fog, but fading alpha instead of tinting: lines dissolve into whatever is behind the canvas. */
+function fadeWithDepth(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <fog_fragment>', `
+      #ifdef USE_FOG
+        float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+        gl_FragColor.a *= 1.0 - 0.8 * fogFactor;
+      #endif`);
+  };
+  return material;
+}
+
+function lineMat(color, width, opacity, hidden) {
+  const m = new LineMaterial({ color, linewidth: width, transparent: true, opacity, depthWrite: false, worldUnits: false, fog: true });
+  if (hidden) m.depthFunc = THREE.GreaterDepth;
+  return fadeWithDepth(m);
+}
+
+const SKIN_VS = `
+  varying vec3 vN; varying vec3 vV;
+  void main() {
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+    gl_Position = projectionMatrix * mv;
+  }`;
+const SKIN_FS = `
+  uniform vec3 color; uniform float base; uniform float rim;
+  varying vec3 vN; varying vec3 vV;
+  void main() {
+    float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.6);
+    gl_FragColor = vec4(color, base + rim * f);
+  }`;
+const skin = (color, base, rim) => new THREE.ShaderMaterial({
+  uniforms: { color: { value: new THREE.Color(color) }, base: { value: base }, rim: { value: rim } },
+  vertexShader: SKIN_VS, fragmentShader: SKIN_FS, transparent: true, depthWrite: false,
+});
+
 const positionsOf = (geo) => (geo.index ? geo.toNonIndexed() : geo).attributes.position.array;
 
 function styled(scene, zones, opts) {
@@ -47,22 +106,19 @@ function styled(scene, zones, opts) {
   const pulsing = [];
   const centers = {};
   const box = new THREE.Box3();
-  const jobs = [];                                     // [source object, positions, [[color, width, opacity], ...], pulse?]
+  const jobs = [];                                      // [object, positions, style, pulse]
+  const extra = [];                                     // [mesh, skin mesh] attached after traversal
   root.updateMatrixWorld(true);
   root.traverse((o) => {
     const zone = zoneOf(o);
     const status = zone ? zones?.[zone] || 'ok' : null;
     const bad = !!status && status !== 'ok';
     const sc = STATUS_HEX[status] || STATUS_HEX.ok;
-    const n = o.name || '';
+    const style = bad ? badStyle(sc) : STYLE[groupOf(o, zone)];
 
     if (o.isLine) {
       o.visible = false;
-      const pos = positionsOf(o.geometry);
-      if (n.startsWith('wire_body') || under(o, 'wire_body')) jobs.push([o, pos, [[INK, 4, 0.10], [INK, 1.35, 0.92]]]);
-      else if (n.startsWith('wire_section') || under(o, 'wire_section')) jobs.push([o, pos, [[SECTION, 1, 0.28]]]);
-      else if (n.startsWith('wire_glass') || under(o, 'wire_glass')) jobs.push([o, pos, [[GLASS, 3.5, 0.10], [GLASS, 1.2, 0.85]]]);
-      else if (zone) jobs.push([o, pos, bad ? [[sc, 5, 0.25], [sc, 1.6, 1]] : [[PART, 1.1, 0.75]], bad]);
+      jobs.push([o, positionsOf(o.geometry), style, bad]);
       return;
     }
     if (!o.isMesh) return;
@@ -72,35 +128,50 @@ function styled(scene, zones, opts) {
       const c = box.getCenter(new THREE.Vector3());
       centers[zone] = mat === 'Tyre' || !centers[zone] ? c : centers[zone].lerp(c, 0.5);
     }
+    if (under(o, 'body')) {
+      if (mat === 'Glass') {                            // see-through: never hides what is behind it
+        o.material = skin(GLASS, 0.012, 0.16);
+        o.renderOrder = 1;
+      } else {                                          // the shell: depth for hidden lines, plus a fresnel skin
+        o.material = new THREE.MeshBasicMaterial({ colorWrite: false, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
+        o.renderOrder = -1;
+        const sk = new THREE.Mesh(o.geometry, skin('#d9d2c8', 0.008, 0.13));
+        sk.renderOrder = 1;
+        extra.push([o, sk]);
+      }
+      return;
+    }
     if (mat === 'Zone') {
       if (opts.hideZones) { o.visible = false; return; }
-      o.material = new THREE.MeshBasicMaterial({ color: sc, transparent: true, opacity: bad ? 0.22 : 0.035, depthWrite: false });
+      o.material = new THREE.MeshBasicMaterial({ color: sc, transparent: true, opacity: 0.2, depthWrite: false, depthTest: false, visible: bad });
       if (bad) pulsing.push(o.material);
-      jobs.push([o, positionsOf(new THREE.EdgesGeometry(o.geometry, 20)), bad ? [[sc, 5, 0.22], [sc, 1.6, 1]] : [[sc, 1.1, 0.5]], bad]);
-    } else if (mat === 'LightFront' || mat === 'LightRear') {
-      const col = mat === 'LightFront' ? '#eef3ff' : '#ff3b2f';
-      o.material = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85 });
-      jobs.push([o, positionsOf(new THREE.EdgesGeometry(o.geometry, 30)), [[col, 3, 0.25]]]);
-    } else if (under(o, 'body')) {                     // the shell: a whisper of fill so it reads as a volume
-      o.material = new THREE.MeshBasicMaterial({ color: '#cbc5bc', transparent: true, opacity: 0.022, depthWrite: false, side: THREE.DoubleSide });
-    } else if (zone && zone.startsWith('tyre')) {      // rims, spokes, discs, tyre solids: drawn by the tyre wire instead
-      if (mat === 'Tyre' && bad) {
-        o.material = new THREE.MeshBasicMaterial({ color: sc, transparent: true, opacity: 0.16, depthWrite: false });
+      jobs.push([o, positionsOf(new THREE.EdgesGeometry(o.geometry, 25)), style, bad]);
+    } else if (mat === 'Tyre') {
+      if (bad) {
+        o.material = new THREE.MeshBasicMaterial({ color: sc, transparent: true, opacity: 0.16, depthWrite: false, depthTest: false });
         pulsing.push(o.material);
       } else o.visible = false;
-    } else {                                           // mirrors, handles, grille, rails, spoiler, bed: thin outlines
+    } else if (mat === 'LightFront' || mat === 'LightRear') {
+      const col = mat === 'LightFront' ? '#eef3ff' : '#ff3b2f';
+      o.material = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.75 });
+      jobs.push([o, positionsOf(new THREE.EdgesGeometry(o.geometry, 30)), { color: col, vis: [[3, 0.25], [1, 0.9]], hid: [[1, 0.2]] }, false]);
+    } else {                                            // mirrors, handles, grille, rails, silencer: outlines only
       o.material = new THREE.MeshBasicMaterial({ visible: false });
-      jobs.push([o, positionsOf(new THREE.EdgesGeometry(o.geometry, 30)), [[PART, 1, 0.5]]]);
+      jobs.push([o, positionsOf(new THREE.EdgesGeometry(o.geometry, 30)), STYLE.detail, false]);
     }
   });
-  jobs.forEach(([o, pos, passes, pulse]) => {
-    passes.forEach(([color, width, opacity]) => {
-      const l = fat(pos, color, width, opacity);
-      l.renderOrder = 2;
-      if (o.isMesh) o.add(l);
-      else { l.position.copy(o.position); l.quaternion.copy(o.quaternion); l.scale.copy(o.scale); o.parent.add(l); }
-      if (pulse) pulsing.push(l.material);
-    });
+  extra.forEach(([o, sk]) => o.add(sk));
+  jobs.forEach(([o, pos, style, pulse]) => {
+    const geo = new LineSegmentsGeometry().setPositions(pos);
+    for (const [passes, hidden] of [[style.vis, false], [style.hid, true]]) {
+      for (const [width, opacity] of passes) {
+        const l = new LineSegments2(geo, lineMat(style.color, width, opacity, hidden));
+        l.renderOrder = hidden ? 2 : 3;
+        if (o.isMesh) o.add(l);
+        else { l.position.copy(o.position); l.quaternion.copy(o.quaternion); l.scale.copy(o.scale); o.parent.add(l); }
+        if (pulse) { l.material.userData.base = opacity; pulsing.push(l.material); }
+      }
+    }
   });
   return { root, pulsing, centers };
 }
@@ -113,11 +184,27 @@ function Model({ type, zones, onCenters, hideZones = false }) {
   useFrame(({ clock }) => {
     const k = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 4);
     built.pulsing.forEach((m) => {
-      if (m.isLineMaterial) m.opacity = m.linewidth > 3 ? 0.1 + 0.3 * k : 0.55 + 0.45 * k;
-      else m.opacity = 0.08 + 0.22 * k;
+      if (m.isLineMaterial) m.opacity = m.userData.base * (0.45 + 0.55 * k);
+      else m.opacity = 0.06 + 0.2 * k;
     });
   });
   return <primitive object={built.root} />;
+}
+
+/** Keeps the depth fade centred on the car whatever the zoom. */
+function DepthFade() {
+  const { scene, camera } = useThree();
+  useEffect(() => {
+    scene.fog = new THREE.Fog(FOG, 6, 14);
+    return () => { scene.fog = null; };
+  }, [scene]);
+  useFrame(() => {
+    if (!scene.fog) return;
+    const d = camera.position.distanceTo(new THREE.Vector3(0, 0.7, 0));
+    scene.fog.near = d - 2.2;
+    scene.fog.far = d + 4.2;
+  });
+  return null;
 }
 
 function Rig({ focusPoint, autoRotate }) {
@@ -155,7 +242,8 @@ function Floor() {
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     return g;
   }, []);
-  return <points geometry={geo}><pointsMaterial color="#3d3a35" size={0.024} sizeAttenuation /></points>;
+  // drawn before the shell writes depth, so the floor shows through the car like the rest of the X-ray
+  return <points geometry={geo} renderOrder={-2}><pointsMaterial color="#3d3a35" size={0.024} sizeAttenuation fog={false} /></points>;
 }
 
 function Spin({ on, children }) {
@@ -169,6 +257,7 @@ export function CarThumb({ type, spin = false }) {
   return (
     <Canvas frameloop={spin ? 'always' : 'demand'} dpr={[1, 2]} camera={{ position: [4.4, 1.6, 5.0], fov: 30 }}
       onCreated={({ camera }) => camera.lookAt(0, 0.62, 0)} gl={{ antialias: true, alpha: true }} style={{ background: 'transparent' }}>
+      <DepthFade />
       <Suspense fallback={null}><Spin on={spin}><Model type={type} zones={{}} hideZones /></Spin></Suspense>
     </Canvas>
   );
@@ -181,6 +270,7 @@ export default function Car3D({ type, zones, focus = null, autoRotate = true, he
     <div style={{ height, width: '100%', position: 'relative' }}>
       <Canvas dpr={[1, 2]} camera={{ position: [5.8 * distance, 2.3 * distance, 6.6 * distance], fov: 30 }}
         gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }} style={{ background: 'transparent' }}>
+        <DepthFade />
         <Suspense fallback={null}>
           <Model type={type} zones={zones} onCenters={(c) => { centers.current = c; }} />
         </Suspense>
