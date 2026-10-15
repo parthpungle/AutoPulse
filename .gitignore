@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Public datasets: re-download with `python -I scripts/download_data.py` (not ours to redistribute)
+data/raw/
+
+# Report build intermediates (the final PDF is report/AutoPulse-Concept-Report.pdf)
+report/out/
+report/src/toc.js
+*.part
+
+# Local tool / editor settings
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
