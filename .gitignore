@@ -29,3 +29,13 @@ matlab/out/mw_misfire_signals.csv
 slprj/
 *.slxc
 
+
+# Frontend build output and dependencies
+frontend/node_modules/
+frontend/dist/
+
+# Blender: web copies live in frontend/public/models; keep only the .blend sources here
+blender/out/*.glb
+blender/out/*.png
+*.blend1
+

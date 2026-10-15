@@ -175,22 +175,24 @@ matlab -batch "cd matlab; signature_check"
 
 ---
 
-## 9 · Dashboard: `app.py`
+## 9 · The app: `run.bat` → `backend/` + `frontend/`
 
-```bash
-.venv\Scripts\python -m streamlit run app.py
-```
+**What it does:** a Python API (`backend/app.py`, FastAPI) serves the same simulators, signatures, models, baseline and safety rules as JSON. A React app (`frontend/`, Vite + three.js) is the screen on top. Nothing about the science changed in the move from Streamlit; the Streamlit app (`app.py`) still runs as a fallback.
 
-| Tab | Shows | How we use it |
+**Run:** double-click `run.bat`. It checks Python and Node, creates `.venv`, installs dependencies only when `requirements.txt` or `package.json` change, trains the models if missing, checks the ports, starts the API (port 8000) and the UI (port 5173) and opens the browser. Ctrl+C stops both.
+
+| Screen | Shows | How we use it |
 |---|---|---|
-| Startup Check | Key-on scan on a rotatable 3D wireframe of the chosen car type, zones glowing by health, departure-board status list, health score | Opening demo for judges |
-| Live Drive | 1 Hz OBD telemetry with injected faults, alerts and guidance | Shows the hard-limit rules acting |
-| Signature Lab | Time, FFT, STFT, envelope and order views; all four models' votes; overlay the same fault across car types | Shows signature extraction, the brief's core |
-| Adaptive Baseline | Static vs adaptive over 8 months | Shows "normal is personal" |
-| Wear & Health | Phone-battery-style health % per component | Shows wear prediction |
-| Models | Simulator, real-data and MATLAB results | Evidence |
+| Garage | Pick hatchback, sedan, SUV, pickup or coupe; a see-through wireframe model with its health score and what needs attention | Opening demo: the user meets *their* car |
+| Health check | Animated key-on scan; click a check and the car turns to that part, with the sensors and method explained | Shows every subsystem being checked |
+| Live drive | 1 Hz OBD telemetry with a scrubber, one chart per tab, and the safety rules' guidance | Shows the hard limits acting |
+| Signatures | Waveform, spectrum, spectrogram, envelope, orders, crank speed; four models' votes; compare car types | Signature extraction, the brief's core |
+| Insights | Adaptive vs fixed baseline over 8 months; component wear | "Normal is personal" and wear prediction |
+| Evidence | Real-data, MATLAB and Simulink, and simulator results | The proof |
 
-The sidebar's **Car type** dropdown switches between hatchback, sedan, SUV, pickup and sports coupe. Each has its own engine (bore, which sets the knock frequency, plus resonances) and its own 3D body. Add `?view=signature&engine=knock&car=suv` (or `view=drive&obd=coolant_leak&t=440`) to the URL to open one screen with a preset scenario.
+Scenario controls (engine fault, severity, vehicle fault, ambient, unit) live in the **Scenario** drawer, so the screens stay uncluttered. A URL like `?page=signatures&engine=knock&car=suv` opens a screen with a preset scenario.
+
+**The car models:** `blender/build_cars.py` builds each car procedurally in Blender (lofted body with real cross-sections, glass, lights, mirrors, tyres with spoked rims). It exports the wireframe as designed line geometry: cross-section rings and front-to-back contour lines, window outlines and tyre wire. It also exports named parts (engine, battery, radiator, fuel tank, four tyres) that the app lights up by health status. Rebuild with `blender -b -P blender/build_cars.py -- blender/out` and copy the `.glb` files to `frontend/public/models/`; open `blender/out/*.blend` to tweak a model by hand.
 
 ---
 

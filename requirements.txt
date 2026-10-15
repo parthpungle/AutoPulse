@@ -1,4 +1,4 @@
-﻿# AutoPulse dependencies (Python 3.11). PyTorch CPU build: pip install torch --index-url https://download.pytorch.org/whl/cpu
+# AutoPulse dependencies (Python 3.11). PyTorch CPU build: pip install torch --index-url https://download.pytorch.org/whl/cpu
 joblib==1.6.0
 matplotlib==3.11.2
 numpy==2.4.6
@@ -11,3 +11,5 @@ scikit-learn==1.9.1
 scipy==1.17.1
 streamlit==1.66.0
 torch==2.14.1
+fastapi==0.143.2
+uvicorn==0.54.0

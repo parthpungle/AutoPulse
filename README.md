@@ -22,14 +22,29 @@ Simulator-only scores (SVM 98.3% on held-out simulated engines) are treated as u
 
 ## Quick start
 
+Double-click **`run.bat`** (Windows). It checks Python and Node, creates `.venv`, installs dependencies only when they change, trains the models if they are missing, starts the API and the UI, and opens **http://localhost:5173**. Ctrl+C stops both.
+
+Manual equivalent:
+
 ```bash
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-.venv\Scripts\python train.py                        # simulator models (~1 min)
-.venv\Scripts\python -m streamlit run app.py         # dashboard
+.venv\Scripts\python -m uvicorn backend.app:app --port 8000
+cd frontend && npm install && npm run dev
 ```
 
-Real-data evaluation and MATLAB cross-checks: see the [walkthrough](docs/WALKTHROUGH.md).
+The original Streamlit dashboard still works as a fallback: `.venv\Scripts\python -m streamlit run app.py`. Real-data evaluation and MATLAB cross-checks: see the [walkthrough](docs/WALKTHROUGH.md).
+
+## The app
+
+| Screen | What it shows |
+|---|---|
+| **Garage** | Pick a car (hatchback, sedan, SUV, pickup, coupe). A see-through wireframe model built in Blender, its health score, and what needs attention |
+| **Health check** | Animated key-on scan. Click a check and the car turns to that part; the panel explains which sensors it read |
+| **Live drive** | OBD-II telemetry with a scrubber, one chart at a time, and the safety rules' guidance when a limit trips |
+| **Signatures** | Waveform, spectrum, spectrogram, envelope, orders and crank speed for the chosen fault; all four models' votes; compare car types |
+| **Insights** | Adaptive vs fixed baseline over 8 months; component wear like phone battery health |
+| **Evidence** | Real-data, MATLAB and Simulink, and simulator results |
 
 ## How it works
 
@@ -66,18 +81,21 @@ flowchart LR
 | `scripts/download_data.py` | Fetch the free public datasets (no login) |
 | `scripts/matlab_crosscheck.py` | Use the MATLAB outputs in the Python pipeline |
 | `scripts/checks/` | Developer sanity checks |
-| `app.py` | Streamlit dashboard (NavPort-style theme, car-type selector) |
-| `autopulse/ui_car3d.py` | 3D wireframe car (three.js), one body per car type, health zones by status |
+| `run.bat` | One-click launcher: dependencies, models, API + UI |
+| `backend/app.py` | FastAPI: the same simulators, models, baseline and rules as JSON |
+| `frontend/` | React (Vite) app: Garage, Health check, Live drive, Signatures, Insights, Evidence; 3D cars with three.js |
+| `blender/build_cars.py` | Procedural car models (Blender): lofted body, glass, lights, wheels, wireframe contour lines, named health zones; `blender/out/*.blend` to open and edit |
+| `app.py`, `autopulse/ui_car3d.py` | Original Streamlit dashboard (fallback) |
 | `report/` | Concept report source (HTML/CSS → PDF) and figures |
 | `models/` | Trained models and every results file (`metrics.json`, `real_metrics.json`, `matlab_crosscheck.json`) |
 
 ## Demo script (about 4 minutes)
 
-1. **Startup Check:** car 8 healthy → *Start car* → score ~100. Switch to *Misfire* → P0302 plus AI detection.
-2. **Signature Lab:** Healthy → Knock → Bearing. Point at the knock band in the FFT, the bearing peak in the envelope spectrum, and the misfire dips in crank speed.
-3. **Live Drive:** *Coolant leak* → *Replay drive* → "AC off, heater max, ~X min to critical". Then *Alternator* (battery minutes left) and *Puncture* (nearest tyre shop).
-4. **Adaptive Baseline:** the fixed baseline false-alarms through the winter; the adaptive one stays quiet and catches the real fault.
-5. **Models:** real-data and MATLAB results.
+1. **Garage:** flip through the five car types. Open **Scenario**, set *Misfire* and *Tyre puncture*; the score drops and the engine and tyre glow through the wireframe.
+2. **Health check:** *Run again* for the animated scan; click *Engine sound & vibration* and the car turns to the engine.
+3. **Signatures:** Knock → Spectrum (the knock band), Envelope (switch to Bearing for the BPFO peak), Crank speed (Misfire dips). Compare car types.
+4. **Live drive:** *Coolant leak* → Play → "AC off, heater max, minutes to critical"; then *Alternator* and *Puncture*.
+5. **Insights → Evidence:** the adaptive baseline story, then real-data, MATLAB and Simulink numbers.
 
 ## Data
 
