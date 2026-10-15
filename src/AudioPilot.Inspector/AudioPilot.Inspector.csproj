@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../AudioPilot.WindowsAudio/AudioPilot.WindowsAudio.csproj" />
+  </ItemGroup>
+</Project>
