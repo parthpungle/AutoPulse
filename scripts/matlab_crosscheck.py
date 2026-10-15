@@ -117,12 +117,99 @@ def dsp():
                      "max_rel_diff": float(np.max(np.abs(a - b)) / scale),
                      "correlation": float(np.corrcoef(a, b)[0, 1]) if np.std(a) > 0 else 1.0})
     worst = max(rows, key=lambda r: r["max_rel_diff"])
-    res = {"source": "matlab/signature_check.m (base MATLAB re-implementation)", "windows": int(py.shape[0]),
+
+    # filter-based features: scipy sosfiltfilt vs MATLAB filtfilt pad the edges differently, so expect
+    # agreement to a fraction of a percent rather than to floating-point precision
+    filt = []
+    ff = m.get("Ffilt")
+    if ff is not None and ff.size and not np.isnan(ff).all():
+        for j, name in enumerate(["env_peak_order", "env_peak_prominence", "knock_band_kurtosis"]):
+            a, b = py[:, FEATURE_NAMES.index(name)], ff[:, j]
+            filt.append({"feature": name, "median_rel_diff": float(np.median(np.abs(a - b) / (np.abs(a) + 1e-9))),
+                         "exact_match_share": float(np.mean(np.isclose(a, b, rtol=1e-3, atol=1e-6))),
+                         "correlation": float(np.corrcoef(a, b)[0, 1])})
+    crank_rows = []
+    cm = m.get("C")
+    if cm is not None and cm.size:
+        runs = pd.read_csv(MAT / "crank_runs.csv")
+        for run, irr_m, dip_m in cm:
+            sp = runs[runs.run == int(run)].sort_values("firing_idx").speed_rpm.to_numpy()
+            irr_p, dip_p = crank_feats(sp)
+            crank_rows.append((abs(irr_p - irr_m) / (abs(irr_p) + 1e-12), abs(dip_p - dip_m) / (abs(dip_p) + 1e-12)))
+    res = {"source": "matlab/signature_check.m (MATLAB re-implementation)", "windows": int(py.shape[0]),
            "features_compared": len(rows), "worst_feature": worst["feature"],
            "worst_max_rel_diff": worst["max_rel_diff"],
-           "min_correlation": float(min(r["correlation"] for r in rows)), "per_feature": rows}
+           "min_correlation": float(min(r["correlation"] for r in rows)), "per_feature": rows,
+           "filter_features": filt,
+           "crank_features": ({"runs": len(crank_rows), "max_rel_diff": float(np.max(crank_rows))} if crank_rows else None),
+           "total_features_checked": len(rows) + len(filt) + (2 if crank_rows else 0)}
     print(f"{len(rows)} features on {py.shape[0]} real windows: worst relative difference "
           f"{worst['max_rel_diff']:.2e} ({worst['feature']}), min correlation {res['min_correlation']:.6f}")
+    for f in filt:
+        print(f"  {f['feature']:22s} median rel diff {f['median_rel_diff']:.2e}  match {f['exact_match_share']:.0%}  "
+              f"corr {f['correlation']:.5f}")
+    if crank_rows:
+        print(f"  crank features on {len(crank_rows)} MATLAB runs: max rel diff {np.max(crank_rows):.2e}")
+    return res
+
+
+def mathworks():
+    """Blind misfire detection on MathWorks' own engine model (Powertrain Blockset misfire example).
+
+    The detector never sees the misfire flag: it splits the crank angle into 180 deg power strokes
+    (phase from the indicated-torque minimum at TDC), and flags a stroke whose speed gain falls more
+    than 4 robust standard deviations below the median. The flag is used only to grade the result.
+    """
+    d = pd.read_csv(MAT / "mw_misfire_signals.csv")
+    ang = d.crank_angle.to_numpy()
+    theta = ang + 720 * np.concatenate([[0], np.cumsum(np.diff(ang) < -300)])
+    t, w, tq, flag = d.t.to_numpy(), d.engine_speed.to_numpy(), d.indicated_torque.to_numpy(), d.misfire_cyl3.to_numpy()
+    fold = np.mod(theta, 180)
+    prof = np.array([tq[(fold >= a) & (fold < a + 2)].mean() if np.any((fold >= a) & (fold < a + 2)) else np.inf
+                     for a in range(0, 180, 2)])
+    theta0 = 2 * int(np.argmin(prof))
+    edges = np.arange(theta0 + 180 * np.ceil((theta[0] - theta0) / 180), theta[-1], 180)
+    iv = []
+    for k in range(len(edges) - 1):
+        sel = np.where((theta >= edges[k]) & (theta < edges[k + 1]))[0]
+        if len(sel) < 10:
+            continue
+        iv.append({"t0": t[sel[0]], "t1": t[sel[-1]], "slot": int(np.mod(round(edges[k] / 180), 4)),
+                   "gain": w[sel[-1]] - w[sel[0]]})
+    iv = pd.DataFrame(iv)
+    med = iv.gain.median()
+    mad = 1.4826 * np.median(np.abs(iv.gain - med))
+    iv["flagged"] = (iv.gain - med) / mad < -4.0
+
+    # misfire events = contiguous runs where the model's cylinder-3 misfire flag is 0
+    low = flag < 0.5
+    starts = np.where(np.diff(low.astype(int)) == 1)[0] + 1
+    ends = np.where(np.diff(low.astype(int)) == -1)[0] + 1
+    if low[0]:
+        starts = np.r_[0, starts]
+    if low[-1]:
+        ends = np.r_[ends, len(low) - 1]
+    events = [(t[a], t[b]) for a, b in zip(starts, ends)]
+    overlaps = lambda r, e: r.t0 <= e[1] and r.t1 >= e[0]  # noqa: E731
+    detected, slots = 0, []
+    for e in events:
+        hit = iv[iv.flagged & iv.apply(lambda r: overlaps(r, e), axis=1)]
+        if len(hit):
+            detected += 1
+            slots.append(int(hit.loc[hit.gain.idxmin(), "slot"]))
+    false_alarms = int(sum(1 for _, r in iv[iv.flagged].iterrows() if not any(overlaps(r, e) for e in events)))
+    healthy = int(sum(1 for _, r in iv.iterrows() if not any(overlaps(r, e) for e in events)))
+    res = {"source": "MathWorks Powertrain Blockset example autoblkSICoreOBDMisfire (Simulink), 1 s at "
+                     f"{w.mean():.0f} rpm, misfires injected on cylinder 3",
+           "power_strokes": int(len(iv)), "misfire_events": len(events), "detected_events": detected,
+           "detection_rate": detected / max(len(events), 1),
+           "false_alarm_strokes": false_alarms, "healthy_strokes": healthy,
+           "slot_of_detected_misfires": {str(s): slots.count(s) for s in sorted(set(slots))},
+           "speed_gain_rpm": {"healthy_median": float(iv[~iv.flagged].gain.median()),
+                              "misfire_median": float(iv[iv.flagged].gain.median()) if iv.flagged.any() else None},
+           "note": "firing slots counted from the TDC found at the indicated-torque minimum; with firing order "
+                   "1-3-4-2, slot 1 is cylinder 3"}
+    print(json.dumps(res, indent=2))
     return res
 
 
@@ -132,5 +219,5 @@ if __name__ == "__main__":
         if step == "export":
             export()
         else:
-            out[step] = {"crank": crank, "dsp": dsp}[step]()
+            out[step] = {"crank": crank, "dsp": dsp, "mathworks": mathworks}[step]()
             OUT.write_text(json.dumps(out, indent=2))

@@ -39,18 +39,31 @@ class CarProfile:
     tick_offset: float      # valve tick position within the cycle (fraction of 720 deg)
 
 
-def make_car(car_id: int) -> CarProfile:
-    rng = np.random.default_rng(1000 + car_id)
-    bore = rng.uniform(0.078, 0.090)
+CAR_TYPES = {
+    # body/engine families; every range sits inside the training distribution of make_car()
+    "hatchback": {"label": "Hatchback · 1.2 L petrol", "bore": (0.078, 0.081), "res": (0.98, 1.08), "noise": (1.0, 1.2)},
+    "sedan": {"label": "Sedan · 1.5 L petrol", "bore": (0.080, 0.084), "res": (0.95, 1.05), "noise": (0.9, 1.1)},
+    "suv": {"label": "SUV · 2.0 L", "bore": (0.085, 0.090), "res": (0.90, 0.98), "noise": (0.85, 1.0)},
+    "pickup": {"label": "Pickup · 2.4 L", "bore": (0.087, 0.090), "res": (0.90, 0.95), "noise": (0.8, 0.95)},
+    "coupe": {"label": "Sports coupe · 2.0 L turbo", "bore": (0.083, 0.087), "res": (1.02, 1.10), "noise": (1.05, 1.2)},
+}
+
+
+def make_car(car_id: int, car_type: str = None) -> CarProfile:
+    """car_id picks one physical unit; car_type (optional) narrows it to a body/engine family."""
+    rng = np.random.default_rng(1000 + car_id + (0 if car_type is None else 97 * list(CAR_TYPES).index(car_type)))
+    t = CAR_TYPES.get(car_type)
+    bore = rng.uniform(*(t["bore"] if t else (0.078, 0.090)))
     c = rng.uniform(880, 980)
+    res_scale = rng.uniform(*t["res"], 3) if t else rng.uniform(0.9, 1.1, 3)
     return CarProfile(
         car_id=car_id,
-        resonances=tuple(np.array([1150.0, 2600.0, 5200.0]) * rng.uniform(0.9, 1.1, 3)),
+        resonances=tuple(np.array([1150.0, 2600.0, 5200.0]) * res_scale),
         knock_freq=1.84 * c / (np.pi * bore),
         pulley_ratio=rng.uniform(2.4, 2.9),
         bpfo_ratio=rng.uniform(2.9, 3.4),
         squeal_freq=rng.uniform(2600, 3400),
-        noise=rng.uniform(0.8, 1.2),
+        noise=rng.uniform(*(t["noise"] if t else (0.8, 1.2))),
         tick_offset=rng.uniform(0.05, 0.2),
     )
 

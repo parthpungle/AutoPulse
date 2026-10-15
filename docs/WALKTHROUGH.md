@@ -140,7 +140,16 @@ Models trained **only** on the simulator reach macro F1 0.39 at best on real aud
 
 **Result:** misfire detection **100%** (84/84 runs). Cylinder named correctly **100%** at 800, 1,500, 2,500 and 3,500 rpm.
 
-**7b · Our signal processing, re-done in MATLAB.** 60 real engine-audio windows are exported, MATLAB recomputes 23 of the 28 features from first principles (no toolboxes), and Python compares them.
+**7b · MathWorks' own engine, in Simulink.** We run MathWorks' "Detect Misfires Using On-Board Diagnostics" example (Simulink + Powertrain Blockset + AUTOSAR Blockset; model `autoblkSICoreOBDMisfire`), which injects misfires on cylinder 3. Our crank-speed detector runs **blind**: it cuts the crank angle into 180° power strokes and flags any stroke whose speed gain falls more than 4 robust standard deviations below normal. The model's misfire flag is used only for grading.
+
+```bash
+matlab -batch "cd matlab; run_mw_misfire; export_mw_misfire"
+.venv\Scripts\python scripts\matlab_crosscheck.py mathworks
+```
+
+**Result:** **11 of 11** injected misfires detected, 2 false alarms in 71 healthy power strokes. A misfiring stroke loses about 23 rpm where a healthy one gains about 1. Nine of the 11 are pinned to cylinder 3's slot; the other two straddle a slot boundary.
+
+**7c · Our signal processing, re-done in MATLAB.** 60 real engine-audio windows are exported, MATLAB recomputes **all 28 features** (the filters with Signal Processing Toolbox), and Python compares them.
 
 ```bash
 .venv\Scripts\python scripts\matlab_crosscheck.py export
@@ -148,11 +157,9 @@ matlab -batch "cd matlab; signature_check"
 .venv\Scripts\python scripts\matlab_crosscheck.py dsp
 ```
 
-**Result:** all 23 features agree to within **6 × 10⁻¹⁴** (floating-point noise); correlation 1.000000.
+**Result:** 23 features agree to within **6 × 10⁻¹⁴** (floating-point noise). The 3 filter features (envelope peak, envelope prominence, knock-band kurtosis) match on every window, to within about 0.002%; the only difference is how each tool pads the signal edges. The 2 crank features agree to 4 × 10⁻¹² on MATLAB's crank simulation.
 
-**How we use it:** independent proof, in industry-standard MATLAB, that our misfire signature follows real crank physics and that our DSP computes what it claims. Results land in `models/matlab_crosscheck.json`.
-
-> **To unlock more MATLAB work**, install these from MATLAB → Home → Add-Ons (all included in our college licence): Simulink, Powertrain Blockset, AUTOSAR Blockset, Signal Processing Toolbox. Then we can run MathWorks' own misfire example and check the 5 filter-based features.
+**How we use it:** three independent engines (our Python generator, our MATLAB physics, and MathWorks' Simulink model) all show the same misfire signature, and every number our DSP produces is confirmed in industry-standard MATLAB. Results land in `models/matlab_crosscheck.json`.
 
 ---
 
@@ -176,14 +183,14 @@ matlab -batch "cd matlab; signature_check"
 
 | Tab | Shows | How we use it |
 |---|---|---|
-| Startup Check | Key-on scan, Tesla-style car view, health score | Opening demo for judges |
+| Startup Check | Key-on scan on a rotatable 3D wireframe of the chosen car type, zones glowing by health, departure-board status list, health score | Opening demo for judges |
 | Live Drive | 1 Hz OBD telemetry with injected faults, alerts and guidance | Shows the hard-limit rules acting |
-| Signature Lab | Time, FFT, STFT, envelope and order views; all four models' votes | Shows signature extraction, the brief's core |
+| Signature Lab | Time, FFT, STFT, envelope and order views; all four models' votes; overlay the same fault across car types | Shows signature extraction, the brief's core |
 | Adaptive Baseline | Static vs adaptive over 8 months | Shows "normal is personal" |
 | Wear & Health | Phone-battery-style health % per component | Shows wear prediction |
 | Models | Simulator, real-data and MATLAB results | Evidence |
 
-Add `?view=signature&engine=knock` (or `view=drive&obd=coolant_leak&t=440`) to the URL to open one screen with a preset scenario.
+The sidebar's **Car type** dropdown switches between hatchback, sedan, SUV, pickup and sports coupe. Each has its own engine (bore, which sets the knock frequency, plus resonances) and its own 3D body. Add `?view=signature&engine=knock&car=suv` (or `view=drive&obd=coolant_leak&t=440`) to the URL to open one screen with a preset scenario.
 
 ---
 

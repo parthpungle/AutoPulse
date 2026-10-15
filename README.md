@@ -14,7 +14,8 @@ AutoPulse extracts signatures from engine sound, vibration and OBD-II telemetry,
 | Bearing fault classification | **Real** CWRU vibration, unseen motor load | 100% (known easy benchmark) |
 | Adaptive baseline on real driving | 129 **real** carOBD trips, held-out test trips | False alarms on **14%** of healthy trips vs 31% for a fixed baseline; 91% of vacuum leaks caught |
 | Misfire detection on an independent simulator | **MATLAB** crankshaft dynamics, 84 runs | **100%** detected; misfiring cylinder named **100%** at 800–3,500 rpm |
-| DSP cross-check | Same features recomputed in **MATLAB** on real audio | Agree to 6 × 10⁻¹⁴ |
+| Misfire detection on **MathWorks' Simulink engine** | Powertrain Blockset misfire example, detector run blind | **11 / 11** misfires detected, 2 false alarms in 71 healthy strokes |
+| DSP cross-check | **All 28** features recomputed in **MATLAB** | Agree to 6 × 10⁻¹⁴ (filters to ~0.002%) |
 | Adaptive vs fixed baseline over 8 months | Simulated car, summer → winter | 0 vs 74 false-alarm days; real fault caught in 3 days |
 
 Simulator-only scores (SVM 98.3% on held-out simulated engines) are treated as upper bounds; the real-data rows are the numbers that count. Details and caveats: [walkthrough step 6](docs/WALKTHROUGH.md#6--real-data-traintest-evaluate_realpy).
@@ -61,11 +62,12 @@ flowchart LR
 | `autopulse/realdata.py` | Loaders for the real public datasets |
 | `train.py` | Train on simulated engines, test on held-out engines |
 | `evaluate_real.py` | Train and test on real recordings |
-| `matlab/` | MATLAB crankshaft simulation and DSP re-implementation |
+| `matlab/` | MATLAB crankshaft simulation, MathWorks Simulink misfire example runner, DSP re-implementation |
 | `scripts/download_data.py` | Fetch the free public datasets (no login) |
 | `scripts/matlab_crosscheck.py` | Use the MATLAB outputs in the Python pipeline |
 | `scripts/checks/` | Developer sanity checks |
-| `app.py` | Streamlit dashboard |
+| `app.py` | Streamlit dashboard (NavPort-style theme, car-type selector) |
+| `autopulse/ui_car3d.py` | 3D wireframe car (three.js), one body per car type, health zones by status |
 | `report/` | Concept report source (HTML/CSS → PDF) and figures |
 | `models/` | Trained models and every results file (`metrics.json`, `real_metrics.json`, `matlab_crosscheck.json`) |
 

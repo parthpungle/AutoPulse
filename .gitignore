@@ -22,3 +22,10 @@ Thumbs.db
 matlab/out/audio_windows.mat
 matlab/out/matlab_features.mat
 
+# MathWorks example files and raw Simulink logs (regenerate with matlab -batch run_mw_misfire)
+matlab/mw_misfire/
+matlab/out/mw_misfire_*.mat
+matlab/out/mw_misfire_signals.csv
+slprj/
+*.slxc
+

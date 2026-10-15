@@ -7,9 +7,13 @@ import joblib
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
+from scipy.signal import welch
 
 from autopulse.baseline import predict_days_to, simulate_life, simulate_wear
-from autopulse.generator import ENGINE_FAULTS, FAULT_LABELS, make_car, synth_window
+import streamlit.components.v1 as components
+
+from autopulse.generator import CAR_TYPES, ENGINE_FAULTS, FAULT_LABELS, make_car, synth_window
+from autopulse.ui_car3d import car3d_html
 from autopulse.models import HAS_TORCH, cnn_proba, make_cnn
 from autopulse.rules import CRITICAL, INFO, WARNING, evaluate
 from autopulse.signatures import (ORDERS, annotate_peaks, envelope_spectrum, features,
@@ -17,22 +21,50 @@ from autopulse.signatures import (ORDERS, annotate_peaks, envelope_spectrum, fea
 from autopulse.telemetry import OBD_FAULTS, simulate_drive
 
 MODELS = Path(__file__).parent / "models"
-OK_C, WARN_C, CRIT_C, INFO_C, MUTED = "#3ddc97", "#f5a524", "#f31260", "#4ea8ff", "#8a93a6"
+# NavPort-style night palette with AutoPulse's ignition-orange accent
+OK_C, WARN_C, CRIT_C, INFO_C, MUTED, ACCENT = "#74C79C", "#E4B667", "#F0614F", "#7FB3E8", "#A39C92", "#FF8A4C"
+INK, INK2, LINE, PANEL = "#F4F1EC", "#CBC5BC", "#312D29", "#1A1816"
 SEV_COLOR = {CRITICAL: CRIT_C, WARNING: WARN_C, INFO: INFO_C, "ok": OK_C}
-SEV_ICON = {CRITICAL: "⛔", WARNING: "⚠️", INFO: "ℹ️", "ok": "✅"}
+SEV_WORD = {CRITICAL: "FAULT", WARNING: "CHECK", INFO: "NOTE", "ok": "OK"}
 
 st.set_page_config(page_title="AutoPulse", page_icon="🚗", layout="wide")
-st.markdown("""
+st.markdown(f"""
 <style>
-.block-container {padding-top: 1.6rem;}
-.ap-card {border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; background: #161b26;
-          border-left: 5px solid var(--c);}
-.ap-card h4 {margin: 0 0 4px 0; font-size: 1.02rem;}
-.ap-card p {margin: 0 0 6px 0; color: #c9cfdb; font-size: 0.92rem;}
-.ap-card ul {margin: 0 0 4px 18px; padding: 0; font-size: 0.9rem;}
-.ap-row {display:flex; justify-content:space-between; align-items:center; padding:8px 12px;
-         border-radius:10px; background:#161b26; margin-bottom:6px; font-size:0.95rem;}
-.ap-score {font-size: 3.2rem; font-weight: 800; line-height: 1;}
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+html, body, .stApp, [class*="st-"], button, input, textarea {{ font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; }}
+.stApp {{ background-color: #121110;
+  background-image: radial-gradient(rgba(244,241,236,.065) 1px, transparent 1.2px); background-size: 14px 14px; }}
+[data-testid="stHeader"] {{ background: transparent; }}
+[data-testid="stSidebar"] {{ background: {PANEL}; border-right: 1px solid {LINE}; }}
+.block-container {{ padding-top: 1.4rem; }}
+h1, h2, h3 {{ font-family: 'IBM Plex Sans', sans-serif !important; font-weight: 600 !important; letter-spacing: -.01em; color: {INK}; }}
+[data-testid="stWidgetLabel"] p, [data-testid="stCaptionContainer"], .stTabs [data-baseweb="tab"] p,
+[data-testid="stMetricLabel"] p {{ font-family: 'IBM Plex Mono', monospace !important; text-transform: uppercase;
+  letter-spacing: .16em; font-size: .72rem !important; color: {MUTED} !important; }}
+[data-testid="stCaptionContainer"] {{ text-transform: none; letter-spacing: .02em; }}
+.stTabs [aria-selected="true"] p {{ color: {ACCENT} !important; }}
+.stTabs [data-baseweb="tab-highlight"] {{ background-color: {ACCENT}; }}
+[data-testid="stMetricValue"] {{ font-family: 'IBM Plex Mono', monospace; }}
+.ap-eyebrow {{ font: 500 .7rem 'IBM Plex Mono', monospace; letter-spacing: .34em; color: {ACCENT}; text-transform: uppercase; }}
+.ap-brand {{ display:flex; align-items:center; gap:10px; font: 600 1.25rem 'IBM Plex Sans'; color:{INK}; margin: 4px 0 2px; }}
+.ap-sub {{ font: 500 .66rem 'IBM Plex Mono', monospace; letter-spacing: .26em; color: {MUTED}; margin-bottom: 14px; }}
+.ap-card {{ border-radius: 8px; padding: 13px 15px; margin-bottom: 10px; background: rgba(26,24,22,.94);
+  border: 1px solid {LINE}; border-left: 3px solid var(--c); }}
+.ap-card h4 {{ margin: 0 0 4px 0; font-size: 1rem; color: {INK}; }}
+.ap-card p {{ margin: 0 0 6px 0; color: {INK2}; font-size: .9rem; }}
+.ap-card ul {{ margin: 0 0 4px 18px; padding: 0; font-size: .88rem; color: {INK}; }}
+.ap-card a {{ font: 500 .72rem 'IBM Plex Mono', monospace; letter-spacing: .14em; color: {ACCENT}; text-transform: uppercase; }}
+.ap-board {{ border: 1px solid {LINE}; border-radius: 10px; background: rgba(26,24,22,.94); padding: 12px 16px 4px; }}
+.ap-board-head {{ display:flex; justify-content:space-between; font: 500 .64rem 'IBM Plex Mono', monospace;
+  letter-spacing: .3em; color: {MUTED}; padding-bottom: 9px; border-bottom: 1px solid {LINE}; }}
+.ap-row {{ display:grid; grid-template-columns: 1.25fr 1.6fr 64px; gap: 10px; align-items:center; padding: 10px 0;
+  border-bottom: 1px solid {LINE}; font: 500 .78rem 'IBM Plex Mono', monospace; letter-spacing: .1em; }}
+.ap-row:last-child {{ border-bottom: 0; }}
+.ap-row .n {{ color: {INK}; text-transform: uppercase; }}
+.ap-row .d {{ color: {INK2}; letter-spacing: .02em; font-family: 'IBM Plex Sans'; font-size: .84rem; }}
+.ap-row .s {{ justify-self: end; letter-spacing: .2em; }}
+.ap-score {{ font: 500 3.4rem/1 'IBM Plex Mono', monospace; }}
+.ap-verdict {{ font: 500 .74rem 'IBM Plex Mono', monospace; letter-spacing: .24em; text-transform: uppercase; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -73,26 +105,44 @@ def classify(w):
 
 def card(sev, title, msg, actions=(), url=""):
     acts = "".join(f"<li>{a}</li>" for a in actions)
-    link = f'<a href="{url}" target="_blank">📍 Find nearest help on Maps</a>' if url else ""
-    st.markdown(f'<div class="ap-card" style="--c:{SEV_COLOR[sev]}"><h4>{SEV_ICON[sev]} {title}</h4>'
+    link = f'<a href="{url}" target="_blank">Nearest help on maps →</a>' if url else ""
+    tag = f'<span class="ap-eyebrow" style="color:{SEV_COLOR[sev]};letter-spacing:.24em">{SEV_WORD[sev]}</span>'
+    st.markdown(f'<div class="ap-card" style="--c:{SEV_COLOR[sev]}">{tag}<h4>{title}</h4>'
                 f'<p>{msg}</p>{"<ul>" + acts + "</ul>" if acts else ""}{link}</div>', unsafe_allow_html=True)
 
 
 def fig_style(fig, h=280, **kw):
-    fig.update_layout(height=h, margin=dict(l=10, r=10, t=36, b=10), template="plotly_dark",
-                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      legend=dict(orientation="h", y=1.12), **kw)
+    fig.update_layout(height=h, margin=dict(l=10, r=10, t=40, b=10), template="plotly_dark",
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(18,17,16,.55)",
+                      font=dict(family="IBM Plex Sans, Segoe UI, sans-serif", color=INK2, size=12),
+                      title_font=dict(family="IBM Plex Mono, monospace", size=12, color=INK),
+                      legend=dict(orientation="h", y=1.14, font=dict(size=11)), **kw)
+    fig.update_xaxes(gridcolor=LINE, zerolinecolor=LINE, linecolor=LINE)
+    fig.update_yaxes(gridcolor=LINE, zerolinecolor=LINE, linecolor=LINE)
     return fig
 
 
+def board(rows, head=("SUBSYSTEM", "READING · STATUS")):
+    """Departure-board style status list (NavPort look)."""
+    body = "".join(f'<div class="ap-row"><span class="n">{n}</span><span class="d">{d}</span>'
+                   f'<span class="s" style="color:{SEV_COLOR.get(s, MUTED)}">{SEV_WORD.get(s, s.upper())}</span></div>'
+                   for n, s, d in rows)
+    return f'<div class="ap-board"><div class="ap-board-head"><span>{head[0]}</span><span>{head[1]}</span></div>{body}</div>'
+
+
 # ---------------------------------------------------------------- sidebar: the car under test
-st.sidebar.title("🚗 AutoPulse")
-st.sidebar.caption("Multi-sensor signature extraction & pattern recognition for vehicle health")
-st.sidebar.subheader("Simulated car")
+st.sidebar.markdown(
+    '<div class="ap-brand"><svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10.5" '
+    'fill="none" stroke="#FF8A4C" stroke-width="1.6"/><path d="M3.5 12h4l2-5 3 10 2.2-7 1.3 2H20.5" fill="none" '
+    'stroke="#F4F1EC" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg>AutoPulse</div>'
+    '<div class="ap-sub">PREDICTIVE VEHICLE HEALTH</div>', unsafe_allow_html=True)
 # Query parameters preselect a scenario and a single view, e.g. ?view=signature&engine=knock
 # (used to capture report screenshots; normal use shows all tabs).
 qp = st.query_params
-car_id = st.sidebar.selectbox("Car (unseen by models: 8, 9)", list(range(10)), index=8)
+car_type = st.sidebar.selectbox("Car type", list(CAR_TYPES),
+                                index=list(CAR_TYPES).index(qp.get("car", "sedan")),
+                                format_func=lambda k: CAR_TYPES[k]["label"])
+car_id = st.sidebar.selectbox("Unit (models never trained on 8, 9)", list(range(10)), index=8)
 engine_fault = st.sidebar.selectbox("Engine condition (sound / vibration)", ENGINE_FAULTS,
                                     index=ENGINE_FAULTS.index(qp.get("engine", "healthy")),
                                     format_func=lambda k: FAULT_LABELS[k])
@@ -104,7 +154,7 @@ ambient = st.sidebar.slider("Ambient temperature (°C)", -5, 45, 24)
 if st.sidebar.button("🎲 New random sample", width="stretch"):
     st.session_state.seed = int(np.random.randint(1e9))
 seed = st.session_state.setdefault("seed", 42)
-car = make_car(car_id)
+car = make_car(car_id, car_type)
 
 VIEWS = ["startup", "drive", "signature", "baseline", "wear", "models"]
 view = qp.get("view")
@@ -114,31 +164,10 @@ if view in VIEWS:
     hidden = ", ".join(f".st-key-view_{v}" for v in VIEWS if v != view)
     st.markdown(f"<style>{hidden} {{display: none;}}</style>", unsafe_allow_html=True)
 else:
-    tabs = st.tabs(["🚦 Startup Check", "📈 Live Drive", "🔬 Signature Lab",
-                    "🧠 Adaptive Baseline", "🔋 Wear & Health", "📊 Models"])
+    tabs = st.tabs(["Startup check", "Live drive", "Signature lab", "Adaptive baseline", "Wear & health", "Models"])
 
 
 # ---------------------------------------------------------------- 1. startup check
-def car_svg(status):
-    c = {k: SEV_COLOR[v] for k, v in status.items()}
-    return f"""
-<svg viewBox="0 0 220 400" width="100%" style="max-width:240px">
-  <rect x="40" y="20" width="140" height="360" rx="55" fill="#1e2433" stroke="#3a4256" stroke-width="2"/>
-  <rect x="55" y="40" width="110" height="95" rx="30" fill="{c['engine']}" opacity="0.85"/>
-  <text x="110" y="92" text-anchor="middle" fill="#0e1117" font-size="13" font-weight="700">ENGINE</text>
-  <rect x="62" y="150" width="96" height="70" rx="10" fill="#2a3245"/>
-  <rect x="62" y="228" width="96" height="60" rx="10" fill="#2a3245"/>
-  <rect x="70" y="300" width="80" height="55" rx="18" fill="{c['fuel']}" opacity="0.85"/>
-  <text x="110" y="333" text-anchor="middle" fill="#0e1117" font-size="12" font-weight="700">FUEL</text>
-  <rect x="20" y="70" width="22" height="55" rx="6" fill="{c['tyre_fl']}"/>
-  <rect x="178" y="70" width="22" height="55" rx="6" fill="{c['tyre_fr']}"/>
-  <rect x="20" y="280" width="22" height="55" rx="6" fill="{c['tyre_rl']}"/>
-  <rect x="178" y="280" width="22" height="55" rx="6" fill="{c['tyre_rr']}"/>
-  <circle cx="68" cy="160" r="9" fill="{c['battery']}"/><text x="68" y="164" text-anchor="middle" font-size="10" fill="#0e1117">⚡</text>
-  <circle cx="152" cy="160" r="9" fill="{c['cooling']}"/><text x="152" y="164" text-anchor="middle" font-size="10" fill="#0e1117">❄</text>
-</svg>"""
-
-
 def startup_checks():
     """Each check returns (subsystem, status, detail). Uses a cold-start window + OBD state."""
     rng = np.random.default_rng(seed)
@@ -184,39 +213,32 @@ def startup_checks():
 
 
 with tabs[0]:
+    st.markdown('<div class="ap-eyebrow">Key-on scan</div>', unsafe_allow_html=True)
     st.header("Pre-drive health check")
-    st.caption("Runs at key-on: OBD-II codes, crank scan, a cold-start sound/vibration window through "
-               "4 classifiers, and fluid/tyre plausibility checks.")
-    left, right = st.columns([1, 2])
-    run = right.button("▶ Start car", type="primary")
+    st.caption(f"{CAR_TYPES[car_type]['label']} · unit {car_id}. Runs at key-on: OBD-II codes, crank scan, a "
+               "cold-start sound/vibration window through 4 classifiers, and fluid/tyre plausibility checks.")
     checks, zone = startup_checks()
-    svg_slot = left.empty()
-    rows_slot = right.container()
-    if run:
-        pending = {k: "ok" for k in zone}
-        svg_slot.markdown(car_svg({k: "ok" for k in zone}).replace(OK_C, "#3a4256"), unsafe_allow_html=True)
-        slots = [rows_slot.empty() for _ in checks]
-        for s, (name, _, _) in zip(slots, checks):
-            s.markdown(f'<div class="ap-row"><span>⏳ {name}</span><span style="color:{MUTED}">waiting</span></div>',
-                       unsafe_allow_html=True)
-        for s, (name, sev, detail) in zip(slots, checks):
-            s.markdown(f'<div class="ap-row"><span>🔄 {name}</span><span style="color:{MUTED}">checking…</span></div>',
-                       unsafe_allow_html=True)
-            time.sleep(0.45)
-            s.markdown(f'<div class="ap-row"><span>{SEV_ICON[sev]} {name}</span>'
-                       f'<span style="color:{SEV_COLOR[sev]}">{detail}</span></div>', unsafe_allow_html=True)
-    else:
-        for name, sev, detail in checks:
-            rows_slot.markdown(f'<div class="ap-row"><span>{SEV_ICON[sev]} {name}</span>'
-                               f'<span style="color:{SEV_COLOR[sev]}">{detail}</span></div>', unsafe_allow_html=True)
-    svg_slot.markdown(car_svg(zone), unsafe_allow_html=True)
-    penalty = {CRITICAL: 35, WARNING: 12, INFO: 4, "ok": 0}
-    score = max(0, 100 - sum(penalty[s] for _, s, _ in checks))
-    col = OK_C if score >= 85 else WARN_C if score >= 60 else CRIT_C
-    verdict = ("Good to go" if score >= 85 else "Drive, but book a service" if score >= 60
-               else "Do not drive - see alerts")
-    left.markdown(f'<div class="ap-score" style="color:{col}">{score}</div>'
-                  f'<div style="color:{col};font-weight:600">{verdict}</div>', unsafe_allow_html=True)
+    left, right = st.columns([1.15, 1])
+    with left:
+        components.html(car3d_html(car_type, zone, height=430), height=436)
+    with right:
+        penalty = {CRITICAL: 35, WARNING: 12, INFO: 4, "ok": 0}
+        score = max(0, 100 - sum(penalty[s] for _, s, _ in checks))
+        col = OK_C if score >= 85 else WARN_C if score >= 60 else CRIT_C
+        verdict = ("Good to go" if score >= 85 else "Drive, but book a service" if score >= 60
+                   else "Do not drive · see alerts")
+        sc, bt = st.columns([1, 1])
+        sc.markdown(f'<div class="ap-score" style="color:{col}">{score}</div>'
+                    f'<div class="ap-verdict" style="color:{col}">{verdict}</div>', unsafe_allow_html=True)
+        run = bt.button("▶ Start car", type="primary", width="stretch")
+        slot = st.empty()
+        if run:
+            for i in range(len(checks) + 1):
+                shown = [(n, s, d) for n, s, d in checks[:i]] + \
+                        [(n, "checking" if j == i else "waiting", "…") for j, (n, _, _) in enumerate(checks) if j >= i]
+                slot.markdown(board(shown, ("PRE-DRIVE CHECK", "READING · STATUS")), unsafe_allow_html=True)
+                time.sleep(0.4)
+        slot.markdown(board(checks, ("PRE-DRIVE CHECK", "READING · STATUS")), unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------- 2. live drive
@@ -255,20 +277,20 @@ with tabs[1]:
                     card(al.severity, al.title, al.message, al.actions, al.maps_url)
             with g:
                 fig = go.Figure()
-                for col, name, clr in [("coolant_c", "Coolant °C", "#ff7a45"), ("speed_kph", "Speed km/h", MUTED)]:
+                for col, name, clr in [("coolant_c", "Coolant °C", "#FF8A4C"), ("speed_kph", "Speed km/h", MUTED)]:
                     fig.add_scatter(x=d.t, y=d[col], name=name, line=dict(color=clr))
                 fig.add_hline(y=112, line_dash="dot", line_color=CRIT_C, annotation_text="critical")
                 st.plotly_chart(fig_style(fig, 230, title="Temperature & speed"), width="stretch")
                 gc = st.columns(2)
                 fig = go.Figure()
-                fig.add_scatter(x=d.t, y=d.battery_v, name="Battery V", line=dict(color="#ffd23f"))
-                fig.add_scatter(x=d.t, y=d.oil_pressure_bar, name="Oil bar", line=dict(color="#4ea8ff"), yaxis="y2")
+                fig.add_scatter(x=d.t, y=d.battery_v, name="Battery V", line=dict(color="#E4B667"))
+                fig.add_scatter(x=d.t, y=d.oil_pressure_bar, name="Oil bar", line=dict(color="#7FB3E8"), yaxis="y2")
                 fig_style(fig, 230, title="Electrical & lubrication",
                           yaxis2=dict(overlaying="y", side="right", showgrid=False))
                 gc[0].plotly_chart(fig, width="stretch")
                 fig = go.Figure()
                 for col, clr in zip(["tyre_fl_psi", "tyre_fr_psi", "tyre_rl_psi", "tyre_rr_psi"],
-                                    ["#f31260", "#3ddc97", "#4ea8ff", "#f5a524"]):
+                                    ["#F0614F", "#74C79C", "#7FB3E8", "#E4B667"]):
                     fig.add_scatter(x=d.t, y=d[col], name=col[5:7].upper(), line=dict(color=clr))
                 gc[1].plotly_chart(fig_style(fig, 230, title="Tyre pressures (psi)"), width="stretch")
 
@@ -282,11 +304,15 @@ with tabs[1]:
 
 # ---------------------------------------------------------------- 3. signature lab
 with tabs[2]:
+    st.markdown('<div class="ap-eyebrow">Signature extraction</div>', unsafe_allow_html=True)
     st.header("Signature lab: time, frequency, order & time-frequency")
-    c = st.columns(3)
+    c = st.columns([1, 0.6, 1, 1.6])
     rpm = c[0].slider("Engine speed (rpm)", 750, 4000, 1500, 50)
     cold = c[1].toggle("Cold engine", value=False)
     show_s = c[2].slider("Waveform window (ms)", 50, 1000, 200, 50)
+    compare = c[3].multiselect("Compare car types", [k for k in CAR_TYPES if k != car_type],
+                               format_func=lambda k: CAR_TYPES[k]["label"],
+                               help="Overlay the same fault, at the same rpm, on other body/engine families")
     rng = np.random.default_rng(seed)
     w = synth_window(engine_fault, rpm=rpm, car=car, severity=severity,
                      coolant_c=ambient + 3 if cold else 90, misfire_cyl=1, rng=rng)
@@ -306,15 +332,25 @@ with tabs[2]:
                                   xaxis=dict(range=[0, 1])), width="stretch")
     with top[0]:
         n = int(show_s / 1000 * fs)
-        fig = go.Figure(go.Scatter(x=np.arange(n) / fs * 1000, y=x[:n], line=dict(width=1, color="#4ea8ff")))
-        st.plotly_chart(fig_style(fig, 200, title="Time domain - engine block vibration",
+        fig = go.Figure(go.Scatter(x=np.arange(n) / fs * 1000, y=x[:n], line=dict(width=1, color=INFO_C)))
+        st.plotly_chart(fig_style(fig, 200, title="TIME DOMAIN · ENGINE BLOCK VIBRATION",
                                   xaxis_title="ms"), width="stretch")
-        f, X = spectrum(x, fs)
-        fig = go.Figure(go.Scatter(x=f, y=20 * np.log10(X + 1e-9), line=dict(width=1, color="#3ddc97")))
+        fig = go.Figure()
+        palette = [ACCENT, INFO_C, OK_C, WARN_C, "#C792EA", INK2]
+        for i, ct in enumerate([car_type] + compare):
+            if ct == car_type:
+                sig = x
+            else:  # same fault, rpm and seed on another body/engine family
+                sig = synth_window(engine_fault, rpm=rpm, car=make_car(car_id, ct), severity=severity,
+                                   coolant_c=ambient + 3 if cold else 90, misfire_cyl=1,
+                                   rng=np.random.default_rng(seed))["signal"]
+            fw, P = welch(sig, fs, nperseg=1024)
+            fig.add_scatter(x=fw, y=10 * np.log10(P + 1e-12), name=CAR_TYPES[ct]["label"],
+                            line=dict(width=1.6 if ct == car_type else 1.1, color=palette[i % len(palette)]))
         for lbl, fr in annotate_peaks(rpm, car).items():
-            fig.add_vline(x=fr, line_dash="dot", line_color=WARN_C, annotation_text=lbl,
+            fig.add_vline(x=fr, line_dash="dot", line_color=MUTED, annotation_text=lbl,
                           annotation_textangle=-90, annotation_font_size=10)
-        st.plotly_chart(fig_style(fig, 240, title="Frequency domain - FFT (dB)", xaxis_title="Hz",
+        st.plotly_chart(fig_style(fig, 260, title="FREQUENCY DOMAIN · FFT POWER SPECTRUM (dB)", xaxis_title="Hz",
                                   xaxis=dict(range=[0, 10000])), width="stretch")
     row = st.columns(2)
     fS, tS, S = stft_image(x, fs)
@@ -323,7 +359,7 @@ with tabs[2]:
                                   xaxis_title="s", yaxis_title="Hz"), width="stretch")
     fe, E = envelope_spectrum(x, fs)
     sel = fe < 400
-    fig = go.Figure(go.Scatter(x=fe[sel], y=E[sel], line=dict(color="#c792ea")))
+    fig = go.Figure(go.Scatter(x=fe[sel], y=E[sel], line=dict(color="#C792EA")))
     for o in (0.5, 1, 1.5, 2):
         fig.add_vline(x=o * rpm / 60, line_dash="dot", line_color=MUTED)
     fig.add_vline(x=car.bpfo_ratio * car.pulley_ratio * rpm / 60, line_dash="dash", line_color=CRIT_C,
@@ -331,12 +367,13 @@ with tabs[2]:
     row[1].plotly_chart(fig_style(fig, 280, title="Envelope spectrum - impact repetition rate",
                                   xaxis_title="Hz"), width="stretch")
     row = st.columns(2)
+    f, X = spectrum(x, fs)
     oa = order_amplitudes(f, X, rpm)
-    fig = go.Figure(go.Bar(x=[f"{o}x" for o in ORDERS], y=oa, marker_color="#ffd23f"))
+    fig = go.Figure(go.Bar(x=[f"{o}x" for o in ORDERS], y=oa, marker_color="#E4B667"))
     row[0].plotly_chart(fig_style(fig, 240, title="Order spectrum (engine orders)"), width="stretch")
     cs = w["crank_speed"]
     dip = cs < np.mean(cs) - 2 * np.std(cs[cs > np.median(cs) - 3 * np.std(cs)]) if len(cs) > 3 else np.zeros(len(cs), bool)
-    fig = go.Figure(go.Bar(y=cs - np.median(cs), marker_color=np.where(dip, CRIT_C, "#4ea8ff")))
+    fig = go.Figure(go.Bar(y=cs - np.median(cs), marker_color=np.where(dip, CRIT_C, "#7FB3E8")))
     row[1].plotly_chart(fig_style(fig, 240, title="Crank speed deviation per firing (rpm) - misfire shows as dips",
                                   xaxis_title="firing event"), width="stretch")
 
@@ -428,7 +465,7 @@ with tabs[5]:
     pick = st.selectbox("Confusion matrix", list(met["models"]))
     cm = np.array(met["models"][pick]["confusion"])
     labels = [FAULT_LABELS[f].split(" (")[0] for f in met["classes"]]
-    fig = go.Figure(go.Heatmap(z=cm, x=labels, y=labels, colorscale="Greens", text=cm, texttemplate="%{text}"))
+    fig = go.Figure(go.Heatmap(z=cm, x=labels, y=labels, colorscale="Oranges", text=cm, texttemplate="%{text}"))
     st.plotly_chart(fig_style(fig, 460, xaxis_title="predicted", yaxis_title="true",
                               yaxis=dict(autorange="reversed")), width="stretch")
     st.caption(f"{len(met['features'])} hand-crafted signature features: " + ", ".join(met["features"]))
@@ -493,8 +530,21 @@ with tabs[5]:
                         f"{c['detector_trained_on_python_sim']['accuracy']:.0%}")
             m[1].metric("Misfiring cylinder named (crank physics, no training)",
                         f"{c['cylinder_identification_accuracy']:.0%}")
+        if "mathworks" in ML:
+            mw = ML["mathworks"]
+            st.subheader("Blind misfire detection on MathWorks' Simulink engine model")
+            st.caption(mw["source"])
+            m = st.columns(3)
+            m[0].metric("Injected misfires detected", f"{mw['detected_events']} / {mw['misfire_events']}")
+            m[1].metric("False alarms on healthy strokes", f"{mw['false_alarm_strokes']} / {mw['healthy_strokes']}")
+            m[2].metric("Speed gain · healthy vs misfire (rpm)",
+                        f"{mw['speed_gain_rpm']['healthy_median']:+.1f} vs {mw['speed_gain_rpm']['misfire_median']:+.1f}")
         if "dsp" in ML:
             d = ML["dsp"]
-            st.subheader("Signature features recomputed in MATLAB on real audio")
-            st.caption(f"{d['features_compared']} features on {d['windows']} real windows · worst relative "
-                       f"difference {d['worst_max_rel_diff']:.1e} · minimum correlation {d['min_correlation']:.6f}")
+            st.subheader("Signature features recomputed in MATLAB")
+            st.caption(f"All {d.get('total_features_checked', d['features_compared'])} features checked. "
+                       f"{d['features_compared']} on {d['windows']} real audio windows agree to "
+                       f"{d['worst_max_rel_diff']:.0e}; filter features (Signal Processing Toolbox) to "
+                       f"{max(f['median_rel_diff'] for f in d.get('filter_features', [{'median_rel_diff': 0}])):.0e} "
+                       "median; crank features on MATLAB's crank simulation to "
+                       f"{(d.get('crank_features') or {}).get('max_rel_diff', 0):.0e}.")

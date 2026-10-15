@@ -1,9 +1,10 @@
 [theme]
+# NavPort-style night palette with AutoPulse's ignition-orange accent
 base = "dark"
-primaryColor = "#3ddc97"
-backgroundColor = "#0e1117"
-secondaryBackgroundColor = "#161b26"
-textColor = "#e6e9ef"
+primaryColor = "#FF8A4C"
+backgroundColor = "#121110"
+secondaryBackgroundColor = "#1A1816"
+textColor = "#F4F1EC"
 
 [server]
 headless = true

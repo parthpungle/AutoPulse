@@ -42,6 +42,46 @@ for i = 1:size(X, 1)
     flat = exp(mean(log(P(2:end) + 1e-9))) / (mean(P(2:end)) + 1e-9);
     F(i, :) = [log10(rmsv), max(abs(x)) / rmsv, kurt, skw, zcr, bandE, ordA, centroid, flat];
 end
-save(fullfile(outDir, 'matlab_features.mat'), 'F');
-fprintf('signature_check: %d windows x %d features -> %s\n', size(F, 1), size(F, 2), fullfile(outDir, 'matlab_features.mat'));
+% --- filter-based features (Signal Processing Toolbox): Hilbert envelope and knock band
+Ffilt = nan(size(X, 1), 3);
+if exist('hilbert', 'file')
+    for i = 1:size(X, 1)
+        x = X(i, :); n = numel(x);
+        env = abs(hilbert(bp(x, fs, [2000 7500])));
+        env = env - mean(env);
+        w = 0.5 - 0.5 * cos(2 * pi * (0:n - 1) / (n - 1));
+        E = abs(fft(env .* w)); E = E(1:floor(n / 2) + 1) * 2 / sum(w);
+        f = (0:floor(n / 2)) * fs / n;
+        sel = f > 3 & f < 400;
+        fe = f(sel); Es = E(sel);
+        [pk, j] = max(Es);
+        kb = bp(x, fs, [5500 8000]);
+        kmu = mean(kb); ksd = sqrt(mean((kb - kmu) .^ 2));
+        Ffilt(i, :) = [fe(j) / (rpm(i) / 60), log10(pk / (median(Es) + 1e-9) + 1e-9), mean((kb - kmu) .^ 4) / ksd ^ 4 - 3];
+    end
+end
+
+% --- crank-speed features on MATLAB's own crankshaft simulation (per run)
+C = [];
+crankFile = fullfile(outDir, 'crank_runs.csv');
+if exist(crankFile, 'file')
+    T = readtable(crankFile);
+    runs = unique(T.run);
+    C = zeros(numel(runs), 3);
+    for r = 1:numel(runs)
+        s = T.speed_rpm(T.run == runs(r));
+        C(r, :) = [runs(r), std(s, 1) / mean(s) * 100, (mean(s) - min(s)) / mean(s) * 100];
+    end
+end
+save(fullfile(outDir, 'matlab_features.mat'), 'F', 'Ffilt', 'C');
+fprintf('signature_check: %d windows x %d + %d filter features, %d crank runs -> %s\n', size(F, 1), size(F, 2), ...
+        size(Ffilt, 2), size(C, 1), fullfile(outDir, 'matlab_features.mat'));
+end
+
+function y = bp(x, fs, band)
+% 4th-order Butterworth band-pass, zero-phase, clipped to what the sample rate can represent
+hi = min(band(2), 0.45 * fs);
+[z, p, k] = butter(4, [band(1) hi] / (fs / 2), 'bandpass');
+[sos, g] = zp2sos(z, p, k);
+y = filtfilt(sos, g, x);
 end
