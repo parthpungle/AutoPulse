@@ -87,6 +87,12 @@ def context_key(rpm, coolant):
     return f"{'cold' if coolant < 60 else 'warm'}_{band}"
 
 
+def _put_latest(q, w):
+    if q.full():
+        q.get_nowait()                                           # a paused session must not grow memory: drop the oldest
+    q.put_nowait(w)
+
+
 class LiveHub:
     def __init__(self, models):
         self.models = models                     # () -> (feature models, cnn or None, (prior mean, prior std))
@@ -97,6 +103,7 @@ class LiveHub:
                      "since": None, "frames": 0, "latency_ms": None}
         self.discovered = {}                     # (ip, port) -> beacon + last_seen
         self.latest = None
+        self.vib_queues = set()                  # Vibration analysis sessions listening to the vehicle
         self.reset()
 
     # ------------------------------------------------------------------ state
@@ -247,6 +254,13 @@ class LiveHub:
         except Exception:                                       # noqa: BLE001
             self.ui.discard(ws)
 
+    def offer_window(self, w):
+        """Hand each decoded 1 s vehicle window (24 kHz, no gaps) to the open Vibration analysis sessions."""
+        if self.loop is None:
+            return
+        for q in list(self.vib_queues):
+            self.loop.call_soon_threadsafe(_put_latest, q, w)
+
     def hello(self):
         return {"type": "hello", "link": self.link, "history": list(self.history), "latest": self.latest}
 
@@ -297,6 +311,7 @@ class LiveHub:
             return {"state": "off", "status": "ok", "label": "Engine off"}, None
         feat, cnn, _ = self.models()
         w = decode_vibration(vib)
+        self.offer_window(w)
         x, fs, rpm = w["signal"], w["fs"], w["rpm"]
         f = features(x, fs, rpm, w["crank_speed"])
         votes = {name: m.predict_proba(f[None])[0] for name, m in feat.items()}

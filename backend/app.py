@@ -10,9 +10,9 @@ from pathlib import Path
 
 import joblib
 import numpy as np
-from fastapi import FastAPI
+from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from scipy.signal import welch
@@ -24,6 +24,9 @@ from autopulse.rules import CRITICAL, INFO, WARNING, evaluate
 from autopulse.signatures import (ORDERS, annotate_peaks, envelope_spectrum, features, order_amplitudes,
                                   spectrum, stft_image)
 from autopulse.telemetry import OBD_FAULTS, simulate_drive
+from autopulse import vibration
+from autopulse.vibclassify import make_classifier
+from autopulse.vibstream import run_session
 
 ROOT = Path(__file__).resolve().parents[1]
 MODELS = ROOT / "models"
@@ -236,6 +239,59 @@ def wear():
                            {"id": "tyres", "name": "Tyre tread", "health": float(last.tyre_tread_pct)}],
             "battery": {"day": W.day.tolist(), "raw": rnd(W.crank_dip_v, 3), "comp": rnd(W.crank_dip_comp_v, 3),
                         "limit": 3.2, "months_left": round(days_left / 30, 1) if days_left else None}}
+
+
+# ------------------------------------------------------------------ uploaded accelerometer recordings
+@app.post("/api/vibration/analyze")
+async def vibration_analyze(
+    file: UploadFile = File(...),
+    sampling_rate_hz: float | None = Form(None),
+    axes: str = Form(""),
+    units: str = Form("unknown"),
+    rpm: float | None = Form(None),
+    sensor_location: str = Form(""),
+    notes: str = Form(""),
+    time_unit: str = Form("s"),
+    detrend: str = Form("mean"),
+    highpass_hz: float | None = Form(None),
+    lowpass_hz: float | None = Form(None),
+    envelope: bool = Form(False),
+):
+    """CSV upload -> validate -> preprocess -> signatures (time, FFT, STFT, optional envelope/orders)
+    -> classification if a compatible trained model exists (else status 'unavailable')."""
+    try:
+        if units not in vibration.UNITS:
+            raise vibration.VibrationError("bad_units", f"units must be one of {list(vibration.UNITS)}.")
+        raw = await file.read(vibration.MAX_BYTES + 1)
+        axis_list = [a.strip() for a in axes.split(",") if a.strip()]
+        channels, fs, meta, warns = vibration.parse_csv(raw, axis_list, sampling_rate_hz, time_unit)
+        res = vibration.analyze(channels, fs, detrend=detrend, highpass_hz=highpass_hz, lowpass_hz=lowpass_hz,
+                                rpm=rpm, envelope=envelope)
+        classification = vibration.classify(res["features"], fs)
+    except vibration.VibrationError as e:
+        return JSONResponse({"status": "error", "code": e.code, "message": e.message}, status_code=e.status)
+    if units == "unknown":
+        warns.append("Acceleration units were not specified; amplitudes are reported in the file's own units.")
+    return {"status": "success", "source": "uploaded_recording",
+            "recording": {"filename": file.filename, "size_bytes": len(raw), "units": units,
+                          "sensor_location": sensor_location or None, "notes": notes or None, "rpm": rpm, **meta},
+            "sampling_rate_hz": fs, "channels": res["channels"], "analysis_channels": res["analysis_channels"],
+            "features": res["features"], "waveform": res["waveform"], "spectrum": res["spectrum"],
+            "spectrogram": res["spectrogram"], "envelope": res.get("envelope"), "orders": res.get("orders"),
+            "settings": res["settings"], "classification": classification, "warnings": warns + res["warnings"]}
+
+
+classify_native = make_classifier(models)
+
+
+@app.websocket("/api/vibration/live")
+async def vibration_live(ws: WebSocket):
+    """Simulated accelerometer stream with start / pause / resume / stop / reset (see autopulse/vibstream.py)."""
+    await ws.accept()
+    try:
+        await run_session(ws, classify_native)
+    except WebSocketDisconnect:
+        pass
 
 
 # ------------------------------------------------------------------ evidence

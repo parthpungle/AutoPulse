@@ -3,13 +3,14 @@ import { useApi } from '../api.js';
 import LineChart from '../components/charts/LineChart.jsx';
 import { HBars } from '../components/charts/Bars.jsx';
 import { Stat, Tabs } from '../components/ui.jsx';
+import VibrationTab from './VibrationTab.jsx';
 
 export default function Insights() {
   const [tab, setTab] = useState('baseline');
   return (
     <div className="stack">
-      <Tabs items={[['baseline', 'Adaptive baseline'], ['wear', 'Component wear']]} value={tab} onChange={setTab} />
-      {tab === 'baseline' ? <Baseline /> : <Wear />}
+      <Tabs items={[['baseline', 'Adaptive baseline'], ['wear', 'Component wear'], ['vibration', 'Vibration analysis']]} value={tab} onChange={setTab} />
+      {tab === 'baseline' ? <Baseline /> : tab === 'wear' ? <Wear /> : <VibrationTab />}
     </div>
   );
 }

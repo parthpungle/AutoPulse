@@ -213,3 +213,15 @@ table.data td.num, table.data th.num { text-align: right; }
 .check:disabled { cursor: default; }
 .check:disabled:hover { background: transparent; }
 
+/* ---------- vibration analysis ---------- */
+input[type=text], input[type=number] {
+  height: 36px; width: 100%; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--surface-2);
+}
+.vib-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; align-items: start; }
+.vib-drop { border: 1px dashed var(--line-2); border-radius: var(--r); padding: 14px 16px; background: var(--surface-2); }
+.vib-error { border: 1px solid var(--critical); border-radius: 9px; padding: 10px 12px; color: var(--ink); background: rgba(208, 59, 59, 0.08); font-size: 13px; }
+.vib-warn { border: 1px solid var(--warning); border-radius: 9px; padding: 10px 12px; font-size: 13px; color: var(--ink-2); background: rgba(217, 164, 65, 0.07); }
+.vib-axes { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; color: var(--ink-2); }
+.vib-axes label { display: inline-flex; gap: 6px; align-items: center; }
+pre.vib-code { font: 12px var(--mono); background: var(--surface-2); border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 6px 0 0; color: var(--ink-2); }
+@media (max-width: 800px) { .vib-grid { grid-template-columns: 1fr !important; } }

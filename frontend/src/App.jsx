@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { AudioWaveform, Car, FlaskConical, Gauge, HeartPulse, SlidersHorizontal, TrendingUp } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { AudioWaveform, Car, FlaskConical, Gauge, HeartPulse, Printer, SlidersHorizontal, TrendingUp } from 'lucide-react';
 import { CAR_INFO, ENGINE_FAULTS, OBD_FAULTS, ScenarioProvider, label, useScenario } from './scenario.jsx';
 import ScenarioDrawer from './components/ScenarioDrawer.jsx';
+import Report from './components/Report.jsx';
 import Garage from './pages/Garage.jsx';
 import HealthCheck from './pages/HealthCheck.jsx';
 import LiveDrive from './pages/LiveDrive.jsx';
@@ -32,9 +33,11 @@ function Shell() {
   const initial = new URLSearchParams(window.location.search).get('page');
   const [page, setPage] = useState(PAGES.some((p) => p.id === initial) ? initial : 'garage');
   const [drawer, setDrawer] = useState(false);
+  const [report, setReport] = useState(() => new URLSearchParams(window.location.search).has('report'));
   const { s, activeFaults } = useScenario();
   const P = PAGES.find((p) => p.id === page);
   const go = (id) => setPage(id);
+  const closeReport = useCallback(() => setReport(false), []);
 
   return (
     <div className="shell">
@@ -66,6 +69,9 @@ function Shell() {
             <button className="chip" onClick={() => go('garage')} title="Change car">
               <Car size={16} strokeWidth={1.7} color="var(--accent)" />{CAR_INFO[s.car_type].name}
             </button>
+            <button className="btn" onClick={() => setReport(true)} title="Printable health report for this car">
+              <Printer size={16} />Report
+            </button>
             <button className="btn" onClick={() => setDrawer(true)}>
               <SlidersHorizontal size={16} />Scenario{activeFaults > 0 && <span className="badge">{activeFaults}</span>}
             </button>
@@ -83,6 +89,7 @@ function Shell() {
         </div>
       </main>
       {drawer && <ScenarioDrawer onClose={() => setDrawer(false)} />}
+      {report && <Report onClose={closeReport} />}
     </div>
   );
 }

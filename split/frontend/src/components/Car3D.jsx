@@ -45,6 +45,8 @@ const positionsOf = (geo) => (geo.index ? geo.toNonIndexed() : geo).attributes.p
 function styled(scene, zones, opts) {
   const root = scene.clone(true);
   const pulsing = [];
+  const wheels = [];                                   // the four hub nodes; everything of a wheel hangs off its hub
+  let wheelR = 0.33;
   const centers = {};
   const box = new THREE.Box3();
   const jobs = [];                                     // [source object, positions, [[color, width, opacity], ...], pulse?]
@@ -55,6 +57,7 @@ function styled(scene, zones, opts) {
     const bad = !!status && status !== 'ok';
     const sc = STATUS_HEX[status] || STATUS_HEX.ok;
     const n = o.name || '';
+    if (/^tyre_(fl|fr|rl|rr)$/.test(n)) wheels.push(o);
 
     if (o.isLine) {
       o.visible = false;
@@ -71,6 +74,7 @@ function styled(scene, zones, opts) {
       box.setFromObject(o);
       const c = box.getCenter(new THREE.Vector3());
       centers[zone] = mat === 'Tyre' || !centers[zone] ? c : centers[zone].lerp(c, 0.5);
+      if (mat === 'Tyre') wheelR = box.getSize(new THREE.Vector3()).y / 2;
     }
     if (mat === 'Zone') {
       if (opts.hideZones) { o.visible = false; return; }
@@ -102,22 +106,121 @@ function styled(scene, zones, opts) {
       if (pulse) pulsing.push(l.material);
     });
   });
-  return { root, pulsing, centers };
+  return { root, pulsing, centers, wheels, wheelR };
 }
 
-function Model({ type, zones, onCenters, hideZones = false }) {
+/* ---------------------------------------------------------------- motion
+   The car stays at the origin and the world slides past it: the road, its markings and the posts scroll
+   along -X (the car faces +X) and the wheels roll to match. Distances are scaled so highway speeds stay
+   readable instead of a blur. */
+const WORLD_PER_METRE = 0.5;
+const MAX_WHEEL_RAD_S = 30;                            // beyond this the 5 spokes alias into a backwards crawl
+
+function Drive({ motion }) {
+  useFrame((_, dt) => {
+    const m = motion.current;
+    const step = Math.min(dt, 0.1);
+    m.kph += (m.target - m.kph) * Math.min(1, step * 1.6);   // OBD speed arrives once a second: ease between readings
+    if (m.kph < 0.2 && m.target === 0) m.kph = 0;
+    m.dist += (m.kph / 3.6) * WORLD_PER_METRE * step;
+  });
+  return null;
+}
+
+function Model({ type, zones, onCenters, hideZones = false, motion = null }) {
   const { scene } = useGLTF(`/models/${type}.glb`);
   const key = JSON.stringify(zones || {});
   const built = useMemo(() => styled(scene, zones, { hideZones }), [scene, key, hideZones]); // eslint-disable-line
   useEffect(() => { onCenters?.(built.centers); }, [built, onCenters]);
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     const k = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 4);
     built.pulsing.forEach((m) => {
       if (m.isLineMaterial) m.opacity = m.linewidth > 3 ? 0.1 + 0.3 * k : 0.55 + 0.45 * k;
       else m.opacity = 0.08 + 0.22 * k;
     });
+    if (!motion) return;
+    const kph = motion.current.kph;
+    const w = Math.min(MAX_WHEEL_RAD_S, ((kph / 3.6) * WORLD_PER_METRE) / built.wheelR);
+    built.wheels.forEach((hub) => hub.rotateZ(-w * Math.min(dt, 0.1)));
+    // a faint road shimmer through the suspension, growing with speed
+    built.root.position.y = kph > 1 ? 0.004 * Math.min(1, kph / 120) * Math.sin(clock.elapsedTime * 31) : 0;
   });
   return <primitive object={built.root} />;
+}
+
+/** Fades a strip out towards both ends so the road has no hard edge. */
+function fadeTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 1;
+  const g = c.getContext('2d').createLinearGradient(0, 0, 256, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.3, 'rgba(255,255,255,1)');
+  g.addColorStop(0.7, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  const ctx = c.getContext('2d'); ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 1);
+  return new THREE.CanvasTexture(c);
+}
+
+const ROAD_LEN = 34;
+const LANE_NEAR = 1.45, LANE_FAR = -1.45, ROAD_FAR = -4.35;      // z of the markings; the car drives in the near lane
+const fadeAt = (x) => 1 - THREE.MathUtils.smoothstep(Math.abs(x), ROAD_LEN * 0.18, ROAD_LEN * 0.48);
+
+/** Repeating items that scroll with the distance travelled: lane dashes, roadside posts, surface streaks. */
+function Scroller({ motion, period, count, offset = 0, rate = 1, children }) {
+  const group = useRef();
+  const span = period * count;
+  useFrame(() => {
+    const g = group.current;
+    if (!g) return;
+    const d = motion.current.dist * rate;
+    g.children.forEach((c, i) => {
+      const x = ((((i * period + offset - d) % span) + span) % span) - span / 2;
+      c.position.x = x;
+      const f = fadeAt(x) * (c.userData.base ?? 1);
+      if (c.material) c.material.opacity = f * (c.userData.speedFade ? Math.min(1, Math.max(0, (motion.current.kph - 25) / 70)) : 1);
+    });
+  });
+  return <group ref={group}>{Array.from({ length: count }, (_, i) => children(i))}</group>;
+}
+
+function Road({ motion }) {
+  const fade = useMemo(fadeTexture, []);
+  const streakZ = useMemo(() => Array.from({ length: 14 }, (_, i) => ROAD_FAR + 0.3 + ((i * 0.618) % 1) * (LANE_NEAR - ROAD_FAR - 0.5)), []);
+  const strip = (z, width, color, opacity) => (
+    <mesh position={[0, 0.003, z]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={0}>
+      <planeGeometry args={[ROAD_LEN, width]} />
+      <meshBasicMaterial color={color} transparent opacity={opacity} alphaMap={fade} depthWrite={false} />
+    </mesh>
+  );
+  return (
+    <group>
+      {strip((LANE_NEAR + ROAD_FAR) / 2, LANE_NEAR - ROAD_FAR + 0.3, '#24211e', 0.55)}
+      {strip(LANE_NEAR, 0.06, '#d8d1c6', 0.55)}
+      {strip(ROAD_FAR, 0.06, '#d8d1c6', 0.4)}
+      <Scroller motion={motion} period={4} count={9}>
+        {(i) => (
+          <mesh key={i} position={[0, 0.004, LANE_FAR]} rotation={[-Math.PI / 2, 0, 0]} userData={{ base: 0.6 }}>
+            <planeGeometry args={[1.5, 0.08]} />
+            <meshBasicMaterial color="#e9e2d6" transparent depthWrite={false} />
+          </mesh>
+        )}
+      </Scroller>
+      <Scroller motion={motion} period={6} count={6}>
+        {(i) => (
+          <mesh key={i} position={[0, 0.2, LANE_NEAR + 0.75]} userData={{ base: 0.5 }}>
+            <boxGeometry args={[0.04, 0.4, 0.04]} />
+            <meshBasicMaterial color="#9b958c" transparent depthWrite={false} />
+          </mesh>
+        )}
+      </Scroller>
+      <Scroller motion={motion} period={2.6} count={14} rate={1.15}>
+        {(i) => (
+          <mesh key={i} position={[0, 0.005, streakZ[i]]} rotation={[-Math.PI / 2, 0, 0]} userData={{ base: 0.22, speedFade: true }}>
+            <planeGeometry args={[1.8, 0.012]} />
+            <meshBasicMaterial color="#cfc8bd" transparent depthWrite={false} />
+          </mesh>
+        )}
+      </Scroller>
+    </group>
+  );
 }
 
 function Rig({ focusPoint, autoRotate }) {
@@ -174,22 +277,28 @@ export function CarThumb({ type, spin = false }) {
   );
 }
 
-export default function Car3D({ type, zones, focus = null, autoRotate = true, height = '100%', distance = 1 }) {
+/** `speed` (km/h), when given, puts the car on a road that scrolls past at that speed with the wheels turning.
+ *  Drag to orbit, scroll or pinch to zoom, in either mode. */
+export default function Car3D({ type, zones, focus = null, autoRotate = true, height = '100%', distance = 1, speed = null }) {
   const centers = useRef({});
+  const motion = useRef({ target: 0, kph: 0, dist: 0 });
+  const road = speed != null;
+  motion.current.target = Math.max(0, speed || 0);
   const focusPoint = focus && centers.current[focus] ? centers.current[focus] : null;
   return (
     <div style={{ height, width: '100%', position: 'relative' }}>
       <Canvas dpr={[1, 2]} camera={{ position: [5.8 * distance, 2.3 * distance, 6.6 * distance], fov: 30 }}
         gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }} style={{ background: 'transparent' }}>
         <Suspense fallback={null}>
-          <Model type={type} zones={zones} onCenters={(c) => { centers.current = c; }} />
+          <Model type={type} zones={zones} onCenters={(c) => { centers.current = c; }} motion={road ? motion : null} />
         </Suspense>
-        <Floor />
+        {road ? <><Drive motion={motion} /><Road motion={motion} /></> : <Floor />}
         <Fit distance={distance} />
-        <OrbitControls makeDefault enablePan={false} minDistance={4.5} maxDistance={16}
+        <OrbitControls makeDefault enablePan={false} minDistance={3.2} maxDistance={road ? 22 : 16}
           maxPolarAngle={1.48} autoRotateSpeed={0.6} enableDamping />
         <Rig focusPoint={focusPoint} autoRotate={autoRotate} />
       </Canvas>
+      {road && <div className="car3d-hint">Drag to turn · scroll to zoom</div>}
     </div>
   );
 }

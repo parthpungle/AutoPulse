@@ -64,6 +64,30 @@ flowchart LR
     R --> D
 ```
 
+## Vibration analysis (simulated live accelerometer, or a recorded CSV)
+
+Start AutoPulse as usual (`run.bat`) and open **Insights -> Vibration analysis** (third tab beside Adaptive baseline and Component wear). It has two modes:
+
+**Live simulation (default)** - no file needed. Pick a fault, severity, RPM, condition (warm/cold), sampling frequency (2-24 kHz), simulation speed and rolling window, then **Start / Pause / Resume / Stop / Reset**. A WebSocket (`/api/vibration/live`, `autopulse/vibstream.py`) streams X/Y/Z samples in 0.25 s batches and a fresh analysis of the rolling window every 0.5 s: scrolling waveform, FFT, STFT spectrogram, RMS / peak-to-peak / crest factor / skewness / kurtosis, spectral peaks and band energy, and engine orders (RPM is known in simulation). Fault, severity, RPM, condition and speed can be changed mid-run; sampling rate, window and seed need a reset.
+
+- **This is simulated.** `autopulse/vibsim.py` takes the engine simulator's block-vibration signal (`generator.synth_window`, the same signal the classifiers were trained on) and derives three axes from it: fixed seeded gains (X 1.0, Y ~0.55, Z ~0.8), independent sensor noise (3% of RMS), +1 g gravity on Z. Units are g by assumption. Successive 1 s blocks are cross-faded (20 ms) so they are continuous in amplitude but not phase-coherent. The source is made at 24 kHz and anti-alias resampled to the chosen rate (below ~12 kHz the 4-8 kHz knock/valve/squeal content cannot be represented). RPM is constant between settings changes. Same seed = same samples. None of this is a measurement of a real engine.
+- **Memory is bounded:** the server keeps only the rolling window (<= 10 s); the browser keeps the last window of decimated display points. Features and spectra use every sample in the window.
+- **Injected fault vs prediction:** the fault you select is the ground truth of the demo and is shown separately from the model's prediction. The prediction comes from the existing SVM/Softmax/ANN(/CNN) ensemble run on the simulator's native 24 kHz source window (the domain it was trained on), so it works on simulated data only and says nothing about real engines. If no classifier loads, the DSP still runs and classification shows as unavailable/error.
+- **Split edition** (`split/`): the same tab is there with a third mode, **Paired vehicle**, which runs the identical rolling analysis on the 1 s, 24 kHz vibration windows the paired vehicle laptop streams (`autopulse/wire.py`). Windows are appended in order with no gaps; the vehicle sends no ground truth. After changing shared vibration files run `python scripts/sync_split.py` to copy them into `split/`.
+- **Limits:** one run per browser tab; stopping, resetting, or closing the tab cancels the server-side task.
+
+**Recorded CSV** - the second mode analyses a recorded accelerometer file (`POST /api/vibration/analyze`, `autopulse/vibration.py`).
+
+- **Columns:** optional `timestamp` (also `time`, `t`, `time_s`, `seconds`; seconds unless you pick ms/us) and `accel_x/y/z` (aliases `acc_x`, `ax`, `accelerometer_x`, `a_x`). Any other column can be analysed only if you tick it explicitly.
+- **Sampling rate:** derived from timestamps if present; otherwise you must enter it. A supplied value that differs >2% from the timestamps is rejected, not overridden. Irregular timestamps (>1% of intervals off by >10%), duplicates, NaN/inf/non-numeric cells, <256 samples, >2 M samples or >25 MB are rejected with a specific error; nothing is dropped or interpolated.
+- **Units:** `g`, `m/s2` or unknown. No conversion is applied.
+- **Processing:** DC removal (default), optional linear detrend, high/low-pass (Butterworth, zero-phase). FFT: Hann window, amplitude-corrected single-sided spectrum, resolution = fs/N. STFT: Hann, 1024 samples, 50% overlap, dB. Multi-axis files also get a vector-magnitude channel. Envelope spectrum and engine orders are optional.
+- **Classification of CSV recordings:** `available`, `unavailable` or `error`. **No accelerometer-recording classifier is shipped**, so it reports `unavailable` (the existing models need 24 kHz simulated windows and an RPM). A compatible one is picked up if `models/vibration_classifier.joblib` + `.json` (name, classes, feature_names like `accel_x.rms`, optional sampling_rate_hz, domain, limitations) exist.
+- **Sample:** `data/samples/synthetic_accel_3axis.csv` (regenerate: `python scripts/make_vibration_sample.py`) is **synthetic**.
+- **Not tested with physical sensors.** Neither mode is a live hardware connection.
+
+**Tests:** `.venv\Scripts\python -m pytest tests -q` (backend), `cd frontend && npm test` (stream state logic, plain Node), and for split `cd split && ..\.venv\Scripts\python -m pytest tests -q`. There are no browser/component tests.
+
 ## Repository map
 
 | Path | What it is |
