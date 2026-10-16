@@ -10,6 +10,7 @@ import { HBars } from '../components/charts/Bars.jsx';
 import { Stat } from '../components/ui.jsx';
 import { Classification, hz, hzTick, num } from './VibrationAnalysis.jsx';
 import { initialStream, reduceStream } from '../vibStreamState.js';
+import { connectVibration, vibrationUrl } from '../vibSocket.js';
 
 const COLORS = { accel_x: 'var(--s1)', accel_y: 'var(--s2)', accel_z: 'var(--s3)', vibration: 'var(--s1)' };
 const DEFAULTS = { fault: 'healthy', severity: 0.8, rpm: 1500, condition: 'warm', fs: 4000, speed: 1, window_s: 4, seed: 0, envelope: false };
@@ -18,20 +19,13 @@ const LIVE_KEYS = ['fault', 'severity', 'rpm', 'condition', 'speed'];
 function useVibrationStream() {
   const [s, dispatch] = useReducer(reduceStream, initialStream);
   const [connected, setConnected] = useState(false);
-  const ws = useRef(null);
+  const conn = useRef(null);
   useEffect(() => {
-    let closed = false, retry;
-    const open = () => {
-      const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/vibration/live`);
-      ws.current = sock;
-      sock.onopen = () => setConnected(true);
-      sock.onmessage = (e) => dispatch(JSON.parse(e.data));
-      sock.onclose = () => { setConnected(false); if (!closed) retry = setTimeout(open, 1500); };
-    };
-    open();
-    return () => { closed = true; clearTimeout(retry); ws.current?.close(); };   // server cancels its run on disconnect
+    const c = connectVibration({ url: vibrationUrl(), onMessage: dispatch, onStatus: setConnected });
+    conn.current = c;
+    return () => { c.close(); conn.current = null; };   // the server cancels its run when the socket closes
   }, []);
-  const send = useCallback((m) => ws.current?.readyState === 1 && ws.current.send(JSON.stringify(m)), []);
+  const send = useCallback((m) => conn.current?.send(m), []);
   return { ...s, connected, send };
 }
 

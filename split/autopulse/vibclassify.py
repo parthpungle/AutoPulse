@@ -13,7 +13,13 @@ def make_classifier(models):
     """
     def classify(w):
         try:
-            feat, cnn, _ = models()
+            loaded = models()
+        except FileNotFoundError as e:   # no trained artifacts on this machine: say so, never guess
+            return {"status": "unavailable", "label": None, "confidence": None, "probabilities": None, "model": None,
+                    "reason": f"Model artifact not found ({getattr(e, 'filename', None) or e}); run train.py. "
+                              "Signal analysis continues without classification."}
+        try:
+            feat, cnn, _ = loaded
             x = features(w["signal"], w["fs"], w["rpm"], w["crank_speed"])
             votes = {name: m.predict_proba(x[None])[0] for name, m in feat.items()}
             if cnn is not None:

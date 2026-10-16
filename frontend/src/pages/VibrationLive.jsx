@@ -10,6 +10,7 @@ import { HBars } from '../components/charts/Bars.jsx';
 import { Stat } from '../components/ui.jsx';
 import { Classification, hz, hzTick, num } from './VibrationAnalysis.jsx';
 import { initialStream, reduceStream } from '../vibStreamState.js';
+import { connectVibration, vibrationUrl } from '../vibSocket.js';
 
 const COLORS = { accel_x: 'var(--s1)', accel_y: 'var(--s2)', accel_z: 'var(--s3)', vibration: 'var(--s1)' };
 const DEFAULTS = { fault: 'healthy', severity: 0.8, rpm: 1500, condition: 'warm', fs: 4000, speed: 1, window_s: 4, seed: 0, envelope: false };
@@ -18,20 +19,13 @@ const LIVE_KEYS = ['fault', 'severity', 'rpm', 'condition', 'speed'];
 function useVibrationStream() {
   const [s, dispatch] = useReducer(reduceStream, initialStream);
   const [connected, setConnected] = useState(false);
-  const ws = useRef(null);
+  const conn = useRef(null);
   useEffect(() => {
-    let closed = false, retry;
-    const open = () => {
-      const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/vibration/live`);
-      ws.current = sock;
-      sock.onopen = () => setConnected(true);
-      sock.onmessage = (e) => dispatch(JSON.parse(e.data));
-      sock.onclose = () => { setConnected(false); if (!closed) retry = setTimeout(open, 1500); };
-    };
-    open();
-    return () => { closed = true; clearTimeout(retry); ws.current?.close(); };   // server cancels its run on disconnect
+    const c = connectVibration({ url: vibrationUrl(), onMessage: dispatch, onStatus: setConnected });
+    conn.current = c;
+    return () => { c.close(); conn.current = null; };   // the server cancels its run when the socket closes
   }, []);
-  const send = useCallback((m) => ws.current?.readyState === 1 && ws.current.send(JSON.stringify(m)), []);
+  const send = useCallback((m) => conn.current?.send(m), []);
   return { ...s, connected, send };
 }
 
@@ -49,6 +43,10 @@ export default function VibrationLive({ source = 'simulator' }) {
     if (active && LIVE_KEYS.includes(k)) send({ cmd: 'update', settings: { [k]: v } });
   };
   const start = () => send({ cmd: 'start', source, settings: cfg });
+  // Vehicle mode follows the vehicle laptop: start listening as soon as the socket is up (and again after a reconnect).
+  useEffect(() => {
+    if (isVehicle && connected && st === 'idle') send({ cmd: 'start', source, settings: cfg });
+  }, [isVehicle, connected, st]); // eslint-disable-line react-hooks/exhaustive-deps
   const channels = Object.keys(wave);
   const channel = state?.channel || channels[0];
   const faults = meta?.engine_faults || [{ id: 'healthy', label: 'Healthy' }];
@@ -113,11 +111,12 @@ export default function VibrationLive({ source = 'simulator' }) {
           </div>
         )}
         {!isVehicle && <label className="vib-axes"><input type="checkbox" checked={cfg.envelope} disabled={active} onChange={(e) => change('envelope', e.target.checked)} />Compute envelope spectrum</label>}
-        {isVehicle && <div className="note">Analyses the 1 s, 24 kHz vibration windows streamed by the paired vehicle (turn its ignition on). Mono channel; no ground truth is sent by the vehicle.</div>}
+        {isVehicle && <div className="note">Follows the paired vehicle: the car, engine fault, severity and driving mode are chosen in its control panel (vehicle.html), and this view analyses the 1 s, 24 kHz vibration windows it streams. Mono channel; the vehicle never tells the dashboard what it injected.</div>}
         {error && <div className="vib-error" role="alert">{error}</div>}
       </div>
 
-      {st === 'idle' && !ana && <div className="muted">Press Start to stream a simulated engine accelerometer.</div>}
+      {!isVehicle && st === 'idle' && !ana && <div className="muted">Press Start to stream a simulated engine accelerometer.</div>}
+      {isVehicle && running && !channels.length && <div className="muted">Waiting for the vehicle… pair it and start its engine in vehicle.html.</div>}
 
       {channels.length > 0 && (
         <div className="grid2 vib-grid" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start' }}>
