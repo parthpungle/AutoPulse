@@ -1,12 +1,13 @@
 // Small shared UI pieces: status icon + word, score ring, tabs, stat tile, alert card.
-import { CircleCheck, LoaderCircle, MapPin } from 'lucide-react';
+import { Boxes, CircleCheck, CircleDot, CircleHelp, FlaskConical, Info, Syringe, LoaderCircle, MapPin, OctagonAlert, TriangleAlert } from 'lucide-react';
 import { AlarmShape, prio } from './hmi.jsx';
 
-export const STATUS_WORD = { ok: 'OK', info: 'Note', warning: 'Check', critical: 'Fault', pending: 'Waiting', checking: 'Checking' };
+export const STATUS_WORD = { ok: 'OK', info: 'Note', unsure: 'Unsure', warning: 'Check', critical: 'Fault', pending: 'Waiting', checking: 'Checking' };
 
 export function StatusIcon({ status, size = 16 }) {
   const p = prio(status);
   if (p) return <AlarmShape priority={p} size={size} />;          // ISA-18.2: shape + number, never colour alone
+  if (status === 'unsure') return <CircleHelp size={size} strokeWidth={1.75} color="var(--p4)" />;   // models disagree: not an alarm
   if (status === 'ok') return <CircleCheck size={size} strokeWidth={1.75} color="var(--text-dim)" />;
   return <LoaderCircle size={size} strokeWidth={2} color="var(--muted)" className={status === 'checking' ? 'spin' : ''} />;
 }
@@ -79,5 +80,41 @@ export function Spark({ values, width = 120, height = 28, color = 'var(--s1)', m
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden>
       <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+// Where a number comes from. Never colour alone: each kind also has its own icon, border style and words.
+// Colours: Okabe-Ito (colour-blind safe). real = filled, real_injected = striped, simulink = double border,
+// simulator = dashed outline.
+export const SOURCES = {
+  real: { label: 'Real', icon: CircleDot, color: '#56B4E9', title: 'Measured on real recordings or real driving' },
+  real_injected: { label: 'Real trips + injected faults', icon: Syringe, color: '#009E73',
+    title: 'Real healthy driving data; the faults were added in software' },
+  simulink: { label: 'Simulink/MATLAB', icon: Boxes, color: '#E69F00', title: 'Independent MATLAB or MathWorks Simulink engine model' },
+  simulator: { label: 'Simulator', icon: FlaskConical, color: '#BBBBBB', title: 'Our own engine simulator: an upper bound, not a real-world score' },
+};
+
+export function SourceTag({ kind, label }) {
+  const k = SOURCES[kind] || SOURCES.simulator;
+  const Icon = k.icon;
+  return (
+    <span className={`source-tag src-${kind}`} style={{ '--src': k.color }} title={k.title}>
+      <Icon size={12} strokeWidth={2.2} aria-hidden />{label || k.label}
+    </span>
+  );
+}
+
+/** Shown when the engine models abstain: an explicit "Unsure" with the reasons the dashboard found. */
+export function UnsureBanner({ engine }) {
+  if (!engine || engine.status !== 'unsure') return null;
+  return (
+    <div className="panel panel-pad unsure-banner" role="status">
+      <StatusIcon status="unsure" size={22} />
+      <div>
+        <div style={{ fontWeight: 600, fontSize: 15 }}>Engine verdict: unsure · {Math.round((engine.confidence || 0) * 100)}% confidence</div>
+        <div className="note" style={{ marginTop: 2 }}>{engine.why_unsure || 'The models disagree.'}</div>
+        <div className="note muted" style={{ marginTop: 2 }}>Not called healthy, not called a fault. Get closer, wait for a steadier engine speed, or have it checked.</div>
+      </div>
+    </div>
   );
 }

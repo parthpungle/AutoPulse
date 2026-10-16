@@ -1,0 +1,834 @@
+{
+  "source": "simulator",
+  "caveats": "Simulator only: test cars 8-9 come from the same generator as the training cars, so this measures sensitivity to each factor inside our own physics model, not real-world robustness. rpm 4000-6000 is outside the training range (750-4000). Each cell is one seed of 168 windows: re-running the SVM on 5 other seeds moved macro F1 by about +-0.03 (sd), up to +-0.08 for a single seed.",
+  "quick": false,
+  "test_cars": [
+    8,
+    9
+  ],
+  "windows_per_class_per_car": 12,
+  "defaults": {
+    "noise": 1.0,
+    "sev": [
+      0.4,
+      1.0
+    ],
+    "rpm": [
+      750,
+      4000
+    ],
+    "coolant": "25% cold 10-45 \u00b0C, 75% warm 80-95 \u00b0C",
+    "gain_db": 0.0
+  },
+  "models_from": "models/*.joblib + cnn.pt (train.py, cars 0-7) and models/fusion (train_fusion.py)",
+  "metrics": [
+    "accuracy",
+    "macro_f1",
+    "misfire_recall",
+    "healthy_fpr"
+  ],
+  "conditions": [
+    {
+      "label": "noise x1",
+      "factor": "noise",
+      "n": 168,
+      "noise": 1.0
+    },
+    {
+      "label": "noise x2",
+      "factor": "noise",
+      "n": 168,
+      "noise": 2.0
+    },
+    {
+      "label": "noise x5",
+      "factor": "noise",
+      "n": 168,
+      "noise": 5.0
+    },
+    {
+      "label": "noise x10",
+      "factor": "noise",
+      "n": 168,
+      "noise": 10.0
+    },
+    {
+      "label": "noise x20",
+      "factor": "noise",
+      "n": 168,
+      "noise": 20.0
+    },
+    {
+      "label": "severity 0.1-0.3",
+      "factor": "severity",
+      "n": 168,
+      "sev": [
+        0.1,
+        0.3
+      ]
+    },
+    {
+      "label": "severity 0.3-0.6",
+      "factor": "severity",
+      "n": 168,
+      "sev": [
+        0.3,
+        0.6
+      ]
+    },
+    {
+      "label": "severity 0.6-1.0",
+      "factor": "severity",
+      "n": 168,
+      "sev": [
+        0.6,
+        1.0
+      ]
+    },
+    {
+      "label": "rpm 750-2000",
+      "factor": "rpm",
+      "n": 168,
+      "rpm": [
+        750,
+        2000
+      ]
+    },
+    {
+      "label": "rpm 2000-4000",
+      "factor": "rpm",
+      "n": 168,
+      "rpm": [
+        2000,
+        4000
+      ]
+    },
+    {
+      "label": "rpm 4000-6000",
+      "factor": "rpm",
+      "n": 168,
+      "rpm": [
+        4000,
+        6000
+      ]
+    },
+    {
+      "label": "cold 10-45 \u00b0C",
+      "factor": "coolant",
+      "n": 168,
+      "coolant": "cold"
+    },
+    {
+      "label": "warm 80-95 \u00b0C",
+      "factor": "coolant",
+      "n": 168,
+      "coolant": "warm"
+    },
+    {
+      "label": "gain -10 dB",
+      "factor": "gain",
+      "n": 168,
+      "gain_db": -10.0
+    },
+    {
+      "label": "gain 0 dB",
+      "factor": "gain",
+      "n": 168,
+      "gain_db": 0.0
+    },
+    {
+      "label": "gain +10 dB",
+      "factor": "gain",
+      "n": 168,
+      "gain_db": 10.0
+    }
+  ],
+  "results": {
+    "SVM": {
+      "noise x1": {
+        "accuracy": 0.9940476190476191,
+        "macro_f1": 0.9940450344271446,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.0
+      },
+      "noise x2": {
+        "accuracy": 0.9404761904761905,
+        "macro_f1": 0.9400032738138113,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.25
+      },
+      "noise x5": {
+        "accuracy": 0.6190476190476191,
+        "macro_f1": 0.610795951517923,
+        "misfire_recall": 0.7916666666666666,
+        "healthy_fpr": 0.5416666666666666
+      },
+      "noise x10": {
+        "accuracy": 0.22023809523809523,
+        "macro_f1": 0.12319277621603202,
+        "misfire_recall": 0.08333333333333333,
+        "healthy_fpr": 1.0
+      },
+      "noise x20": {
+        "accuracy": 0.1488095238095238,
+        "macro_f1": 0.04686318972033258,
+        "misfire_recall": 0.0,
+        "healthy_fpr": 1.0
+      },
+      "severity 0.1-0.3": {
+        "accuracy": 0.27976190476190477,
+        "macro_f1": 0.24705726762688787,
+        "misfire_recall": 0.0,
+        "healthy_fpr": 0.125
+      },
+      "severity 0.3-0.6": {
+        "accuracy": 0.9345238095238095,
+        "macro_f1": 0.936948997251349,
+        "misfire_recall": 0.9583333333333334,
+        "healthy_fpr": 0.0
+      },
+      "severity 0.6-1.0": {
+        "accuracy": 0.9702380952380952,
+        "macro_f1": 0.9704963843863884,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.16666666666666666
+      },
+      "rpm 750-2000": {
+        "accuracy": 0.9940476190476191,
+        "macro_f1": 0.9940450344271448,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.0
+      },
+      "rpm 2000-4000": {
+        "accuracy": 0.9642857142857143,
+        "macro_f1": 0.9644761747681095,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.20833333333333334
+      },
+      "rpm 4000-6000": {
+        "accuracy": 0.9047619047619048,
+        "macro_f1": 0.9048301594885445,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.3333333333333333
+      },
+      "cold 10-45 \u00b0C": {
+        "accuracy": 0.9404761904761905,
+        "macro_f1": 0.9420054843642883,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.20833333333333334
+      },
+      "warm 80-95 \u00b0C": {
+        "accuracy": 0.9880952380952381,
+        "macro_f1": 0.9882066869300912,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.041666666666666664
+      },
+      "gain -10 dB": {
+        "accuracy": 0.9226190476190477,
+        "macro_f1": 0.9222428126914713,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.2916666666666667
+      },
+      "gain 0 dB": {
+        "accuracy": 0.9821428571428571,
+        "macro_f1": 0.9823459448534271,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "gain +10 dB": {
+        "accuracy": 0.9761904761904762,
+        "macro_f1": 0.9764078674948241,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.041666666666666664
+      }
+    },
+    "Softmax": {
+      "noise x1": {
+        "accuracy": 0.9940476190476191,
+        "macro_f1": 0.9940450344271446,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.041666666666666664
+      },
+      "noise x2": {
+        "accuracy": 0.9107142857142857,
+        "macro_f1": 0.9069414615756463,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.4166666666666667
+      },
+      "noise x5": {
+        "accuracy": 0.5773809523809523,
+        "macro_f1": 0.4961275787190945,
+        "misfire_recall": 0.9583333333333334,
+        "healthy_fpr": 1.0
+      },
+      "noise x10": {
+        "accuracy": 0.42857142857142855,
+        "macro_f1": 0.3566237619442384,
+        "misfire_recall": 0.7916666666666666,
+        "healthy_fpr": 1.0
+      },
+      "noise x20": {
+        "accuracy": 0.27976190476190477,
+        "macro_f1": 0.23034378502358793,
+        "misfire_recall": 0.5,
+        "healthy_fpr": 1.0
+      },
+      "severity 0.1-0.3": {
+        "accuracy": 0.35714285714285715,
+        "macro_f1": 0.3333848690991548,
+        "misfire_recall": 0.0,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "severity 0.3-0.6": {
+        "accuracy": 0.9464285714285714,
+        "macro_f1": 0.9475074971282186,
+        "misfire_recall": 0.9583333333333334,
+        "healthy_fpr": 0.041666666666666664
+      },
+      "severity 0.6-1.0": {
+        "accuracy": 0.9761904761904762,
+        "macro_f1": 0.9760239760239761,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.16666666666666666
+      },
+      "rpm 750-2000": {
+        "accuracy": 0.9940476190476191,
+        "macro_f1": 0.9940450344271448,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.0
+      },
+      "rpm 2000-4000": {
+        "accuracy": 0.9523809523809523,
+        "macro_f1": 0.951295708783266,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.25
+      },
+      "rpm 4000-6000": {
+        "accuracy": 0.875,
+        "macro_f1": 0.859640980065353,
+        "misfire_recall": 0.9583333333333334,
+        "healthy_fpr": 0.7083333333333334
+      },
+      "cold 10-45 \u00b0C": {
+        "accuracy": 0.9404761904761905,
+        "macro_f1": 0.9423979716611516,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.25
+      },
+      "warm 80-95 \u00b0C": {
+        "accuracy": 0.9821428571428571,
+        "macro_f1": 0.9821195685886355,
+        "misfire_recall": 0.9583333333333334,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "gain -10 dB": {
+        "accuracy": 0.9345238095238095,
+        "macro_f1": 0.9329400757972187,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.2916666666666667
+      },
+      "gain 0 dB": {
+        "accuracy": 0.9702380952380952,
+        "macro_f1": 0.9700715950715951,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.16666666666666666
+      },
+      "gain +10 dB": {
+        "accuracy": 0.9166666666666666,
+        "macro_f1": 0.9142906584627213,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.375
+      }
+    },
+    "ANN": {
+      "noise x1": {
+        "accuracy": 0.9821428571428571,
+        "macro_f1": 0.9824780976220275,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.041666666666666664
+      },
+      "noise x2": {
+        "accuracy": 0.8273809523809523,
+        "macro_f1": 0.8057766611896523,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.7916666666666666
+      },
+      "noise x5": {
+        "accuracy": 0.4880952380952381,
+        "macro_f1": 0.450994527944044,
+        "misfire_recall": 0.7916666666666666,
+        "healthy_fpr": 1.0
+      },
+      "noise x10": {
+        "accuracy": 0.30952380952380953,
+        "macro_f1": 0.28658218741771274,
+        "misfire_recall": 0.5833333333333334,
+        "healthy_fpr": 1.0
+      },
+      "noise x20": {
+        "accuracy": 0.27976190476190477,
+        "macro_f1": 0.25470629588276644,
+        "misfire_recall": 0.375,
+        "healthy_fpr": 1.0
+      },
+      "severity 0.1-0.3": {
+        "accuracy": 0.2916666666666667,
+        "macro_f1": 0.2615657612827424,
+        "misfire_recall": 0.041666666666666664,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "severity 0.3-0.6": {
+        "accuracy": 0.8988095238095238,
+        "macro_f1": 0.9029354927052058,
+        "misfire_recall": 0.875,
+        "healthy_fpr": 0.0
+      },
+      "severity 0.6-1.0": {
+        "accuracy": 0.9761904761904762,
+        "macro_f1": 0.9760239760239761,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.16666666666666666
+      },
+      "rpm 750-2000": {
+        "accuracy": 0.9880952380952381,
+        "macro_f1": 0.9880926534747638,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.0
+      },
+      "rpm 2000-4000": {
+        "accuracy": 0.9642857142857143,
+        "macro_f1": 0.9639592344177688,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.20833333333333334
+      },
+      "rpm 4000-6000": {
+        "accuracy": 0.875,
+        "macro_f1": 0.8624238506591447,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.625
+      },
+      "cold 10-45 \u00b0C": {
+        "accuracy": 0.8988095238095238,
+        "macro_f1": 0.899363843984745,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.25
+      },
+      "warm 80-95 \u00b0C": {
+        "accuracy": 0.9880952380952381,
+        "macro_f1": 0.9880900688542894,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.041666666666666664
+      },
+      "gain -10 dB": {
+        "accuracy": 0.9404761904761905,
+        "macro_f1": 0.9417669078896116,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.041666666666666664
+      },
+      "gain 0 dB": {
+        "accuracy": 0.9642857142857143,
+        "macro_f1": 0.9646617964464254,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      },
+      "gain +10 dB": {
+        "accuracy": 0.9761904761904762,
+        "macro_f1": 0.9761178635587975,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      }
+    },
+    "CNN": {
+      "noise x1": {
+        "accuracy": 0.6964285714285714,
+        "macro_f1": 0.6970178469462669,
+        "misfire_recall": 0.2916666666666667,
+        "healthy_fpr": 0.5
+      },
+      "noise x2": {
+        "accuracy": 0.5416666666666666,
+        "macro_f1": 0.5180196430993348,
+        "misfire_recall": 0.08333333333333333,
+        "healthy_fpr": 0.5416666666666666
+      },
+      "noise x5": {
+        "accuracy": 0.38095238095238093,
+        "macro_f1": 0.3279081076175751,
+        "misfire_recall": 0.0,
+        "healthy_fpr": 0.7916666666666666
+      },
+      "noise x10": {
+        "accuracy": 0.27380952380952384,
+        "macro_f1": 0.16584024914313553,
+        "misfire_recall": 0.0,
+        "healthy_fpr": 1.0
+      },
+      "noise x20": {
+        "accuracy": 0.27380952380952384,
+        "macro_f1": 0.18535005484372089,
+        "misfire_recall": 0.125,
+        "healthy_fpr": 0.9583333333333334
+      },
+      "severity 0.1-0.3": {
+        "accuracy": 0.16071428571428573,
+        "macro_f1": 0.08902107067244683,
+        "misfire_recall": 0.0,
+        "healthy_fpr": 0.5
+      },
+      "severity 0.3-0.6": {
+        "accuracy": 0.5119047619047619,
+        "macro_f1": 0.5136375030023391,
+        "misfire_recall": 0.08333333333333333,
+        "healthy_fpr": 0.4166666666666667
+      },
+      "severity 0.6-1.0": {
+        "accuracy": 0.7678571428571429,
+        "macro_f1": 0.7618721652794856,
+        "misfire_recall": 0.25,
+        "healthy_fpr": 0.4583333333333333
+      },
+      "rpm 750-2000": {
+        "accuracy": 0.7083333333333334,
+        "macro_f1": 0.7173735463056871,
+        "misfire_recall": 0.4166666666666667,
+        "healthy_fpr": 0.5
+      },
+      "rpm 2000-4000": {
+        "accuracy": 0.7380952380952381,
+        "macro_f1": 0.7400420934625009,
+        "misfire_recall": 0.2916666666666667,
+        "healthy_fpr": 0.5
+      },
+      "rpm 4000-6000": {
+        "accuracy": 0.5714285714285714,
+        "macro_f1": 0.5268047737927256,
+        "misfire_recall": 0.0,
+        "healthy_fpr": 0.5
+      },
+      "cold 10-45 \u00b0C": {
+        "accuracy": 0.6488095238095238,
+        "macro_f1": 0.6683351725904918,
+        "misfire_recall": 0.3333333333333333,
+        "healthy_fpr": 0.5
+      },
+      "warm 80-95 \u00b0C": {
+        "accuracy": 0.7202380952380952,
+        "macro_f1": 0.7304230618511014,
+        "misfire_recall": 0.4166666666666667,
+        "healthy_fpr": 0.4583333333333333
+      },
+      "gain -10 dB": {
+        "accuracy": 0.7440476190476191,
+        "macro_f1": 0.7577057854529631,
+        "misfire_recall": 0.4166666666666667,
+        "healthy_fpr": 0.4166666666666667
+      },
+      "gain 0 dB": {
+        "accuracy": 0.7440476190476191,
+        "macro_f1": 0.7475805801091315,
+        "misfire_recall": 0.2916666666666667,
+        "healthy_fpr": 0.4583333333333333
+      },
+      "gain +10 dB": {
+        "accuracy": 0.7142857142857143,
+        "macro_f1": 0.7211906772766213,
+        "misfire_recall": 0.375,
+        "healthy_fpr": 0.5
+      }
+    },
+    "Fused SVM": {
+      "noise x1": {
+        "accuracy": 0.9761904761904762,
+        "macro_f1": 0.9761490683229814,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      },
+      "noise x2": {
+        "accuracy": 0.9702380952380952,
+        "macro_f1": 0.9702869597687098,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.041666666666666664
+      },
+      "noise x5": {
+        "accuracy": 0.6845238095238095,
+        "macro_f1": 0.7074639140708218,
+        "misfire_recall": 0.75,
+        "healthy_fpr": 0.125
+      },
+      "noise x10": {
+        "accuracy": 0.25595238095238093,
+        "macro_f1": 0.20284744856173426,
+        "misfire_recall": 0.16666666666666666,
+        "healthy_fpr": 0.0
+      },
+      "noise x20": {
+        "accuracy": 0.1488095238095238,
+        "macro_f1": 0.04732984293193717,
+        "misfire_recall": 0.0,
+        "healthy_fpr": 0.0
+      },
+      "severity 0.1-0.3": {
+        "accuracy": 0.34523809523809523,
+        "macro_f1": 0.3354883299709112,
+        "misfire_recall": 0.041666666666666664,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "severity 0.3-0.6": {
+        "accuracy": 0.9642857142857143,
+        "macro_f1": 0.9647434752941748,
+        "misfire_recall": 0.9583333333333334,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "severity 0.6-1.0": {
+        "accuracy": 0.9702380952380952,
+        "macro_f1": 0.9699116153701498,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.20833333333333334
+      },
+      "rpm 750-2000": {
+        "accuracy": 1.0,
+        "macro_f1": 1.0,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.0
+      },
+      "rpm 2000-4000": {
+        "accuracy": 0.9821428571428571,
+        "macro_f1": 0.9820728291316527,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      },
+      "rpm 4000-6000": {
+        "accuracy": 0.9642857142857143,
+        "macro_f1": 0.9646200607902735,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      },
+      "cold 10-45 \u00b0C": {
+        "accuracy": 0.9880952380952381,
+        "macro_f1": 0.9882066869300912,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.0
+      },
+      "warm 80-95 \u00b0C": {
+        "accuracy": 0.9761904761904762,
+        "macro_f1": 0.9760239760239761,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.16666666666666666
+      },
+      "gain -10 dB": {
+        "accuracy": 0.9642857142857143,
+        "macro_f1": 0.9644387150539735,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.16666666666666666
+      },
+      "gain 0 dB": {
+        "accuracy": 0.9880952380952381,
+        "macro_f1": 0.9880745341614906,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "gain +10 dB": {
+        "accuracy": 0.9642857142857143,
+        "macro_f1": 0.963718820861678,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.25
+      }
+    },
+    "Fused ANN": {
+      "noise x1": {
+        "accuracy": 0.9464285714285714,
+        "macro_f1": 0.9463856052069517,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "noise x2": {
+        "accuracy": 0.9285714285714286,
+        "macro_f1": 0.9251152768799827,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.375
+      },
+      "noise x5": {
+        "accuracy": 0.6369047619047619,
+        "macro_f1": 0.6014335946539336,
+        "misfire_recall": 0.875,
+        "healthy_fpr": 1.0
+      },
+      "noise x10": {
+        "accuracy": 0.4226190476190476,
+        "macro_f1": 0.3865896179260235,
+        "misfire_recall": 0.75,
+        "healthy_fpr": 1.0
+      },
+      "noise x20": {
+        "accuracy": 0.2619047619047619,
+        "macro_f1": 0.21276818419675564,
+        "misfire_recall": 0.4583333333333333,
+        "healthy_fpr": 1.0
+      },
+      "severity 0.1-0.3": {
+        "accuracy": 0.25595238095238093,
+        "macro_f1": 0.23666653543500832,
+        "misfire_recall": 0.16666666666666666,
+        "healthy_fpr": 0.125
+      },
+      "severity 0.3-0.6": {
+        "accuracy": 0.9166666666666666,
+        "macro_f1": 0.9194503611646091,
+        "misfire_recall": 0.9166666666666666,
+        "healthy_fpr": 0.0
+      },
+      "severity 0.6-1.0": {
+        "accuracy": 0.9880952380952381,
+        "macro_f1": 0.9880745341614906,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "rpm 750-2000": {
+        "accuracy": 0.9821428571428571,
+        "macro_f1": 0.9820728291316527,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.0
+      },
+      "rpm 2000-4000": {
+        "accuracy": 0.9702380952380952,
+        "macro_f1": 0.9703064455595903,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.041666666666666664
+      },
+      "rpm 4000-6000": {
+        "accuracy": 0.875,
+        "macro_f1": 0.8736377929578322,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.375
+      },
+      "cold 10-45 \u00b0C": {
+        "accuracy": 0.9285714285714286,
+        "macro_f1": 0.9283961511207638,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.16666666666666666
+      },
+      "warm 80-95 \u00b0C": {
+        "accuracy": 0.9583333333333334,
+        "macro_f1": 0.958902982413708,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      },
+      "gain -10 dB": {
+        "accuracy": 0.9464285714285714,
+        "macro_f1": 0.946987105665578,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      },
+      "gain 0 dB": {
+        "accuracy": 0.9583333333333334,
+        "macro_f1": 0.958607761247041,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      },
+      "gain +10 dB": {
+        "accuracy": 0.9761904761904762,
+        "macro_f1": 0.9761347647292035,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      }
+    },
+    "Late fusion": {
+      "noise x1": {
+        "accuracy": 0.9940476190476191,
+        "macro_f1": 0.9940450344271446,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.0
+      },
+      "noise x2": {
+        "accuracy": 0.9761904761904762,
+        "macro_f1": 0.9756941737734055,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.16666666666666666
+      },
+      "noise x5": {
+        "accuracy": 0.6964285714285714,
+        "macro_f1": 0.6973836447240702,
+        "misfire_recall": 0.8333333333333334,
+        "healthy_fpr": 0.4583333333333333
+      },
+      "noise x10": {
+        "accuracy": 0.34523809523809523,
+        "macro_f1": 0.2882400513979461,
+        "misfire_recall": 0.5416666666666666,
+        "healthy_fpr": 0.7916666666666666
+      },
+      "noise x20": {
+        "accuracy": 0.15476190476190477,
+        "macro_f1": 0.09904841702076725,
+        "misfire_recall": 0.16666666666666666,
+        "healthy_fpr": 1.0
+      },
+      "severity 0.1-0.3": {
+        "accuracy": 0.3273809523809524,
+        "macro_f1": 0.3336234843274411,
+        "misfire_recall": 0.041666666666666664,
+        "healthy_fpr": 0.125
+      },
+      "severity 0.3-0.6": {
+        "accuracy": 0.9583333333333334,
+        "macro_f1": 0.9590351351823084,
+        "misfire_recall": 0.9583333333333334,
+        "healthy_fpr": 0.0
+      },
+      "severity 0.6-1.0": {
+        "accuracy": 0.9821428571428571,
+        "macro_f1": 0.9820728291316527,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      },
+      "rpm 750-2000": {
+        "accuracy": 1.0,
+        "macro_f1": 1.0,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.0
+      },
+      "rpm 2000-4000": {
+        "accuracy": 0.9761904761904762,
+        "macro_f1": 0.9761178635587974,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.125
+      },
+      "rpm 4000-6000": {
+        "accuracy": 0.9702380952380952,
+        "macro_f1": 0.9699696048632218,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "cold 10-45 \u00b0C": {
+        "accuracy": 0.9642857142857143,
+        "macro_f1": 0.9640028778928819,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.20833333333333334
+      },
+      "warm 80-95 \u00b0C": {
+        "accuracy": 0.9940476190476191,
+        "macro_f1": 0.9940450344271446,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.041666666666666664
+      },
+      "gain -10 dB": {
+        "accuracy": 0.9523809523809523,
+        "macro_f1": 0.9525655976676385,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "gain 0 dB": {
+        "accuracy": 0.9880952380952381,
+        "macro_f1": 0.9880745341614906,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.08333333333333333
+      },
+      "gain +10 dB": {
+        "accuracy": 0.9880952380952381,
+        "macro_f1": 0.9880952380952381,
+        "misfire_recall": 1.0,
+        "healthy_fpr": 0.041666666666666664
+      }
+    }
+  }
+}

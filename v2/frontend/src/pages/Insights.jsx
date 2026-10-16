@@ -7,14 +7,15 @@ import LineChart from '../components/charts/LineChart.jsx';
 import { HBars } from '../components/charts/Bars.jsx';
 import { useSize } from '../components/charts/useWidth.js';
 import { Tabs } from '../components/ui.jsx';
+import VibrationTab from './VibrationTab.jsx';
 
 export default function Insights() {
   const [tab, setTab] = useState('baseline');
   useNavTarget('insights', 'tab', setTab);
   return (
     <div className="ins" data-spot="insights-panel">
-      <Tabs items={[['baseline', 'Adaptive baseline'], ['wear', 'Component wear']]} value={tab} onChange={setTab} />
-      {tab === 'baseline' ? <Baseline /> : <Wear />}
+      <Tabs items={[['baseline', 'Adaptive baseline'], ['wear', 'Component wear'], ['vibration', 'Vibration analysis']]} value={tab} onChange={setTab} />
+      {tab === 'baseline' ? <Baseline /> : tab === 'wear' ? <Wear /> : <div className="ins-scroll"><VibrationTab /></div>}
     </div>
   );
 }

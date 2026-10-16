@@ -18,6 +18,7 @@ import Recorder from './lab/Recorder.jsx';
 import { describeCycle, foldCycle } from './lab/cycle.js';
 import Timeline from './lab/Timeline.jsx';
 import './lab/lab.css';
+import RealClip from './RealClip.jsx';
 
 const VIEWS = [
   ['time', 'Waveform'], ['spectrum', 'Spectrum'], ['spectrogram', 'Spectrogram'],
@@ -32,7 +33,29 @@ const WHY = {
   crank: 'Speed change on every firing. A misfiring cylinder stops pushing, so the crank slows on its turn.',
 };
 
+const MODES = [['live', 'Live engine'], ['real', 'Real clip']];
+
+/** Live engine: the paired vehicle, one second at a time. Real clip: upload or record a real engine
+ *  (Parth's real-audio models). Without a vehicle the page opens on Real clip. */
 export default function Signatures() {
+  const { latest } = useLive();
+  const [picked, setPicked] = useState(null);
+  const mode = picked || (latest ? 'live' : 'real');
+  return (
+    <div className="stack">
+      <Tabs items={MODES} value={mode} onChange={setPicked} />
+      {mode === 'real' ? <RealClip /> : latest ? <Lab /> : (
+        <div className="empty fade-in">
+          <div className="empty-ico"><Power size={28} strokeWidth={1.5} /></div>
+          <h2>No vehicle streaming</h2>
+          <p className="note">Connect a vehicle with the link icon at the top right, or switch to Real clip.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Lab() {
   const { latest, history, serviced, replay } = useLive();
   const store = useLabStore();
   const frames = store.frames;

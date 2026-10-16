@@ -151,7 +151,7 @@ function Shell() {
       <main className="main">
         <div className={`content ${FIT.has(page) ? 'fit' : ''}`} key={page}>
           <div className="fade-in" style={FIT.has(page) ? { height: '100%' } : undefined}>
-            {P.live && !latest ? <NoVehicle onPair={() => setDrawer(true)} /> : (
+            {P.live && !latest && page !== 'signatures' ? <NoVehicle onPair={() => setDrawer(true)} /> : (
               <>
                 {page === 'overview' && <Overview go={setPage} />}
                 {page === 'check' && <HealthCheck />}

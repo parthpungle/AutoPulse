@@ -176,6 +176,18 @@ if not "%ROLE%"=="1" (
             exit /b 1
         )
     )
+    REM  Real-audio models: only when the real recordings are downloaded; otherwise skip quietly.
+    if not exist "%~dp0models\real_audio\meta.json" if exist "%~dp0data\raw\engine_audio" (
+        echo [..] Training models on real engine recordings ^(a few minutes^) ...
+        "%VENV_PY%" "%~dp0train_real.py"
+        if errorlevel 1 echo [WARN] Real-audio training failed; the dashboard keeps the simulator models.
+    )
+    REM  Fusion models (mic + accelerometer + OBD, simulator data only): needed for the live fused verdict.
+    if not exist "%~dp0models\fusion\meta.json" (
+        echo [..] Training the mic + accelerometer + OBD fusion models ^(a few minutes^) ...
+        "%VENV_PY%" "%~dp0train_fusion.py"
+        if errorlevel 1 echo [WARN] Fusion training failed; the dashboard falls back to the accelerometer-only models.
+    )
 )
 echo.
 

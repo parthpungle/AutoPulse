@@ -50,6 +50,15 @@ def stft_image(x, fs, n_freq=64):
     return f[:256].reshape(n_freq, pool).mean(1), t, S.reshape(n_freq, pool, -1).mean(1)
 
 
+def stft_power(x, fs, nperseg=1024, overlap=0.5):
+    """Generic STFT power in dB (Hann window, unpooled) for arbitrary-rate recordings.
+    Returns frequency bins (Hz), time bins (s), power (dB re 1 unit^2) and the settings used."""
+    nperseg = int(min(nperseg, len(x)))
+    noverlap = int(nperseg * overlap)
+    f, t, Z = signal.stft(x, fs, nperseg=nperseg, noverlap=noverlap, boundary=None, padded=False)
+    return f, t, 10 * np.log10(np.abs(Z) ** 2 + 1e-12), {"nperseg": nperseg, "noverlap": noverlap, "window": "hann"}
+
+
 FEATURE_NAMES = (
     ["log_rms", "crest_factor", "kurtosis", "skewness", "zero_cross_rate"]
     + [f"band_{lo}_{hi}" for lo, hi in BANDS]
@@ -89,8 +98,9 @@ def features(x, fs, rpm, crank_speed=None):
     else:
         irregularity = min_dip = 0.0
 
+    flat = np.ptp(x) == 0                                     # constant input (dead sensor): no shape to measure
     vec = [np.log10(rms), np.abs(x).max() / rms,
-           stats.kurtosis(x), stats.skew(x),
+           0.0 if flat else stats.kurtosis(x), 0.0 if flat else stats.skew(x),
            np.mean(np.abs(np.diff(np.sign(x)))) / 2]
     vec += bands + list(orders)
     vec += [centroid, flatness, env_peak_order, env_prom, knock_kurt, irregularity, min_dip]

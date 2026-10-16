@@ -111,7 +111,25 @@ The wireframe on this page shows what is **really** broken. Only this laptop kno
 | **Health check** | Animated scan of eight subsystems, then they stay live; click one to see which sensors and method decide it |
 | **Live drive** | Rolling telemetry (2 / 5 / 15 min) against the hard limits, alerts with what to do now and a maps link |
 | **Signatures** | The latest second of engine vibration in six views, every model's vote, and the deviation from this car's own normal. *Mark serviced* resets the learned normal |
-| **Insights · Evidence** | The 8-month adaptive-baseline study, wear, and the real-data / MATLAB / Simulink results (no vehicle needed) |
+| **Insights · Evidence** | The 8-month adaptive-baseline study, wear, vibration analysis (below), and the real-data / MATLAB / Simulink results (no vehicle needed) |
+
+### Insights → Vibration analysis
+
+Three modes, picked with the tabs at the top of the panel:
+
+| Mode | Needs | What it does |
+|------|-------|--------------|
+| **Paired vehicle** (default) | A paired vehicle with its engine on | Starts by itself and analyses the 1 s, 24 kHz vibration windows the vehicle streams. The fault is chosen on the vehicle laptop (`vehicle.html`) and is never sent to the dashboard |
+| **Recorded CSV** | A CSV file, or *Use synthetic sample* | Analyses an uploaded accelerometer recording once (`POST /api/vibration/analyze`) |
+| **Live simulation** | Nothing: no file, no vehicle | The dashboard API generates a **simulated** 3-axis (X/Y/Z) engine accelerometer and analyses it live. Press **Start** |
+
+**Live simulation controls.** Simulated fault (ground truth), fault severity, engine RPM, operating condition (warm / cold start), sampling frequency (2–24 kHz), simulation speed (0.5–4× real time), rolling window (2 / 4 / 8 s), random seed, and an optional envelope spectrum. **Start · Pause · Resume · Stop · Reset** control the run. Fault, severity, RPM, condition and speed apply mid-run; sampling rate, window, seed and envelope need a reset. You get the X/Y/Z waveform, FFT spectrum, STFT spectrogram, time and frequency features, dominant peaks, band energy and engine orders, refreshed every 0.5 s.
+
+**How it talks to the API.** One WebSocket per open view, `ws://<page host>/api/vibration/live` (Vite proxies `/api` to port 8000 with WebSocket support). The browser sends `{"cmd": "start", "source": "simulator", "settings": {...}}` and then `pause` / `resume` / `stop` / `reset` / `update`. The server answers with `state` messages, `batch` messages (X/Y/Z samples, display-decimated, every 0.25 s) and `analysis` messages (every 0.5 s). Switching mode or leaving the page closes that socket, and the API cancels the run. The simulator, session and DSP are the shared `autopulse/vibsim.py`, `vibstream.py` and `vibration.py`; Paired vehicle uses the same endpoint with `"source": "vehicle"`.
+
+**Classification.** This is real model output: the existing AutoPulse ensemble (SVM + Softmax + ANN + CNN, from `models/`), run on the simulator's native 24 kHz source window, the domain it was trained on. If the model files are missing, the signal analysis keeps running and classification shows **unavailable** with the missing file named; nothing is guessed.
+
+**Limits.** Everything in Live simulation is simulated, not measured. The three axes are seeded projections of one simulated source signal, and the units are g by assumption. Below about 12 kHz sampling, the 4–8 kHz knock, valve and belt content cannot be represented. The model was trained and tested on simulator output only, so agreement here says nothing about real engines. See the main [README](../../README.md#vibration-analysis-simulated-live-accelerometer-or-a-recorded-csv) for the signal model.
 
 ---
 

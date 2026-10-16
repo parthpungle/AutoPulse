@@ -4,6 +4,7 @@ stream (backend/live.py) and serves the studies behind the Insights and Evidence
     .venv\\Scripts\\python -m uvicorn backend.app:app --port 8000
 """
 import asyncio
+import io
 import json
 import os
 import threading
@@ -12,21 +13,27 @@ from pathlib import Path
 
 import joblib
 import numpy as np
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+import soundfile as sf
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from autopulse import live_audio as la
 
+from autopulse import real_audio
 from autopulse.baseline import predict_days_to, simulate_life, simulate_wear
 from autopulse.generator import CAR_TYPES, ENGINE_FAULTS, FAULT_LABELS
 from autopulse.models import HAS_TORCH, make_cnn
 from autopulse.telemetry import OBD_FAULTS
 from autopulse.wire import STREAM_PORT
-from backend.live import LiveHub
+from autopulse import vibration
+from autopulse.realdata import estimate_rpm
+from autopulse.vibclassify import make_classifier
+from autopulse.vibstream import run_session
+from backend.live import LiveHub, build_sig
 
 ROOT = Path(__file__).resolve().parents[1]
 MODELS = ROOT / "models"
@@ -125,6 +132,54 @@ async def live(ws: WebSocket):
         hub.ui.discard(ws)
 
 
+# ------------------------------------------------------------------ vibration analysis
+classify_native = make_classifier(models)
+
+
+@app.websocket("/api/vibration/live")
+async def vibration_live(ws: WebSocket):
+    """Rolling analysis of a SIMULATED accelerometer (source=simulator) or of the paired vehicle's windows (source=vehicle)."""
+    await ws.accept()
+    q = asyncio.Queue(maxsize=20)
+    hub.vib_queues.add(q)
+    try:
+        await run_session(ws, classify_native, q)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        hub.vib_queues.discard(q)
+
+
+@app.post("/api/vibration/analyze")
+async def vibration_analyze(
+    file: UploadFile = File(...), sampling_rate_hz: float | None = Form(None), axes: str = Form(""),
+    units: str = Form("unknown"), rpm: float | None = Form(None), sensor_location: str = Form(""),
+    notes: str = Form(""), time_unit: str = Form("s"), detrend: str = Form("mean"),
+    highpass_hz: float | None = Form(None), lowpass_hz: float | None = Form(None), envelope: bool = Form(False),
+):
+    """Recorded accelerometer CSV -> validated signatures (same code as the single-laptop app)."""
+    try:
+        if units not in vibration.UNITS:
+            raise vibration.VibrationError("bad_units", f"units must be one of {list(vibration.UNITS)}.")
+        raw = await file.read(vibration.MAX_BYTES + 1)
+        axis_list = [a.strip() for a in axes.split(",") if a.strip()]
+        channels, fs, meta, warns = vibration.parse_csv(raw, axis_list, sampling_rate_hz, time_unit)
+        res = vibration.analyze(channels, fs, detrend=detrend, highpass_hz=highpass_hz, lowpass_hz=lowpass_hz,
+                                rpm=rpm, envelope=envelope)
+        classification = vibration.classify(res["features"], fs)
+    except vibration.VibrationError as e:
+        return JSONResponse({"status": "error", "code": e.code, "message": e.message}, status_code=e.status)
+    if units == "unknown":
+        warns.append("Acceleration units were not specified; amplitudes are reported in the file's own units.")
+    return {"status": "success", "source": "uploaded_recording",
+            "recording": {"filename": file.filename, "size_bytes": len(raw), "units": units,
+                          "sensor_location": sensor_location or None, "notes": notes or None, "rpm": rpm, **meta},
+            "sampling_rate_hz": fs, "channels": res["channels"], "analysis_channels": res["analysis_channels"],
+            "features": res["features"], "waveform": res["waveform"], "spectrum": res["spectrum"],
+            "spectrogram": res["spectrogram"], "envelope": res.get("envelope"), "orders": res.get("orders"),
+            "settings": res["settings"], "classification": classification, "warnings": warns + res["warnings"]}
+
+
 # ------------------------------------------------------------------ insights
 @lru_cache(maxsize=1)
 def _life():
@@ -162,12 +217,62 @@ def wear():
                         "limit": 3.2, "months_left": round(days_left / 30, 1) if days_left else None}}
 
 
+# ------------------------------------------------------------------ classify a real clip (Signatures -> Real clip)
+CLIP_MAX_BYTES, CLIP_MAX_S = 10_000_000, 30.0
+
+
+@app.get("/api/real-audio")
+def real_audio_meta():
+    """What the real-audio models were trained on (meta.json), or null if train_real.py has not been run."""
+    return real_audio.meta()
+
+
+def _classify(x, fs):
+    res = real_audio.classify_clip(x, fs)
+    if res["n_windows"]:
+        wins, _ = real_audio.windows_from_signal(x, fs)
+        k = res["classes"].index(res["verdict"]) if res["verdict"] in res["classes"] else \
+            int(np.argmax(res["ensemble"]))
+        best = int(np.argmax(np.asarray(res["per_window"])[:, k]))  # the window most sure of the overall verdict
+        res["sig"] = build_sig(wins[best], real_audio.FS, estimate_rpm(wins[best], real_audio.FS))
+        res["sig_window"] = best
+    m = real_audio.meta()
+    res["model_info"] = {k: m[k] for k in ("source", "n_recordings", "n_windows", "trained_at")}
+    res["duration_s"] = round(len(x) / fs, 2)
+    return res
+
+
+@app.post("/api/classify-audio")
+async def classify_audio(file: UploadFile = File(...)):
+    """One recording -> the real-audio models' verdict per 1 s window and overall, plus the signature views of the
+    window they are most sure about. WAV/FLAC/OGG decode here; the page converts MP3/WebM/M4A to WAV first."""
+    data = await file.read(CLIP_MAX_BYTES + 1)
+    if len(data) > CLIP_MAX_BYTES:
+        raise HTTPException(413, "The file is larger than 10 MB. Upload 30 seconds or less.")
+    try:
+        info = sf.info(io.BytesIO(data))
+        if info.duration > CLIP_MAX_S:
+            raise HTTPException(413, f"The clip is {info.duration:.0f} s long; the limit is {CLIP_MAX_S:.0f} s.")
+        x, fs = sf.read(io.BytesIO(data), dtype="float32")
+    except HTTPException:
+        raise
+    except Exception as e:                                          # noqa: BLE001 - libsndfile cannot read it
+        raise HTTPException(415, "This audio format cannot be decoded on the server (WAV, FLAC or OGG work). "
+                                 "Use the page's Upload button, which converts MP3/WebM/M4A to WAV first.") from e
+    if real_audio.load_real_models() is None:
+        raise HTTPException(503, "The real-audio models are not trained on this laptop: run train_real.py "
+                                 "(needs scripts/download_data.py engine_audio).")
+    return await asyncio.to_thread(_classify, x, fs)
+
+
 # ------------------------------------------------------------------ evidence
 @app.get("/api/results")
 def results():
     load = lambda n: json.loads((MODELS / n).read_text()) if (MODELS / n).exists() else None  # noqa: E731
     return {"simulator": load("metrics.json"), "real": load("real_metrics.json"),
-            "matlab": load("matlab_crosscheck.json")}
+            "matlab": load("matlab_crosscheck.json"),
+            "fusion": load("fusion_metrics.json"), "robustness": load("robustness.json"),   # null until written
+            "robustness_randomized": load("robustness_randomized.json")}
 
 
 @app.get("/api/ask/docs")
@@ -247,7 +352,7 @@ def health():
 @app.on_event("startup")
 async def warm():
     # load models and the 8-month baseline study in the background so the first click is instant
-    threading.Thread(target=lambda: (models(), _life(), live_model()), daemon=True).start()
+    threading.Thread(target=lambda: (models(), real_audio.load_real_models(), _life(), live_model()), daemon=True).start()
     hub.loop = asyncio.get_running_loop()
     hub.start_discovery()
     auto = os.environ.get("AUTOPULSE_AUTOPAIR")          # "host:port:code", set by run.bat in the Both role
