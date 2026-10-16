@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AudioWaveform, Car, FlaskConical, Gauge, HeartPulse, SlidersHorizontal, TrendingUp } from 'lucide-react';
+import { AudioWaveform, Car, FlaskConical, Gauge, HeartPulse, Mic, SlidersHorizontal, TrendingUp } from 'lucide-react';
 import { CAR_INFO, ENGINE_FAULTS, OBD_FAULTS, ScenarioProvider, label, useScenario } from './scenario.jsx';
 import ScenarioDrawer from './components/ScenarioDrawer.jsx';
 import Garage from './pages/Garage.jsx';
@@ -8,12 +8,14 @@ import LiveDrive from './pages/LiveDrive.jsx';
 import Signatures from './pages/Signatures.jsx';
 import Insights from './pages/Insights.jsx';
 import Evidence from './pages/Evidence.jsx';
+import LiveAudio from './pages/LiveAudio.jsx';
 
 const PAGES = [
   { id: 'garage', name: 'Garage', icon: Car, title: 'Garage', sub: 'Pick a car and see its health at a glance' },
   { id: 'check', name: 'Health check', icon: HeartPulse, title: 'Pre-drive health check', sub: 'Key-on scan of every subsystem' },
   { id: 'drive', name: 'Live drive', icon: Gauge, title: 'Live drive', sub: 'OBD-II telemetry with safety rules and guidance' },
   { id: 'signatures', name: 'Signatures', icon: AudioWaveform, title: 'Signature lab', sub: 'Engine vibration in time, frequency and order' },
+  { id: 'liveaudio', name: 'Live audio', icon: Mic, title: 'Live Audio Monitoring', sub: 'Your microphone through the real-engine-audio pipeline' },
   { id: 'insights', name: 'Insights', icon: TrendingUp, title: 'Insights', sub: "Learning this car's normal, and normal wear" },
   { id: 'evidence', name: 'Evidence', icon: FlaskConical, title: 'Evidence', sub: 'Real-data, MATLAB and Simulink results' },
 ];
@@ -77,6 +79,7 @@ function Shell() {
             {page === 'check' && <HealthCheck />}
             {page === 'drive' && <LiveDrive />}
             {page === 'signatures' && <Signatures />}
+            {page === 'liveaudio' && <LiveAudio />}
             {page === 'insights' && <Insights />}
             {page === 'evidence' && <Evidence />}
           </div>

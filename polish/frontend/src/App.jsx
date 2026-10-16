@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AudioWaveform, FlaskConical, Gauge, HeartPulse, LayoutDashboard, Link2, TrendingUp } from 'lucide-react';
+import { AudioWaveform, FlaskConical, Gauge, HeartPulse, LayoutDashboard, Link2, Mic, TrendingUp } from 'lucide-react';
 import { LiveProvider, useLive } from './live.jsx';
 import { CAR_INFO, carName } from './cars.js';
 import PairDrawer from './components/PairDrawer.jsx';
@@ -11,12 +11,14 @@ import LiveDrive from './pages/LiveDrive.jsx';
 import Signatures from './pages/Signatures.jsx';
 import Insights from './pages/Insights.jsx';
 import Evidence from './pages/Evidence.jsx';
+import LiveAudio from './pages/LiveAudio.jsx';
 
 const PAGES = [
   { id: 'overview', name: 'Cockpit', icon: LayoutDashboard, live: true },
   { id: 'check', name: 'Health check', icon: HeartPulse, live: true },
   { id: 'drive', name: 'Live drive', icon: Gauge, live: true },
   { id: 'signatures', name: 'Signature lab', icon: AudioWaveform, live: true },
+  { id: 'liveaudio', name: 'Live audio', icon: Mic },
   { id: 'insights', name: 'Insights', icon: TrendingUp },
   { id: 'evidence', name: 'Evidence', icon: FlaskConical },
 ];
@@ -127,6 +129,7 @@ function Shell() {
                 {page === 'check' && <HealthCheck />}
                 {page === 'drive' && <LiveDrive />}
                 {page === 'signatures' && <Signatures />}
+                {page === 'liveaudio' && <LiveAudio />}
                 {page === 'insights' && <Insights />}
                 {page === 'evidence' && <Evidence />}
               </>

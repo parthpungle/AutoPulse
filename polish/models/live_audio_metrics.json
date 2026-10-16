@@ -1,0 +1,120 @@
+{
+  "model": "SVM (RBF)",
+  "classes": [
+    "healthy",
+    "misfire",
+    "valve_tick",
+    "belt_squeal"
+  ],
+  "n_windows": 3869,
+  "n_recordings": 321,
+  "class_recordings": {
+    "healthy": 83,
+    "misfire": 111,
+    "valve_tick": 68,
+    "belt_squeal": 59
+  },
+  "split": "5-fold cross-validation grouped by recording (same folds as evaluate_real.py)",
+  "per_window_normalization": {
+    "accuracy": {
+      "mean": 0.9048822954183707,
+      "std": 0.021387176297442904
+    },
+    "macro_f1": {
+      "mean": 0.9158673347508604,
+      "std": 0.01843774419597236
+    },
+    "recording_accuracy": 0.9127725856697819,
+    "confusion": [
+      [
+        846,
+        119,
+        0,
+        0
+      ],
+      [
+        136,
+        1257,
+        23,
+        9
+      ],
+      [
+        16,
+        37,
+        824,
+        2
+      ],
+      [
+        1,
+        25,
+        0,
+        574
+      ]
+    ]
+  },
+  "per_recording_normalization": {
+    "accuracy": {
+      "mean": 0.9035893003316223,
+      "std": 0.02173135442329787
+    },
+    "macro_f1": {
+      "mean": 0.9147885995667066,
+      "std": 0.018715387071773493
+    },
+    "recording_accuracy": 0.9096573208722741,
+    "confusion": [
+      [
+        843,
+        122,
+        0,
+        0
+      ],
+      [
+        138,
+        1255,
+        23,
+        9
+      ],
+      [
+        16,
+        37,
+        824,
+        2
+      ],
+      [
+        1,
+        25,
+        0,
+        574
+      ]
+    ]
+  },
+  "novelty_gate": {
+    "method": "IsolationForest on the 28 signature features",
+    "threshold": -0.5728367240343191,
+    "target_reject_rate_real_engine": 0.02,
+    "threshold_source": "quantile of held-out (cross-validated) real engine windows",
+    "synthetic_probe_pass_rate": {
+      "voice-like harmonics": {
+        "n": 10,
+        "passed_gate": 0.0
+      },
+      "pure tone": {
+        "n": 10,
+        "passed_gate": 0.0
+      },
+      "music-like chord": {
+        "n": 10,
+        "passed_gate": 0.0
+      },
+      "white noise": {
+        "n": 10,
+        "passed_gate": 0.3
+      },
+      "fan-like hum + noise": {
+        "n": 10,
+        "passed_gate": 0.0
+      }
+    }
+  }
+}
