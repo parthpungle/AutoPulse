@@ -1,9 +1,10 @@
 import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
+import type { Ranges } from './Ranges';
 
-// Procedural target shapes, one RGBA float texture per section. Each texel stores the parametric
-// coordinates of one particle; shapes.glsl turns them into positions every frame. Particles are
-// assigned in random order, so any prefix of the texture still covers every shape evenly (that is
-// what lets a quality drop simply draw fewer particles).
+// Procedural target shapes. Each section owns a block of rows in one RGBA float texture (see
+// Ranges.ts); each texel stores the parametric coordinates of one particle, and shapes.glsl turns
+// them into positions every frame. Particles are filled in random order, so any prefix of a range
+// still covers its shape evenly (that is what lets a quality drop simply draw fewer particles).
 
 export const SECTIONS = ['hero', 'sensors', 'signatures', 'recognition', 'cta'] as const;
 
@@ -113,7 +114,8 @@ const FILLS: Fill[] = [
 ];
 
 export interface TargetSet {
-  targets: DataTexture[];
+  /** One texel of parametric coordinates per particle, each filled by its own section's shape. */
+  params: DataTexture;
   /** Spawn positions: a tight seed at the centre that bursts into the hero ribbon. */
   spawn: DataTexture;
   /** Per-particle randoms, shared by the simulation (as a texture) and the draw (as an attribute). */
@@ -123,20 +125,20 @@ export interface TargetSet {
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-/** Builds every target, yielding a frame between them so the preloader keeps counting. */
-export async function generateTargets(side: number, onStep: (done: number, total: number) => void): Promise<TargetSet> {
+/** Builds the parameters for every section's range, yielding a frame between sections so the
+ *  preloader keeps counting. */
+export async function generateTargets(ranges: Ranges, onStep: (done: number, total: number) => void): Promise<TargetSet> {
+  const side = ranges.side;
   const n = side * side;
   const rand = mulberry32(0x70a0e);
   const gauss = makeGauss(rand);
-  const total = FILLS.length + 1;
-  const targets: DataTexture[] = [];
-
-  for (let t = 0; t < FILLS.length; t++) {
-    const data = new Float32Array(n * 4);
-    const fill = FILLS[t];
-    for (let p = 0; p < n; p++) fill(data, p * 4, rand, gauss);
-    targets.push(texture(data, side));
-    onStep(t + 1, total);
+  const total = ranges.list.length + 1;
+  const data = new Float32Array(n * 4);
+  for (let k = 0; k < ranges.list.length; k++) {
+    const r = ranges.list[k];
+    const fill = FILLS[r.section];
+    for (let p = r.start; p < r.start + r.capacity; p++) fill(data, p * 4, rand, gauss);
+    onStep(k + 1, total);
     await nextFrame();
   }
 
@@ -158,5 +160,5 @@ export async function generateTargets(side: number, onStep: (done: number, total
   }
   onStep(total, total);
 
-  return { targets, spawn: texture(spawnData, side), rand: randData, randTexture: texture(randData, side) };
+  return { params: texture(data, side), spawn: texture(spawnData, side), rand: randData, randTexture: texture(randData, side) };
 }

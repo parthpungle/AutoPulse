@@ -7,16 +7,14 @@ uniform float uAlpha;
 uniform float uFade;         // reduced-motion crossfade
 uniform vec3 uColor;
 uniform vec3 uAccent;
-// Sensor Array flows take their sensor's colour
-uniform sampler2D tStreams;     // the section-1 target (pool code in .x, see shapes.glsl)
-uniform float uSecA;
-uniform float uSecB;
-uniform float uMorph;
+// Each section's particles are their own draw (sim/Ranges.ts); this is that section
+uniform float uSection;
+uniform sampler2D tParams;      // per-particle shape parameters (Sensor Array pool code in .x,
+                                // Recognition cluster id in .w, see shapes.glsl)
 uniform vec3 uSensorColors[8];
 uniform float uActiveSensor;
 uniform vec3 uActiveTip;        // world position of the active sensor's tip
 
-uniform sampler2D tClusters;    // the section-3 target (cluster id in .w)
 uniform vec3 uClusterColors[4];
 
 attribute vec2 aRef;
@@ -30,11 +28,9 @@ void main() {
   vec4 mv = modelViewMatrix * vec4(P.xyz, 1.0);
   gl_Position = projectionMatrix * mv;
 
-  // how much of this particle's shape is the Sensor Array (w1) or Recognition (w3), with the same
-  // staggered morph as the simulation
-  float m = smoothstep(aRand.x * 0.4, 0.6 + aRand.x * 0.4, uMorph);
-  float w1 = (abs(uSecA - 1.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 1.0) < 0.5 ? m : 0.0);
-  float w3 = (abs(uSecA - 3.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 3.0) < 0.5 ? m : 0.0);
+  // the Sensor Array (w1) and Recognition (w3) colour their particles
+  float w1 = abs(uSection - 1.0) < 0.5 ? 1.0 : 0.0;
+  float w3 = abs(uSection - 3.0) < 0.5 ? 1.0 : 0.0;
   // the global engine state never styles the clusters
   float global = 1.0 - w3;
 
@@ -49,7 +45,7 @@ void main() {
   float clBright = mix(0.7, 0.3, uAnySel);
   float clSize = 1.0;
   if (w3 > 0.0) {
-    int ci = int(texture2D(tClusters, aRef).w + 0.5);
+    int ci = int(texture2D(tParams, aRef).w + 0.5);
     if (ci < 4) {
       float sel = uClusterSel[ci];
       clColor = uClusterColors[ci];
@@ -79,7 +75,7 @@ void main() {
 
   vec3 base = uColor;
   if (w1 > 0.0) {
-    vec4 D = texture2D(tStreams, aRef);
+    vec4 D = texture2D(tParams, aRef);
     vec3 c = uColor;
     int act = int(uActiveSensor + 0.5);
     if (D.x > 9.5 && D.x < 18.5) {

@@ -3,6 +3,7 @@ import type { Texture, WebGLRenderer } from 'three';
 import type { FullscreenQuad } from '../gl/FullscreenQuad';
 import { SENSORS } from '../../content/sensors';
 import { orbitPose } from '../carousel/CarouselLayout';
+import type { Ranges } from '../sim/Ranges';
 import { CLUSTERS } from '../sim/Targets';
 import { GLSL } from '../shaders';
 import type { Palette } from '../theme';
@@ -31,8 +32,10 @@ export const CAMERA_BASE_Z = 12;
  */
 export class MainScene extends FXScene {
   readonly camera = new PerspectiveCamera(CAMERA_FOV, 1, 0.1, 100);
+  /** The particle material of section 0; all sections share its uniform objects. */
   readonly material: ShaderMaterial;
-  readonly points: Points;
+  /** One particle draw per section (its range of the simulation texture, see sim/Ranges.ts). */
+  readonly points: Points[] = [];
   /** Carousel position 0..7, set by the experience each frame. */
   carousel = 0;
   wide = true;
@@ -41,72 +44,83 @@ export class MainScene extends FXScene {
   cardsVisible = false;
   readonly glassRT = new WebGLRenderTarget(1, 1, { type: HalfFloatType, minFilter: LinearFilter, magFilter: LinearFilter, depthBuffer: false });
   private readonly glassMat: ShaderMaterial;
-  private readonly geometry: BufferGeometry;
+  private readonly geometries: BufferGeometry[] = [];
+  private readonly materialsList: ShaderMaterial[] = [];
+  private readonly ranges: Ranges;
   private readonly look = new Vector3();
   private readonly pA = new Vector3();
   private readonly pB = new Vector3();
   private readonly tA = new Vector3();
   private readonly tB = new Vector3();
-  private drawCount: number;
-  private readonly fullCount: number;
 
-  constructor(side: number, count: number, rand: Float32Array, shared: Shared, palette: Palette) {
+  constructor(ranges: Ranges, rand: Float32Array, shared: Shared, palette: Palette) {
     super(1, true);
+    this.ranges = ranges;
+    const side = ranges.side;
     const n = side * side;
-    this.fullCount = count;
-    this.drawCount = count;
 
     const ref = new Float32Array(n * 2);
     for (let i = 0; i < n; i++) {
       ref[i * 2] = ((i % side) + 0.5) / side;
       ref[i * 2 + 1] = (Math.floor(i / side) + 0.5) / side;
     }
-    this.geometry = new BufferGeometry();
-    this.geometry.setAttribute('position', new BufferAttribute(new Float32Array(n * 3), 3));
-    this.geometry.setAttribute('aRef', new BufferAttribute(ref, 2));
-    this.geometry.setAttribute('aRand', new BufferAttribute(rand, 4));
-    this.geometry.setDrawRange(0, count);
+    const position = new BufferAttribute(new Float32Array(n * 3), 3);
+    const aRef = new BufferAttribute(ref, 2);
+    const aRand = new BufferAttribute(rand, 4);
 
-    this.material = new ShaderMaterial({
-      vertexShader: GLSL.pointsVert,
-      fragmentShader: GLSL.pointsFrag,
-      transparent: true,
-      depthTest: true,
-      depthWrite: false,
-      blending: CustomBlending,
-      blendSrc: OneFactor,
-      blendDst: OneFactor,
-      blendSrcAlpha: ZeroFactor,
-      blendDstAlpha: OneFactor,
-      uniforms: {
-        uTime: shared.uTime,
-        uBeat: shared.uBeat,
-        uTurb: shared.uTurb,
-        uKnock: shared.uKnock,
-        uMisfire: shared.uMisfire,
-        uValve: shared.uValve,
-        uStateW: shared.uStateW,
-        uAccent: shared.uAccent,
-        tPos: { value: null },
-        tVel: { value: null },
-        uPointScale: { value: 1 },
-        uSize: { value: 0.026 },
-        uAlpha: { value: 0.62 },
-        uFade: { value: 1 },
-        uColor: { value: palette.text },
-        tStreams: { value: null },
-        tClusters: { value: null },
-        uClusterColors: { value: CLUSTERS.map((c) => new Color(c.color)) },
-        uClusterSel: shared.uClusterSel,
-        uAnySel: shared.uAnySel,
-        uActiveSensor: { value: 0 },
-        uActiveTip: { value: null },
-        uSecA: { value: 0 },
-        uSecB: { value: 0 },
-        uMorph: { value: 0 },
-        uSensorColors: { value: SENSORS.map((s) => new Color(s.color)) },
-      },
-    });
+    // one set of uniform objects, shared by every section's material (only uSection differs)
+    const uniforms = {
+      uTime: shared.uTime,
+      uBeat: shared.uBeat,
+      uTurb: shared.uTurb,
+      uKnock: shared.uKnock,
+      uMisfire: shared.uMisfire,
+      uValve: shared.uValve,
+      uStateW: shared.uStateW,
+      uAccent: shared.uAccent,
+      tPos: { value: null },
+      tVel: { value: null },
+      uPointScale: { value: 1 },
+      uSize: { value: 0.026 },
+      uAlpha: { value: 0.62 },
+      uFade: { value: 1 },
+      uColor: { value: palette.text },
+      tParams: { value: null },
+      uClusterColors: { value: CLUSTERS.map((c) => new Color(c.color)) },
+      uClusterSel: shared.uClusterSel,
+      uAnySel: shared.uAnySel,
+      uActiveSensor: { value: 0 },
+      uActiveTip: { value: null },
+      uSensorColors: { value: SENSORS.map((s) => new Color(s.color)) },
+    };
+    for (const range of ranges.list) {
+      const geometry = new BufferGeometry();
+      geometry.setAttribute('position', position);
+      geometry.setAttribute('aRef', aRef);
+      geometry.setAttribute('aRand', aRand);
+      geometry.setDrawRange(range.start, range.count);
+      const material = new ShaderMaterial({
+        vertexShader: GLSL.pointsVert,
+        fragmentShader: GLSL.pointsFrag,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+        blending: CustomBlending,
+        blendSrc: OneFactor,
+        blendDst: OneFactor,
+        blendSrcAlpha: ZeroFactor,
+        blendDstAlpha: OneFactor,
+        uniforms: { ...uniforms, uSection: { value: range.section } },
+      });
+      const points = new Points(geometry, material);
+      points.frustumCulled = false;
+      points.name = `particles-${range.section}`;
+      this.geometries.push(geometry);
+      this.materialsList.push(material);
+      this.points.push(points);
+      this.scene.add(points);
+    }
+    this.material = this.materialsList[0];
     this.glassMat = new ShaderMaterial({
       vertexShader: GLSL.fullscreenVert,
       fragmentShader: GLSL.glass,
@@ -114,24 +128,31 @@ export class MainScene extends FXScene {
       depthWrite: false,
       uniforms: { uTexel: { value: new Vector2() }, tBackdrop: { value: null }, tMain: { value: this.rt.texture } },
     });
-    this.points = new Points(this.geometry, this.material);
-    this.points.frustumCulled = false;
-    this.scene.add(this.points);
     this.camera.position.set(0, 0, CAMERA_BASE_Z);
   }
 
-  /** Fewer particles after a quality drop; brightness is rescaled so the look holds. */
+  /** Fewer particles after a quality drop (each section draws a prefix of its range); brightness is
+   *  rescaled so the look holds. */
   setDrawCount(count: number) {
-    this.drawCount = Math.min(count, this.fullCount);
-    this.geometry.setDrawRange(0, this.drawCount);
+    this.ranges.setTierCount(count);
+    for (let i = 0; i < this.ranges.list.length; i++) {
+      const r = this.ranges.list[i];
+      this.geometries[i].setDrawRange(r.start, r.count);
+    }
+  }
+
+  /** Only the given sections' particles are drawn. */
+  setVisibleSections(sections: readonly number[]) {
+    for (let i = 0; i < this.points.length; i++) this.points[i].visible = sections.includes(i);
   }
 
   get densityBoost() {
-    return Math.min(1.8, Math.sqrt(this.fullCount / this.drawCount));
+    return Math.min(1.8, Math.sqrt(this.ranges.baseCount / Math.max(1, this.ranges.list[0].count)));
   }
 
+  /** Particles drawn per frame at most (the two largest sections, as in a cut). */
   get count() {
-    return this.drawCount;
+    return this.ranges.list[0].count;
   }
 
   setBackdrop(texture: Texture) {
@@ -193,7 +214,7 @@ export class MainScene extends FXScene {
     super.dispose();
     this.glassRT.dispose();
     this.glassMat.dispose();
-    this.geometry.dispose();
-    this.material.dispose();
+    for (const g of this.geometries) g.dispose();
+    for (const m of this.materialsList) m.dispose();
   }
 }
