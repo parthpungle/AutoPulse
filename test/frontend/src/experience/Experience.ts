@@ -487,7 +487,8 @@ export class Experience {
     }
     // hand-off: only on the way from Signatures to Recognition
     const k = sc.secA === 2 && sc.secB === 3 ? MathUtils.smoothstep(sc.morph, 0.1, 0.95) : sc.secA >= 3 ? 1 : 0;
-    const idx = this.state === 'baseline' ? 0 : Math.max(0, ['healthy', 'knock', 'misfire', 'valve'].indexOf(this.state));
+    // it lands in the selected cluster, or in Healthy when none is selected
+    const idx = Math.max(0, this.selectedCluster);
     this.landCluster = idx;
     const L = this.layout.L3;
     const c = this.layout.clusterC[idx];

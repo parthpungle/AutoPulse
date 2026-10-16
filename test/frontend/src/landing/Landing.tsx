@@ -34,7 +34,11 @@ function Wordmark() {
 export function Landing() {
   const [engine, setEngine] = useState<Engine | null>(null);
   const [section, setSection] = useState(0);
+  // Recognition's own selection (only lights its clusters and rows) ...
   const [active, setActive] = useState<StateKey | null>(null);
+  // ... and, separately, the engine state picked with the pills on a sensor card (the live trace
+  // and the flows react; it never changes Recognition)
+  const [cardState, setCardState] = useState<StateKey | null>(null);
   const [card, setCard] = useState(0);
   const [detail, setDetail] = useState(false);
   const [stage, setStage] = useState(0);
@@ -165,17 +169,25 @@ export function Landing() {
     };
   }, [engine]);
 
-  // Recognition: a pill selects its state (the clusters light up, the rest of the page reacts);
-  // clicking the selected pill again returns to the Default look (nothing selected)
+  // Recognition: a pill lights its cluster and row (nothing else on the page changes); clicking
+  // the selected pill again returns to the Default look (nothing selected)
   const choose = useCallback(
     (key: StateKey | null) => {
       setActive(key);
-      engine?.setState(key ?? 'baseline');
       engine?.setClusterSelection(key ? STATE_KEYS.indexOf(key) : -1);
     },
     [engine],
   );
   const toggle = useCallback((key: StateKey) => choose(active === key ? null : key), [active, choose]);
+  // a sensor card's pills: the engine state behind that card's trace and flows
+  const toggleCardState = useCallback(
+    (key: StateKey) => {
+      const next = cardState === key ? null : key;
+      setCardState(next);
+      engine?.setState(next ?? 'baseline');
+    },
+    [engine, cardState],
+  );
 
   const goTo = (e: MouseEvent, target: string) => {
     e.preventDefault();
@@ -186,7 +198,7 @@ export function Landing() {
   const activeIndex = active ? STATE_KEYS.indexOf(active) : -1;
 
   return (
-    <div ref={root} style={active === 'healthy' ? { ['--state' as string]: 'var(--cool)' } : undefined}>
+    <div ref={root}>
       <Experience onCreate={setEngine} onProgress={onProgress} onSection={onSection} onCard={onCard} onStage={onStage} onOpenCard={onOpenCard} />
 
       <header className={`tt-header${detail ? ' is-detail' : ''}`} inert={detail}>
@@ -417,8 +429,8 @@ export function Landing() {
         index={card}
         open={detail}
         onClose={closeDetail}
-        state={active}
-        onState={toggle}
+        state={cardState}
+        onState={toggleCardState}
       />
     </div>
   );

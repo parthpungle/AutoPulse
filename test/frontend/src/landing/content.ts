@@ -40,7 +40,7 @@ export type StateKey = (typeof STATE_KEYS)[number];
 export const RECOGNITION = {
   eyebrow: '03 / Recognition',
   title: 'Four states, told apart.',
-  hint: 'Pick a state. Every scene on this page reacts.',
+  hint: 'Pick a state to light its cluster.',
   states: {
     healthy: { label: 'Healthy', text: 'Even firing, steady harmonics at the engine orders, fuel trims near zero.' },
     knock: { label: 'Knock', text: 'Sharp bursts in the 5.5–8 kHz band right after each firing; the band’s kurtosis jumps.' },
