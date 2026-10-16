@@ -101,21 +101,14 @@ html.is-loading { overflow: hidden; }
 .tt-progress__num { color: var(--text); font-variant-numeric: tabular-nums; min-width: 5.5ch; text-align: right; }
 
 /* ---------------------------------------------------------------- sections */
-/* Sections are scroll spacers (the engine sizes them from its timeline: hold + cut); each one's
-   panel is a fixed layer the cut clips and drifts (seam/Panels.ts). Hidden panels are clipped away,
-   not hidden, so screen readers still reach them. Heights here are the no-WebGL fallback. */
 .tt-sec { position: relative; height: 150vh; }
 .tt-sec--hero { height: 130vh; }
 .tt-sec--cta { height: 130vh; }
 .tt-sec__inner {
-  position: fixed; top: 0; left: 0; right: 0; height: 100vh; height: 100svh;
+  position: sticky; top: 0; height: 100vh; height: 100svh;
   padding: calc(var(--header-h) + 24px) var(--gutter) 40px;
   display: flex; flex-direction: column; justify-content: center;
-  clip-path: inset(0 0 100% 0); transition: opacity 0.3s ease-out;
 }
-.tt-sec--hero .tt-sec__inner { clip-path: none; }
-/* no WebGL: a plain document again */
-.no-webgl .tt-sec__inner { position: sticky; clip-path: none !important; transform: none !important; opacity: 1 !important; }
 .tt-copy { position: relative; max-width: min(460px, 37vw); }
 .tt-h2--wide { width: min(46vw, 680px); }
 
