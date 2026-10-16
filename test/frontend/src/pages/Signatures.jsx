@@ -10,6 +10,7 @@ import { contextWords } from './lab/derive.js';
 import Verdict from './lab/Verdict.jsx';
 import Detectors from './lab/Detectors.jsx';
 import ModelDrawer from './lab/ModelDrawer.jsx';
+import Evidence from './lab/Evidence.jsx';
 import './lab/lab.css';
 
 const VIEWS = [
@@ -17,7 +18,7 @@ const VIEWS = [
   ['envelope', 'Envelope'], ['orders', 'Orders'], ['crank', 'Crank speed'],
 ];
 const WHY = {
-  time: 'One impulse per firing. Knock adds a sharp ring after each one; valve wear adds a click once per cycle.',
+  time: 'First 200 ms of the window, every 6th sample (4 kHz, not anti-alias filtered: high-frequency ringing appears folded). One impulse per firing.',
   spectrum: 'Where the energy sits. Knock lifts the 5.5–8 kHz band; belt squeal is a narrow tone at 2.5–3.5 kHz.',
   spectrogram: 'How the spectrum changes inside one second. This image is what the CNN looks at.',
   envelope: 'How often impacts repeat. A bearing defect shows as a peak at its defect frequency.',
@@ -27,7 +28,8 @@ const WHY = {
 
 export default function Signatures() {
   const { latest, history, serviced } = useLive();
-  const frames = useLabStore((s) => s.frames);
+  const store = useLabStore();
+  const frames = store.frames;
   const [view, setView] = useState('spectrum');
   const [drawer, setDrawer] = useState(false);
   const closeDrawer = useCallback(() => setDrawer(false), []);
@@ -64,8 +66,11 @@ export default function Signatures() {
         <Detectors engine={engine} onServiced={onServiced} />
       </div>
 
-      <section className="panel panel-pad" aria-label="Signals">
+      <Evidence sig={sig} engine={engine} store={store} />
+
+      <section className="panel panel-pad" aria-labelledby="lab-signals-title">
         <div className="row" style={{ marginBottom: 14 }}>
+          <h2 className="eyebrow lab-eyebrow" id="lab-signals-title">Signals</h2>
           <Tabs items={VIEWS} value={view} onChange={setView} />
         </div>
         <Plot view={view} d={sig} />

@@ -11,7 +11,12 @@ Built from the three exploration reports (design language, dashboard, backend). 
   - The global banner still repeats the verdict (decision 9: it stays until phase 5).
   - After a long fault the backend baseline stays frozen, so a repaired car often reads "Sounds different" (info), not Healthy, until Mark serviced. Not a frontend bug.
   - "Mark serviced" also forgets the lab's browser-learned baseline (labStore.forgetBaseline); the 180 s frame buffer is kept.
-- Phases 2–6: not started
+- Phase 2: done. Notes for later phases:
+  - The browser baseline now learns from seconds the classifier calls healthy (see §3), and learns spectrum, envelope and orders per context.
+  - The per-context band is wide on the harmonic combs: a context spans a whole rpm band, so the comb moves within it.
+  - At about 3,000 rpm the bearing peak found can be the pulley-rate modulation (about 2.8× crank) rather than the 7.15–9.82× defect rate, which then lies above 400 Hz. The readout only says "a repetition that is not an engine order".
+  - The evidence panel carries `data-view`, `data-fault` and `data-normal-n` for tests. Read those, not the store: after a hot reload Vite gives labStore a new URL, so `import('/src/pages/lab/labStore.js')` returns an empty copy.
+- Phases 3–6: not started
 
 ---
 
@@ -160,7 +165,8 @@ The store is fed from `LiveProvider` through **one additive line** (for example 
   - `engine.{status, fault, label, anomaly, healthy_p, context}`
   - the argmax of each model in `votes`
   - `alerts[0]?.title`
-- **Baseline spectrum per context:** a running mean and variance of `spectrum.db`, updated only while `engine.status === 'ok'`. It needs ≥10 frames before it is shown, and is labelled "learned in this browser since page load (n s)".
+- **Baseline per context:** a running mean and variance of `spectrum.db`, `envelope.y` and `orders.amp`. It is updated from seconds the classifier calls healthy: no confirmed fault and `healthy_p ≥ 0.6`. It needs ≥10 seconds before it is shown, and is labelled "learned in this browser".
+  - *Changed in phase 2 (user's call):* the original rule was `engine.status === 'ok'`. But after a long fault the backend's baseline freezes, so a repaired car reads "info" until Mark serviced, and nothing would be learned.
 - **Reset:** clear the store when "Mark serviced" is pressed, and when `vehicle.car_type` changes (mirror `live.jsx:39-43`).
 - **Hook:** expose `useLabStore(selector)` and subscribe with `useSyncExternalStore`, so the 1 s `now` ticker doesn't cause extra work.
 

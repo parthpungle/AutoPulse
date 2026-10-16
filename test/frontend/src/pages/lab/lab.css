@@ -57,3 +57,21 @@
 .lab-drawer__note { margin: 0; font-size: 12.5px; color: var(--lab-caption); }
 .lab-votes td.num { color: var(--text-dim); }
 .lab-votes td.lab-votes__pick { color: var(--text-max); font-weight: 600; }
+
+/* 03 / Evidence */
+.lab-evidence { display: flex; flex-direction: column; gap: 8px; }
+.lab-evidence__head { display: flex; align-items: flex-start; gap: 24px; justify-content: space-between; flex-wrap: wrap; }
+.lab-readout { display: flex; align-items: baseline; gap: 10px; max-width: 60%; text-align: right; justify-content: flex-end; flex-wrap: wrap; }
+.lab-readout .num { font-size: 26px; line-height: 1; color: var(--text-max); white-space: nowrap; }
+.lab-readout > span:last-child { font-size: 13px; color: var(--text-1); }
+.lab-readout__pending { font-size: 13px; color: var(--lab-caption); }
+.lab-ev svg text { font: 400 11px var(--mono); fill: var(--text-2); }
+.lab-ev .lab-ev__unit { fill: var(--lab-caption); }
+.lab-ev__bracket path { stroke: var(--text-2); stroke-width: 1.5; }
+.lab-ev__bracket text { fill: var(--text-1); }
+.lab-ev__marker line, .lab-ev__marker polyline { stroke: var(--line-2); stroke-width: 1; }
+.lab-ev__marker text { fill: var(--text-2); }
+.lab-ev__callout circle { fill: none; stroke: var(--text-max); stroke-width: 1.5; }
+.lab-ev__callout polyline { stroke: var(--text-1); stroke-width: 1; }
+.lab-ev__callout text { fill: var(--text-max); font-weight: 500; }
+.lab-ev text.lab-ev__learning { font: 400 13px var(--sans); fill: var(--lab-caption); }

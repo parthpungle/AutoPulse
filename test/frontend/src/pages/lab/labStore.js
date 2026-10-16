@@ -6,7 +6,12 @@ import { useSyncExternalStore } from 'react';
 
 const KEEP = 180;          // seconds of signals kept
 export const BASELINE_MIN = 10;   // healthy seconds per context before a baseline is shown
-const LEARN_GATE = 2.8;    // learn only windows the backend would also call normal (baseline.py gate)
+// Learn from seconds the classifier calls healthy: no confirmed fault and a healthy share of 0.6 or
+// more. Not from the backend status alone: after a long fault the backend's own baseline freezes,
+// and a repaired car then reads "sounds different" (info) until Mark serviced, so nothing would be
+// learned for the rest of the session.
+const LEARN_HEALTHY_P = 0.6;
+const LEARNED = ['spectrum', 'envelope', 'orders'];
 
 const empty = () => ({ car: null, frames: [], baselines: {}, axes: null, version: 0 });
 let state = empty();
@@ -23,15 +28,26 @@ const f32 = (a) => Float32Array.from(a);
 /** The engine alert carries the classifier's advice: its message ends with the model confidence. */
 export const engineAlert = (alerts) => alerts?.find((a) => /Model confidence/.test(a.message)) ?? null;
 
-function learn(baselines, context, db) {
-  const b = baselines[context] ?? { n: 0, mean: new Float64Array(db.length), m2: new Float64Array(db.length) };
+function welford(b, y) {
   b.n += 1;
-  for (let i = 0; i < db.length; i++) {             // Welford: running mean and variance per bin
-    const d = db[i] - b.mean[i];
+  for (let i = 0; i < y.length; i++) {               // running mean and variance per bin
+    const d = y[i] - b.mean[i];
     b.mean[i] += d / b.n;
-    b.m2[i] += d * (db[i] - b.mean[i]);
+    b.m2[i] += d * (y[i] - b.mean[i]);
   }
-  return { ...baselines, [context]: b };
+}
+
+/** One second the models called healthy, folded into this context's normal for each signal. */
+function learn(baselines, context, f) {
+  const prev = baselines[context] ?? {};
+  const next = {};
+  for (const key of LEARNED) {
+    const y = f[key];
+    const b = prev[key] ?? { n: 0, mean: new Float64Array(y.length), m2: new Float64Array(y.length) };
+    welford(b, y);
+    next[key] = b;
+  }
+  return { ...baselines, [context]: next };
 }
 
 /** @param {import('./types.js').Frame} m */
@@ -64,8 +80,8 @@ function push(m) {
     alert: engineAlert(m.alerts)?.title ?? null,
   };
   const frames = [...(base.frames.length >= KEEP ? base.frames.slice(base.frames.length - KEEP + 1) : base.frames), f];
-  const ok = engine.status === 'ok' && engine.anomaly <= LEARN_GATE;
-  const baselines = ok ? learn(base.baselines, engine.context, sig.spectrum.db) : base.baselines;
+  const healthy = engine.fault === 'healthy' && engine.healthy_p >= LEARN_HEALTHY_P;
+  const baselines = healthy ? learn(base.baselines, engine.context, f) : base.baselines;
   const axes = base.axes ?? {
     spectrum: f32(sig.spectrum.f), envelope: f32(sig.envelope.f),
     spectrogramF: f32(sig.spectrogram.f), spectrogramT: f32(sig.spectrogram.t), time: f32(sig.time.t_ms),
@@ -81,9 +97,12 @@ export const labStore = {
   get: () => state,
 };
 
-/** Baseline band for a context: { n, mean, std } (Float64Array per bin), or { n } while still learning. */
-export function baselineFor(s, context) {
-  const b = s.baselines[context];
+/**
+ * This car's normal for one signal ('spectrum' | 'envelope' | 'orders') in one context:
+ * { n, mean, std } (Float64Array per bin), or just { n } while fewer than BASELINE_MIN seconds.
+ */
+export function baselineFor(s, context, key = 'spectrum') {
+  const b = s.baselines[context]?.[key];
   if (!b || b.n < BASELINE_MIN) return { n: b?.n ?? 0 };
   return { n: b.n, mean: b.mean, std: b.m2.map((v) => Math.sqrt(v / (b.n - 1))) };
 }
