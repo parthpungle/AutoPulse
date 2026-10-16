@@ -1,22 +1,11 @@
-// Lays the section worlds over the backdrop: bd * (1 - a) + rgb (solids carry coverage in alpha,
-// particles are added light). Between two sections the screen is cut by one tilted seam (see
-// seam/Seam.ts): the incoming world below it, the outgoing world above, both live. In a band
-// right above the seam the outgoing world tears into horizontal strips that shift sideways, break
-// into blocks and split their colours, and a few strips show the incoming world instead. The
-// strip table comes from the CPU so the DOM clip polygons cut exactly the same strips.
-// Reduced motion crossfades instead. The intro wipe is drawn here too.
+// Lays the main 3-D layer (solids with coverage in alpha, particles as added light) over the
+// backdrop: bd * (1 - a) + rgb. Section changes bend the main layer slightly (a small radial
+// colour split at mid-morph); the intro wipe is drawn here too.
 uniform sampler2D tBackdrop;
-uniform sampler2D tFrom;      // the current (outgoing) world
-uniform sampler2D tTo;        // the incoming world
-uniform float uCut;           // 1 while a seam is on screen
-uniform vec2 uSeam;           // seam height (UV, from the bottom) at the left and right edges
-uniform float uBand;          // torn band height (UV)
-uniform vec4 uStrips[16];     // per strip: top above the seam (UV), shift (UV x), bleed (0/1), RGB split (UV x)
-uniform float uStripCount;
-uniform float uMosaic;        // block width in shifted strips (UV x)
-uniform float uCross;         // reduced motion: crossfade from -> to (0..1), < 0 when unused
+uniform sampler2D tMain;
 uniform float uReveal;
-uniform float uFadeReveal;    // reduced motion: plain fade instead of the intro wipe
+uniform float uFadeReveal;   // reduced motion: plain fade instead of the wipe
+uniform float uTrans;
 uniform float uFlash;
 uniform float uTime;
 uniform float uAspect;
@@ -24,38 +13,13 @@ uniform vec3 uBg;
 uniform vec3 uAccent;
 varying vec2 vUv;
 
-vec4 torn(vec2 uv) {
-  float d = uv.y - mix(uSeam.x, uSeam.y, uv.x); // > 0 above the seam
-  if (d <= 0.0) return texture2D(tTo, uv);
-  if (d >= uBand) return texture2D(tFrom, uv);
-  vec4 st = vec4(0.0);
-  for (int k = 0; k < 16; k++) {
-    if (float(k) >= uStripCount) break;
-    if (d < uStrips[k].x) {
-      st = uStrips[k];
-      break;
-    }
-  }
-  vec2 p = uv + vec2(st.y, 0.0);
-  if (st.z > 0.5) return texture2D(tTo, p);
-  // shifted strips break into blocks, like the reference's chopped letters
-  if (st.y != 0.0) p.x = (floor(p.x / uMosaic) + 0.5) * uMosaic;
-  vec4 c = texture2D(tFrom, p);
-  if (st.w > 0.0) {
-    c.r = texture2D(tFrom, p + vec2(st.w, 0.0)).r;
-    c.b = texture2D(tFrom, p - vec2(st.w, 0.0)).b;
-  }
-  return c;
-}
-
 void main() {
   vec3 bd = texture2D(tBackdrop, vUv).rgb;
-  vec4 S;
-  if (uCross >= 0.0) S = mix(texture2D(tFrom, vUv), texture2D(tTo, vUv), uCross);
-  else if (uCut > 0.5) S = torn(vUv);
-  else S = texture2D(tFrom, vUv);
-  vec3 col = bd * (1.0 - clamp(S.a, 0.0, 1.0)) + S.rgb;
   vec2 dir = vUv - 0.5;
+  float k = 0.006 * uTrans;
+  vec4 mid = texture2D(tMain, vUv);
+  vec3 m = vec3(texture2D(tMain, vUv - dir * k).r, mid.g, texture2D(tMain, vUv + dir * k).b);
+  vec3 col = bd * (1.0 - clamp(mid.a, 0.0, 1.0)) + m;
   col += uAccent * uFlash * 0.04 * (1.0 - smoothstep(0.0, 0.8, length(dir)));
 
   if (uReveal < 1.0) {

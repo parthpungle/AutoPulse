@@ -1,6 +1,6 @@
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Color, DataTexture, HalfFloatType, MathUtils, Mesh, RGBAFormat, Scene, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three';
+import { Color, HalfFloatType, MathUtils, Mesh, Scene, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three';
 import { preloadFont } from 'troika-three-text';
 import { SENSORS, SENSOR_COUNT } from '../content/sensors';
 import { Cards, FONT_DISPLAY, FONT_MONO, SCRAMBLE } from './carousel/Cards';
@@ -28,7 +28,6 @@ import type { Palette } from './theme';
 import { BackdropScene } from './scenes/BackdropScene';
 import { CAMERA_BASE_Z, CAMERA_FOV, MainScene } from './scenes/MainScene';
 import { ClusterRing } from './scenes/ClusterRing';
-import { SEAM, Seam } from './seam/Seam';
 import { SensorRig } from './sensors/SensorRig';
 import { SyntheticSignals } from './signals/SyntheticSignals';
 import { FluidSim } from './sim/FluidSim';
@@ -98,13 +97,6 @@ export class Experience {
   composite!: Composite;
   rig!: SensorRig;
   ring!: ClusterRing;
-  /** The cut between sections (seam position and torn strips). */
-  readonly seam = new Seam();
-  /** ?cut=0..1 (or ?cut=sweep): a fixed seam over a flat debug colour, with a DOM overlay clipped
-   *  by the same polygon, to check that GL and DOM cut in the same place. */
-  private cutTest: number | 'sweep' | null = null;
-  private cutTex: DataTexture | null = null;
-  private cutEl: HTMLElement | null = null;
   /** The selected Recognition cluster (-1: none), and the last one (the ring fades out there). */
   selectedCluster = -1;
   private ringCluster = -1;
@@ -225,7 +217,6 @@ export class Experience {
     r.info.autoReset = false;
     this.composite = new Composite(r, this.main.camera, this.backdrop.rt.texture, this.main.rt.texture, this.shared, this.palette);
     this.composite.setBloom(this.settings.bloom);
-    this.setupCutTest();
     this.composite.setFadeReveal(this.reduced);
     this.onResize();
     this.applyFluidSize();
@@ -432,8 +423,7 @@ export class Experience {
     this.main.renderLayers(r, this.quad);
     this.sceneCalls = r.info.render.calls - before;
     this.composite.bloomScale = 1 - 0.8 * this.cards.expansion.value;
-    this.updateCut(time);
-    this.composite.update(this.reduced ? 0 : p.speed, s.uValve.value);
+    this.composite.update(this.reduced ? 0 : p.speed, this.reduced ? 0 : Math.sin(Math.PI * sc.morph), s.uValve.value);
     this.composite.render(dt);
     this.calls = r.info.render.calls;
 
@@ -443,36 +433,6 @@ export class Experience {
       this.section = idx;
       this.options.onSection?.(idx);
     }
-  }
-
-  private setupCutTest() {
-    const q = new URLSearchParams(location.search).get('cut');
-    if (q === null) return;
-    this.cutTest = q === 'sweep' ? 'sweep' : Math.min(1, Math.max(0, Number(q) || 0.5));
-    this.cutTex = new DataTexture(new Uint8Array([0, 110, 70, 255]), 1, 1, RGBAFormat);
-    this.cutTex.needsUpdate = true;
-    const el = document.createElement('div');
-    el.className = 'tt-cuttest';
-    el.style.cssText = 'position:fixed;inset:0;z-index:50;pointer-events:none;background:rgba(255,0,180,0.35)';
-    document.body.appendChild(el);
-    this.cutEl = el;
-  }
-
-  /** The cut between sections (until the section worlds exist, only the ?cut test uses it). */
-  private updateCut(time: number) {
-    const main = this.main.rt.texture;
-    if (this.cutTest === null || !this.cutTex || !this.cutEl) {
-      this.composite.setLayers(main, main);
-      this.composite.setCut(null);
-      return;
-    }
-    const t = this.cutTest === 'sweep' ? 0.5 - 0.5 * Math.cos(time * 0.6) : this.cutTest;
-    this.seam.set(t, this.sizes.width, this.sizes.height);
-    this.seam.update(time);
-    this.composite.setLayers(main, this.cutTex);
-    this.composite.setCut(this.seam);
-    // the overlay covers the incoming side (below the seam, plus the bleed strips)
-    this.cutEl.style.clipPath = this.seam.polygon('below', 0);
   }
 
   /** Sensor Array: card placement, hover, the active card (glitch reveal, DOM, backdrop tint). */
@@ -684,9 +644,6 @@ export class Experience {
       sampleHeap: () => heap.push(mem()),
       /** ?debug: the Sensor Array's recent gesture decisions, for replaying real traces. */
       gestures: () => this.carousel.log.slice(),
-      /** the cut's tunables (seam/Seam.ts) and its current line */
-      seamParams: SEAM,
-      seamState: () => ({ t: this.seam.t, l: this.seam.l, r: this.seam.r, w: this.seam.w, h: this.seam.h }),
     };
   }
 
@@ -724,8 +681,6 @@ export class Experience {
     this.cards?.dispose();
     this.paths.dispose();
     this.composite?.dispose();
-    this.cutTex?.dispose();
-    this.cutEl?.remove();
     this.quad?.dispose();
     if (this.renderer) {
       this.renderer.dispose();
