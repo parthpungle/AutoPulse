@@ -30,7 +30,7 @@ void main() {
   float s0 = 1.0 - smoothstep(0.35, 1.0, uStage);
   float cx = pipeClock(uTime);
   float clk = line(fx - cx, 0.004) * 1.6 + (1.0 - smoothstep(0.0, 0.18, cx - fx)) * step(fx, cx) * 0.06;
-  col += vec3(0.55, 0.85, 1.0) * clk * s0 * step(0.1, fy) * step(fy, 1.0);
+  col += vec3(0.62, 0.8, 0.92) * clk * s0 * step(0.1, fy) * step(fy, 1.0);
 
   // WINDOW: a translucent frame over the lanes and, beneath them, the packets as two rows of
   // overlapping brackets (even packets above, odd ones below), so the 50% overlap reads
@@ -63,7 +63,7 @@ void main() {
   // a bracket, not a full rectangle: the corners and the left bar only
   float corner = step(abs(fx - bx0), 0.02) + step(abs(fy - wy0), 0.012) + step(abs(fy - wy1), 0.012);
   float pulse = 0.35 + uKnock * (0.9 + 0.35 * sin(uTime * 9.0));
-  col += vec3(1.0, 0.42, 0.14) * edge * min(corner, 1.0) * pulse * s2;
+  col += vec3(0.9, 0.5, 0.28) * edge * min(corner, 1.0) * pulse * s2;
 
   // FINGERPRINT: the baseline under the 28 bars
   float s3 = smoothstep(2.4, 3.0, uStage);

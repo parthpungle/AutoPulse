@@ -92,16 +92,16 @@ void main() {
       // CAN: each packet keeps the colour of the sensor it came from
       if (act == 7) c = uSensorColors[int(floor(fract(D.w * 7.31) * 7.0))];
       // coolant: cool off the block, warming to orange as it reaches the probe
-      if (act == 3) c = mix(vec3(0.31, 0.72, 1.0), c, 1.0 - smoothstep(0.25, 2.2, distance(P.xyz, uActiveTip)));
+      if (act == 3) c = mix(vec3(0.38, 0.66, 0.88), c, 1.0 - smoothstep(0.25, 2.2, distance(P.xyz, uActiveTip)));
     } else if (D.x > 29.5) {
       c = uSensorColors[act];
     }
-    base = mix(uColor, c * 1.25, w1);
+    base = mix(uColor, c * 1.1, w1);
   }
-  base = mix(base, clColor * 1.2, w3);
+  base = mix(base, clColor * 1.1, w3);
   if (w2 > 0.0) {
     int lane = int(texture2D(tSignals, aRef).x + 0.5);
-    base = mix(base, uSensorColors[lane] * 1.25, w2);
+    base = mix(base, uSensorColors[lane] * 1.1, w2);
   }
 
   float accentMix = clamp(sp * 0.85 + max(e - 1.0, 0.0) * 0.7 + kp * 0.6, 0.0, 1.0) * (1.0 - w1) * (1.0 - w2) * global;

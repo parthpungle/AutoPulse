@@ -8,6 +8,8 @@
 // Fuel trims are always written out as "short-term fuel trim", never abbreviated, so they can't be
 // confused with the Short-Time Fourier Transform used elsewhere on the page.
 
+import { mute } from './mute';
+
 export interface SensorField {
   label: string;
   text: string;
@@ -63,7 +65,7 @@ export const SENSORS: Sensor[] = [
       { label: 'Model', text: 'spectrogram images → CNN.' },
       { label: 'Sample rate', text: '44.1–48 kHz' },
     ],
-    color: '#8B7BFF',
+    color: mute('#8B7BFF'),
   },
   {
     index: 1,
@@ -84,7 +86,7 @@ export const SENSORS: Sensor[] = [
       { label: 'Model', text: 'feature vector → SVM / ANN.' },
       { label: 'Sample rate', text: '10–50 kHz' },
     ],
-    color: '#FF4FD8',
+    color: mute('#FF4FD8'),
   },
   {
     index: 2,
@@ -103,7 +105,7 @@ export const SENSORS: Sensor[] = [
       { label: 'Signature we extract', text: 'instantaneous angular speed, per-cylinder speed deltas.' },
       { label: 'OBD-II PID', text: '0x0C Engine RPM' },
     ],
-    color: '#4FD1FF',
+    color: mute('#4FD1FF'),
   },
   {
     index: 3,
@@ -125,7 +127,7 @@ export const SENSORS: Sensor[] = [
       { label: 'OBD-II PID', text: '0x05' },
       { label: 'Sample rate', text: '~1 Hz' },
     ],
-    color: '#FF8A3D',
+    color: mute('#FF8A3D'),
   },
   {
     index: 4,
@@ -143,7 +145,7 @@ export const SENSORS: Sensor[] = [
       { label: 'Reveals', text: 'load context. A transient throttle snap is where knock is most likely, so TPS gates when to look hardest.' },
       { label: 'OBD-II PID', text: '0x11' },
     ],
-    color: '#7CFFB2',
+    color: mute('#7CFFB2'),
   },
   {
     index: 5,
@@ -163,7 +165,7 @@ export const SENSORS: Sensor[] = [
       { label: 'Reveals', text: 'lean misfire, vacuum leaks, injector faults; trims drifting persistently away from 0% are the red flag.' },
       { label: 'OBD-II PID', text: '0x06–0x09' },
     ],
-    color: '#FFD84F',
+    color: mute('#FFD84F'),
   },
   {
     index: 6,
@@ -183,7 +185,7 @@ export const SENSORS: Sensor[] = [
       { label: 'Reveals', text: 'an injector opening profile that changes with a sticking injector; coil dwell/spark anomalies; alternator ripple.' },
       { label: 'Signature we extract', text: 'current waveform shape, peak/plateau timing, ripple frequency.' },
     ],
-    color: '#5B8CFF',
+    color: mute('#5B8CFF'),
   },
   {
     index: 7,
@@ -206,7 +208,7 @@ export const SENSORS: Sensor[] = [
         text: 'TorqueTwin time-aligns these slow channels with the fast audio/vibration streams, so every sound frame knows the RPM, load and temperature it happened at.',
       },
     ],
-    color: '#C0C6FF',
+    color: mute('#C0C6FF'),
   },
 ];
 

@@ -54,7 +54,7 @@ export class Composite {
   readonly composer: EffectComposer;
   readonly material: ShaderMaterial;
   readonly params = {
-    bloomIntensity: 0.95,
+    bloomIntensity: 0.85,
     bloomThreshold: 0.6,
     bloomRadius: 0.72,
     caBase: 0.00035,
