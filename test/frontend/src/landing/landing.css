@@ -267,3 +267,40 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; }
 }
+
+/* ---------------------------------------------------------------- sensor array (pinned) */
+.tt-sec--sensors { height: calc(100vh + 7 * 60vh); }
+.tt-sensors { pointer-events: none; justify-content: flex-start; }
+.tt-sensors > * { pointer-events: auto; }
+.tt-sensors__intro { max-width: 320px; transition: opacity 0.6s, transform 0.6s cubic-bezier(0.2, 0.7, 0.1, 1); }
+.tt-sensors__intro.is-away { opacity: 0; transform: translateY(-12px); pointer-events: none; }
+.tt-sensors__intro .tt-eyebrow { margin-bottom: 14px; }
+.tt-h3 { margin: 0; font-weight: 500; font-size: clamp(26px, 2.4vw, 38px); line-height: 1.02; letter-spacing: -0.035em; }
+
+.tt-index { position: absolute; left: var(--gutter); bottom: clamp(28px, 6vh, 64px); font-family: var(--font-mono); }
+.tt-index__head { margin: 0; font-size: 10.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text); }
+.tt-index__head span { color: var(--muted); }
+.tt-index__list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 1px; }
+.tt-index__list button {
+  position: relative; display: flex; align-items: center; gap: 16px; padding: 5px 0 6px; border: 0; background: none; cursor: pointer;
+  font: 500 11px/1.2 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text); opacity: 0.45;
+  transition: opacity 0.35s;
+}
+.tt-index__list button:hover, .tt-index__list button:focus-visible { opacity: 0.85; }
+.tt-index__list button.on { opacity: 1; }
+.tt-index__num { color: var(--muted); min-width: 2ch; transition: color 0.35s; }
+.tt-index__list button.on .tt-index__num { color: var(--c); }
+.tt-index__label::after {
+  content: ''; position: absolute; left: calc(2ch + 16px); bottom: 1px; height: 1px; width: 0; background: var(--c);
+  box-shadow: 0 0 8px var(--c); transition: width 0.5s cubic-bezier(0.2, 0.7, 0.1, 1);
+}
+.tt-index__list button.on .tt-index__label::after { width: 42px; animation: tt-underline 2.4s ease-in-out infinite; }
+@keyframes tt-underline { 0%, 100% { width: 42px; opacity: 1; } 50% { width: 26px; opacity: 0.6; } }
+.tt-index__readout { margin: 16px 0 0; display: flex; align-items: center; gap: 10px; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.tt-index__readout i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); animation: tt-blink 1.6s ease-in-out infinite; }
+@keyframes tt-blink { 50% { opacity: 0.35; } }
+
+.tt-progress--sensors .tt-progress__bar { position: relative; width: 96px; height: 2px; background: var(--line-strong); overflow: hidden; }
+.tt-progress--sensors .tt-progress__bar i { position: absolute; inset: 0; background: var(--c); transform-origin: 0 50%; transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.1, 1), background 0.5s; box-shadow: 0 0 8px var(--c); }
+
+.tt-visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }

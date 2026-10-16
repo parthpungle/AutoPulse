@@ -74,7 +74,7 @@ export const SENSORS: Sensor[] = [
     key: 'accel',
     code: 'SNS-02 · VIBRATION',
     title: 'Accelerometer (knock sensor)',
-    cardTitle: ['Accelero-', 'meter'],
+    cardTitle: ['Accelerometer'],
     indexLabel: 'Vibration',
     oneLine: 'structural vibration of the block.',
     fields: [

@@ -19,15 +19,17 @@ export const CAROUSEL = {
   /** Look-at point: this far from the axis toward the card. */
   lookIn: 1.25,
   /** Portrait row: spacing between cards and the row's distance in front of the crank. */
-  rowGap: 3.2,
+  rowGap: 2.6,
   rowZ: 3.4,
+  /** Portrait cards are drawn at this scale. */
+  rowScale: 0.8,
 };
 
 /** Camera position and look-at for carousel position c. */
 export function orbitPose(c: number, wide: boolean, pos: Vector3, look: Vector3) {
   if (!wide) {
-    pos.set(0, 0.35, CAROUSEL.rowZ + 7.2);
-    look.set(0, 0.2, 0);
+    pos.set(0, 1.0, CAROUSEL.rowZ + 9.8);
+    look.set(0, 0.95, 0);
     return;
   }
   const a = c * CAROUSEL.step;
@@ -40,7 +42,7 @@ export function orbitPose(c: number, wide: boolean, pos: Vector3, look: Vector3)
 /** Card i's centre and Y rotation for carousel position c (the row layout moves with c). */
 export function cardPose(i: number, c: number, wide: boolean, pos: Vector3): number {
   if (!wide) {
-    pos.set((i - c) * CAROUSEL.rowGap, 0.2, CAROUSEL.rowZ);
+    pos.set((i - c) * CAROUSEL.rowGap, 1.2, CAROUSEL.rowZ);
     return 0;
   }
   const a = i * CAROUSEL.step;

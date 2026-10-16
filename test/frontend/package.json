@@ -22,7 +22,8 @@
     "postprocessing": "^6.39.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "three": "^0.170.0"
+    "three": "^0.170.0",
+    "troika-three-text": "^0.52.4"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

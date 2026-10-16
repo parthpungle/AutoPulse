@@ -20,8 +20,9 @@ export class Pointer {
 
   ghost = true;
 
-  private x = 0.5;
-  private y = 0.5;
+  /** Raw pointer position, 0..1 (y up). */
+  x = 0.5;
+  y = 0.5;
   private px = 0.5;
   private py = 0.5;
   private gx = 0.5;

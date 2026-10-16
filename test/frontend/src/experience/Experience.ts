@@ -1,6 +1,10 @@
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { HalfFloatType, MathUtils, Mesh, Scene, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three';
+import { Color, HalfFloatType, MathUtils, Mesh, Scene, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three';
+import { preloadFont } from 'troika-three-text';
+import { SENSORS, SENSOR_COUNT } from '../content/sensors';
+import { Cards, FONT_DISPLAY, FONT_MONO, SCRAMBLE } from './carousel/Cards';
+import { CarouselState } from './carousel/CarouselState';
 import type { Material } from 'three';
 import { Anchors } from './Anchors';
 import { Composite } from './Composite';
@@ -36,7 +40,15 @@ export interface ExperienceOptions {
   onProgress?: (p: number) => void;
   /** Nearest section index, called when it changes. */
   onSection?: (index: number) => void;
+  /** Active sensor card in the Sensor Array, called when it changes. */
+  onCard?: (index: number) => void;
+  /** The active card was clicked (open its detail panel). */
+  onOpenCard?: (index: number) => void;
 }
+
+/** Ink octaves for the card artwork per quality tier. */
+const CARD_OCTAVES = [3, 3, 4, 5];
+const SENSOR_COLORS = SENSORS.map((s) => new Color(s.color));
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
@@ -97,6 +109,11 @@ export class Experience {
   private disposed = false;
   private section = -1;
   private fluidResizeTimer = 0;
+  readonly carousel: CarouselState;
+  cards!: Cards;
+  private activeCard = -1;
+  private hoverDirty = false;
+  private hoverCard = -1;
 
   private constructor(container: HTMLElement, options: ExperienceOptions) {
     this.options = options;
@@ -105,6 +122,7 @@ export class Experience {
     this.canvas.className = 'tt-gl';
     container.appendChild(this.canvas);
     this.scroll = new ScrollState(options.sections, this.reduced);
+    this.carousel = new CarouselState(this.scroll, 1, SENSOR_COUNT);
     this.pointer.ghost = !this.reduced;
     this.ready = this.init();
   }
@@ -155,6 +173,10 @@ export class Experience {
     this.main = new MainScene(this.settings.side, this.settings.count, set.rand, this.shared, this.palette);
     this.rig = new SensorRig(r, this.palette, this.settings.tier >= 2);
     this.rig.attach(this.main.scene);
+    this.cards = new Cards(this.main.glassRT.texture, this.shared);
+    this.cards.setOctaves(CARD_OCTAVES[this.settings.tier]);
+    this.main.cardScene.add(this.cards.group);
+    this.main.setBackdrop(this.backdrop.rt.texture);
     r.info.autoReset = false;
     this.composite = new Composite(r, this.main.camera, this.backdrop.rt.texture, this.main.rt.texture, this.shared, this.palette);
     this.composite.setBloom(this.settings.bloom);
@@ -165,6 +187,13 @@ export class Experience {
     for (const t of set.targets) r.initTexture(t);
     r.initTexture(set.spawn);
     r.initTexture(set.randTexture);
+    // card text: lay out every string and warm the glyph atlas with the scramble set
+    await Promise.all([
+      this.cards.sync(),
+      new Promise<void>((resolve) => preloadFont({ font: FONT_DISPLAY, characters: SCRAMBLE }, resolve)),
+      new Promise<void>((resolve) => preloadFont({ font: FONT_MONO, characters: SCRAMBLE }, resolve)),
+    ]);
+    if (this.disposed) return;
     this.progress(0.5);
 
     await this.precompile();
@@ -182,6 +211,8 @@ export class Experience {
     this.shared.uTime.value = 0;
 
     this.motionQuery.addEventListener('change', this.onMotion);
+    window.addEventListener('pointermove', this.onPointerMove, { passive: true });
+    window.addEventListener('click', this.onClick);
     document.addEventListener('visibilitychange', this.onVisibility);
     gsap.ticker.lagSmoothing(0);
     gsap.ticker.add(this.tick);
@@ -194,7 +225,7 @@ export class Experience {
   private async precompile() {
     const r = this.renderer;
     const scratch = new WebGLRenderTarget(4, 4, { type: HalfFloatType, depthBuffer: false });
-    const mats: Material[] = [...this.fluid.materials, ...this.sim.materials, ...this.backdrop.materials, ...this.composite.materials];
+    const mats: Material[] = [...this.fluid.materials, ...this.sim.materials, ...this.backdrop.materials, ...this.composite.materials, this.main.materials[1]];
     const tmp = new Scene();
     for (const m of mats) {
       const mesh = new Mesh(this.quad.geometry, m);
@@ -212,6 +243,17 @@ export class Experience {
     await r.compileAsync(this.main.scene, this.main.camera);
     r.render(this.main.scene, this.main.camera);
     this.rig.setHighTier(high);
+    // the glass cards, their text and the glitch copies; allocate the glass target too
+    this.cards.group.visible = true;
+    this.cards.setWarm(true);
+    this.cards.renderArt(r, this.quad, this.signals, 0, true);
+    r.setRenderTarget(scratch);
+    await r.compileAsync(this.main.cardScene, this.main.camera);
+    r.render(this.main.cardScene, this.main.camera);
+    this.cards.setWarm(false);
+    this.main.cardsVisible = true;
+    this.main.renderLayers(r, this.quad);
+    this.main.cardsVisible = false;
     for (const m of mats) this.quad.render(r, m, scratch);
     r.setRenderTarget(scratch);
     r.render(this.main.scene, this.main.camera);
@@ -282,9 +324,12 @@ export class Experience {
     this.signals.update(dt, s, this.reduced);
     this.main.wide = this.layout.wide === 1;
     this.rig.update(this.signals, sf);
+    this.carousel.update(dt);
+    this.main.carousel = this.reduced ? 0 : this.carousel.value;
     this.main.updateCamera(sf, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
     const cam = this.main.camera;
     this.sim.viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    this.updateCards(dt, sf);
 
     if (!this.reduced) {
       if (p.splatStrength > 0) this.fluid.splat(p.splatX, p.splatY, p.splatDX, p.splatDY, p.splatStrength);
@@ -301,10 +346,11 @@ export class Experience {
     pu.uFade.value = this.reduced ? Math.abs(2 * sc.morph - 1) : 1;
     pu.uAlpha.value = this.params.alpha * this.main.densityBoost;
 
-    this.backdrop.update(sc.progress, 0);
+    const near = 1 - Math.abs(sf - 1);
+    this.backdrop.update(sc.progress, near > 0 ? near : 0);
     this.backdrop.render(r);
     const before = r.info.render.calls;
-    this.main.render(r);
+    this.main.renderLayers(r, this.quad);
     this.sceneCalls = r.info.render.calls - before;
     this.composite.update(this.reduced ? 0 : p.speed, this.reduced ? 0 : Math.sin(Math.PI * sc.morph), s.uValve.value);
     this.composite.render(dt);
@@ -318,6 +364,57 @@ export class Experience {
     }
   }
 
+  /** Sensor Array: card placement, hover, the active card (glitch reveal, DOM, backdrop tint). */
+  private updateCards(dt: number, sf: number) {
+    const near = Math.abs(sf - 1) < 1;
+    this.main.cardsVisible = near;
+    this.cards.group.visible = near;
+    if (!near) return;
+    const p = this.pointer;
+    if (this.hoverDirty) {
+      this.hoverDirty = false;
+      const hit = this.cards.pick(p.x * 2 - 1, p.y * 2 - 1, this.main.camera);
+      if (hit !== this.hoverCard) {
+        this.hoverCard = hit;
+        this.cards.setHovered(hit);
+        window.dispatchEvent(new CustomEvent('tt:hover3d', { detail: hit >= 0 }));
+      }
+    }
+    const c = this.carousel;
+    this.cards.update(dt, c.value, this.layout.wide === 1, this.reduced, this.main.camera, p.nx, p.ny);
+    this.cards.renderArt(this.renderer, this.quad, this.signals, (this.signals.rpm - 800) / 2600);
+    if (c.active !== this.activeCard) {
+      this.activeCard = c.active;
+      if (!this.reduced && Math.abs(sf - 1) < 0.5) this.cards.glitch(c.active);
+      this.backdrop.tint.copy(SENSOR_COLORS[c.active]);
+      this.options.onCard?.(c.active);
+    }
+  }
+
+  private onPointerMove = () => {
+    this.hoverDirty = true;
+  };
+
+  private onClick = (e: MouseEvent) => {
+    const t = e.target as Element | null;
+    if (t?.closest?.('a, button, input, textarea, select, [role="dialog"], [data-ui]')) return;
+    if (!this.cards?.group.visible) return;
+    const p = this.pointer;
+    const hit = this.cards.pick(p.x * 2 - 1, p.y * 2 - 1, this.main.camera);
+    if (hit < 0) return;
+    if (hit === this.carousel.active) this.options.onOpenCard?.(hit);
+    else this.carousel.goToCard(hit);
+  };
+
+  /** Bring sensor card i to the front (scrolls the page to it). */
+  goToCard(i: number) {
+    this.carousel.goToCard(i);
+  }
+
+  get activeSensor() {
+    return this.carousel.active;
+  }
+
   private onResize = () => {
     if (!this.composite) return;
     const { width, height, dpr } = this.sizes;
@@ -329,6 +426,7 @@ export class Experience {
     this.backdrop.setSize(bw, bh);
     this.main.setSize(bw, bh);
     this.composite.setSize(width, height);
+    this.cards.glassTexel.set(1 / this.main.glassRT.width, 1 / this.main.glassRT.height);
     const aspect = width / height;
     const vh = 2 * CAMERA_BASE_Z * Math.tan(MathUtils.degToRad(CAMERA_FOV) / 2);
     this.layout.update(vh * aspect, vh);
@@ -354,6 +452,7 @@ export class Experience {
     this.fluid.params.iterations = next.jacobi;
     this.composite.setBloom(next.bloom);
     this.rig.setHighTier(tier >= 2);
+    this.cards.setOctaves(CARD_OCTAVES[tier]);
     this.sizes.setMaxDpr(next.dprCap);
     this.applyFluidSize();
     this.perf.hold(1.5);
@@ -415,6 +514,9 @@ export class Experience {
 
     window.clearTimeout(this.fluidResizeTimer);
     this.motionQuery.removeEventListener('change', this.onMotion);
+    window.removeEventListener('pointermove', this.onPointerMove);
+    window.removeEventListener('click', this.onClick);
+    this.carousel.dispose();
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     this.scroll.dispose();
@@ -426,6 +528,7 @@ export class Experience {
     this.backdrop?.dispose();
     this.main?.dispose();
     this.rig?.dispose();
+    this.cards?.dispose();
     this.composite?.dispose();
     this.quad?.dispose();
     if (this.renderer) {

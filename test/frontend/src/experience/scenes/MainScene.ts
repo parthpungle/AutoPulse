@@ -1,5 +1,6 @@
-import { BufferAttribute, BufferGeometry, CustomBlending, MathUtils, OneFactor, PerspectiveCamera, Points, ShaderMaterial, Vector3, ZeroFactor } from 'three';
-import type { Texture } from 'three';
+import { BufferAttribute, BufferGeometry, CustomBlending, HalfFloatType, LinearFilter, MathUtils, OneFactor, PerspectiveCamera, Points, Scene, ShaderMaterial, Vector2, Vector3, WebGLRenderTarget, ZeroFactor } from 'three';
+import type { Texture, WebGLRenderer } from 'three';
+import type { FullscreenQuad } from '../gl/FullscreenQuad';
 import { orbitPose } from '../carousel/CarouselLayout';
 import { GLSL } from '../shaders';
 import type { Palette } from '../theme';
@@ -19,9 +20,11 @@ export const CAMERA_FOV = 35;
 export const CAMERA_BASE_Z = 12;
 
 /**
- * The main 3-D layer: one full-resolution render target with a depth buffer. The solids (the
- * Sensor Array rig, opaque, alpha 1) draw first; the particles follow with depth test on, so the
- * crankshaft occludes the streams, adding light without writing coverage (RGB added, alpha kept).
+ * The main 3-D layer: one full-resolution render target with a depth buffer, drawn in three steps:
+ *  1. `scene`: the Sensor Array rig (opaque, alpha 1), then the particles with depth test on, so
+ *     the crankshaft occludes the streams; particles add light without writing coverage
+ *  2. glass source: backdrop + this layer copied at half resolution into `glassRT`
+ *  3. `cardScene`: the glass cards and their text, which sample `glassRT` (fake refraction)
  * The composite then lays this layer over the backdrop: bd * (1 - a) + rgb.
  */
 export class MainScene extends FXScene {
@@ -31,6 +34,11 @@ export class MainScene extends FXScene {
   /** Carousel position 0..7, set by the experience each frame. */
   carousel = 0;
   wide = true;
+  /** The glass cards (step 3); only drawn while the Sensor Array is near. */
+  readonly cardScene = new Scene();
+  cardsVisible = false;
+  readonly glassRT = new WebGLRenderTarget(1, 1, { type: HalfFloatType, minFilter: LinearFilter, magFilter: LinearFilter, depthBuffer: false });
+  private readonly glassMat: ShaderMaterial;
   private readonly geometry: BufferGeometry;
   private readonly look = new Vector3();
   private readonly pA = new Vector3();
@@ -86,6 +94,13 @@ export class MainScene extends FXScene {
         uColor: { value: palette.text },
       },
     });
+    this.glassMat = new ShaderMaterial({
+      vertexShader: GLSL.fullscreenVert,
+      fragmentShader: GLSL.glass,
+      depthTest: false,
+      depthWrite: false,
+      uniforms: { uTexel: { value: new Vector2() }, tBackdrop: { value: null }, tMain: { value: this.rt.texture } },
+    });
     this.points = new Points(this.geometry, this.material);
     this.points.frustumCulled = false;
     this.scene.add(this.points);
@@ -106,8 +121,22 @@ export class MainScene extends FXScene {
     return this.drawCount;
   }
 
+  setBackdrop(texture: Texture) {
+    this.glassMat.uniforms.tBackdrop.value = texture;
+  }
+
+  /** Steps 1-3 (see the class comment). */
+  renderLayers(renderer: WebGLRenderer, quad: FullscreenQuad) {
+    this.render(renderer);
+    if (!this.cardsVisible) return;
+    quad.render(renderer, this.glassMat, this.glassRT);
+    renderer.setRenderTarget(this.rt);
+    renderer.render(this.cardScene, this.camera);
+  }
+
   setSize(bufferWidth: number, bufferHeight: number) {
     super.setSize(bufferWidth, bufferHeight);
+    this.glassRT.setSize(Math.max(1, Math.round(bufferWidth / 2)), Math.max(1, Math.round(bufferHeight / 2)));
     this.camera.aspect = bufferWidth / bufferHeight;
     this.camera.updateProjectionMatrix();
     this.material.uniforms.uPointScale.value = bufferHeight / (2 * Math.tan(MathUtils.degToRad(CAMERA_FOV) / 2));
@@ -143,11 +172,13 @@ export class MainScene extends FXScene {
   }
 
   get materials() {
-    return [this.material];
+    return [this.material, this.glassMat];
   }
 
   dispose() {
     super.dispose();
+    this.glassRT.dispose();
+    this.glassMat.dispose();
     this.geometry.dispose();
     this.material.dispose();
   }

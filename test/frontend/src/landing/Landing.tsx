@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MouseEvent } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
+import { SENSORS } from '../content/sensors';
+import { SensorIndex } from './sensors/SensorIndex';
 import { gsap } from 'gsap';
 import type { Experience as Engine } from '../experience/Experience';
 import { CLUSTERS } from '../experience/sim/Targets';
@@ -34,6 +36,9 @@ export function Landing() {
   const [engine, setEngine] = useState<Engine | null>(null);
   const [section, setSection] = useState(0);
   const [active, setActive] = useState<StateKey | null>(null);
+  const [card, setCard] = useState(0);
+  const nav = useRef({ section: 0, card: 0 });
+  nav.current = { section, card };
   const root = useRef<HTMLDivElement>(null);
   const pre = useRef<Preloader | null>(null);
   const picked = useRef(false);
@@ -43,6 +48,50 @@ export function Landing() {
 
   const onProgress = useCallback((p: number) => pre.current?.setEngine(p), []);
   const onSection = useCallback((i: number) => setSection(i), []);
+  const onCard = useCallback((i: number) => setCard(i), []);
+  const onOpenCard = useCallback(() => undefined, []);
+
+  // Sensor Array: arrow keys step through the cards (and hand back to the page at either end),
+  // a horizontal swipe or drag does the same
+  useEffect(() => {
+    if (!engine) return;
+    const last = SENSORS.length - 1;
+    const onKey = (e: KeyboardEvent) => {
+      if (nav.current.section !== 1 || e.altKey || e.metaKey || e.ctrlKey) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const c = nav.current.card;
+      const next = e.key === 'ArrowRight' || e.key === 'ArrowDown';
+      const prev = e.key === 'ArrowLeft' || e.key === 'ArrowUp';
+      if ((next && c < last) || (prev && c > 0)) {
+        e.preventDefault();
+        engine.goToCard(c + (next ? 1 : -1));
+      }
+    };
+    let sx = 0;
+    let sy = 0;
+    let down = false;
+    const onDown = (e: PointerEvent) => {
+      down = nav.current.section === 1;
+      sx = e.clientX;
+      sy = e.clientY;
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!down) return;
+      down = false;
+      const dx = e.clientX - sx;
+      const dy = e.clientY - sy;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.3) engine.goToCard(nav.current.card + (dx < 0 ? 1 : -1));
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onDown, { passive: true });
+    window.addEventListener('pointerup', onUp, { passive: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [engine]);
 
   // fonts count toward the preloader; the cursor lives for the page's lifetime
   useEffect(() => {
@@ -137,23 +186,38 @@ export function Landing() {
 
   return (
     <div ref={root} style={active === 'healthy' ? { ['--state' as string]: 'var(--cool)' } : undefined}>
-      <Experience onCreate={setEngine} onProgress={onProgress} onSection={onSection} />
+      <Experience onCreate={setEngine} onProgress={onProgress} onSection={onSection} onCard={onCard} onOpenCard={onOpenCard} />
 
       <header className="tt-header">
         <a className="tt-wordmark" href="#top" onClick={(e) => goTo(e, '#top')} aria-label="TorqueTwin, back to top">
           <Wordmark />
         </a>
         <div className="tt-header__right">
-          <div className="tt-progress" aria-label={`Section ${section + 1} of ${n}: ${NAV_LABELS[section]}`}>
-            <span className="tt-progress__ticks" aria-hidden="true">
-              {NAV_LABELS.map((l, i) => (
-                <i key={l} className={i === section ? 'on' : ''} />
-              ))}
-            </span>
-            <span className="tt-progress__num" aria-hidden="true">
-              {String(section + 1).padStart(2, '0')} / {String(n).padStart(2, '0')}
-            </span>
-          </div>
+          {section === 1 ? (
+            <div
+              className="tt-progress tt-progress--sensors"
+              style={{ '--c': SENSORS[card].color } as CSSProperties}
+              aria-label={`Sensor ${card + 1} of ${SENSORS.length}: ${SENSORS[card].title}`}
+            >
+              <span className="tt-progress__bar" aria-hidden="true">
+                <i style={{ transform: `scaleX(${(card + 1) / SENSORS.length})` }} />
+              </span>
+              <span className="tt-progress__num" aria-hidden="true">
+                {String(card + 1).padStart(2, '0')} / {String(SENSORS.length).padStart(2, '0')}
+              </span>
+            </div>
+          ) : (
+            <div className="tt-progress" aria-label={`Section ${section + 1} of ${n}: ${NAV_LABELS[section]}`}>
+              <span className="tt-progress__ticks" aria-hidden="true">
+                {NAV_LABELS.map((l, i) => (
+                  <i key={l} className={i === section ? 'on' : ''} />
+                ))}
+              </span>
+              <span className="tt-progress__num" aria-hidden="true">
+                {String(section + 1).padStart(2, '0')} / {String(n).padStart(2, '0')}
+              </span>
+            </div>
+          )}
           <a className="tt-navlink" href={DASHBOARD_URL}>
             Dashboard
           </a>
@@ -201,16 +265,17 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="tt-sec" data-section="1" id="sensors" aria-labelledby="sensors-title">
-          <div className="tt-sec__inner">
-            <div className="tt-copy">
+        <section className="tt-sec tt-sec--sensors" data-section="1" data-pin id="sensors" aria-labelledby="sensors-title">
+          <div className="tt-sec__inner tt-sensors">
+            <div className={`tt-sensors__intro${card > 0 ? ' is-away' : ''}`}>
               <p className="tt-eyebrow" data-reveal="chars">
                 {SENSOR_ARRAY.eyebrow}
               </p>
-              <h2 className="tt-h2" id="sensors-title" data-reveal="lines">
+              <h2 className="tt-h3" id="sensors-title" data-reveal="lines">
                 {SENSOR_ARRAY.title}
               </h2>
             </div>
+            <SensorIndex active={card} onSelect={(i) => engine?.goToCard(i)} />
           </div>
         </section>
 

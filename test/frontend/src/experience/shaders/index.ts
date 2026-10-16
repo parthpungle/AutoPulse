@@ -12,6 +12,10 @@ import backdrop from './backdrop.frag.glsl?raw';
 import composite from './composite.frag.glsl?raw';
 import sheenVert from './sheen.vert.glsl?raw';
 import sheenFrag from './sheen.frag.glsl?raw';
+import cardVert from './card.vert.glsl?raw';
+import cardFrag from './card.frag.glsl?raw';
+import glass from './glass.frag.glsl?raw';
+import cardArt from './cardArt.frag.glsl?raw';
 import advect from './fluid/advect.frag.glsl?raw';
 import splat from './fluid/splat.frag.glsl?raw';
 import curl from './fluid/curl.frag.glsl?raw';
@@ -34,5 +38,9 @@ export const GLSL = {
   pointsFrag,
   sheenVert,
   sheenFrag,
+  cardVert,
+  cardFrag: join(noise, cardFrag),
+  cardArt: join(noise, state, cardArt),
+  glass,
   fluid: { advect, splat, curl, vorticity, divergence, scale, pressure, gradient },
 };
