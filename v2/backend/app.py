@@ -12,11 +12,14 @@ from pathlib import Path
 
 import joblib
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
+
+from autopulse import live_audio as la
 
 from autopulse.baseline import predict_days_to, simulate_life, simulate_wear
 from autopulse.generator import CAR_TYPES, ENGINE_FAULTS, FAULT_LABELS
@@ -173,6 +176,68 @@ def ask_docs(q: str = ""):
     from backend.docsearch import search
     return {"answer": search(q) if q.strip() else None}
 
+# ------------------------------------------------------------------ live audio (microphone)
+# The browser captures and buffers; it POSTs one window of raw float32 samples at its own rate.
+# Audio is analysed in memory and never stored or logged.
+LIVE_MAX_BYTES = int(la.MAX_INPUT_S * la.MAX_FS * 4)
+LIVE_TIMEOUT_S = 5.0
+_live_slots = threading.BoundedSemaphore(2)  # at most 2 windows in analysis; extra requests get 429
+
+
+@lru_cache(maxsize=1)
+def live_model():
+    try:
+        return la.LiveAudioModel.load(), None
+    except la.ModelUnavailable as e:
+        return None, str(e)
+
+
+@app.get("/api/live-audio/status")
+def live_status():
+    m, reason = live_model()
+    return {"source": "live_microphone", "model_available": m is not None, "reason": reason,
+            "model": m.info() if m else None,
+            "limits": {"window_s": la.WINDOW_S, "model_rate": la.MODEL_FS, "min_rate": la.MIN_FS,
+                       "max_rate": la.MAX_FS, "max_seconds": la.MAX_INPUT_S, "max_bytes": LIVE_MAX_BYTES,
+                       "timeout_s": LIVE_TIMEOUT_S, "quiet_dbfs": la.QUIET_DBFS}}
+
+
+@app.post("/api/live-audio/analyze")
+async def live_analyze(request: Request, sample_rate: int):
+    """Body: mono float32 little-endian samples (application/octet-stream); ?sample_rate=<Hz>."""
+    if not request.headers.get("content-type", "").startswith("application/octet-stream"):
+        raise HTTPException(415, "send raw float32 samples as application/octet-stream")
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > LIVE_MAX_BYTES:
+        raise HTTPException(413, f"audio payload over {LIVE_MAX_BYTES} bytes")
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > LIVE_MAX_BYTES:
+            raise HTTPException(413, f"audio payload over {LIVE_MAX_BYTES} bytes")
+    if not body or len(body) % 4:
+        raise HTTPException(422, "payload must be a non-empty whole number of float32 samples")
+    samples = np.frombuffer(bytes(body), dtype="<f4")
+    if not _live_slots.acquire(blocking=False):
+        raise HTTPException(429, "analysis busy; skip this window")
+
+    def work():
+        try:
+            return la.analyze_prepared(la.prepare_window(samples, sample_rate), live_model()[0])
+        finally:
+            _live_slots.release()
+
+    try:
+        out = await asyncio.wait_for(run_in_threadpool(work), LIVE_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        raise HTTPException(504, f"analysis took longer than {LIVE_TIMEOUT_S:.0f} s") from None
+    except la.AudioInputError as e:
+        raise HTTPException(422, str(e)) from None
+    except la.InvalidModelOutput as e:
+        raise HTTPException(500, f"model output rejected: {e}") from None
+    out["source"] = "live_microphone"
+    return out
+
 
 @app.get("/api/health")
 def health():
@@ -182,7 +247,7 @@ def health():
 @app.on_event("startup")
 async def warm():
     # load models and the 8-month baseline study in the background so the first click is instant
-    threading.Thread(target=lambda: (models(), _life()), daemon=True).start()
+    threading.Thread(target=lambda: (models(), _life(), live_model()), daemon=True).start()
     hub.loop = asyncio.get_running_loop()
     hub.start_discovery()
     auto = os.environ.get("AUTOPULSE_AUTOPAIR")          # "host:port:code", set by run.bat in the Both role
