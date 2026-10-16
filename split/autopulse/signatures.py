@@ -89,8 +89,9 @@ def features(x, fs, rpm, crank_speed=None):
     else:
         irregularity = min_dip = 0.0
 
+    flat = np.ptp(x) == 0                                     # constant input (dead sensor): no shape to measure
     vec = [np.log10(rms), np.abs(x).max() / rms,
-           stats.kurtosis(x), stats.skew(x),
+           0.0 if flat else stats.kurtosis(x), 0.0 if flat else stats.skew(x),
            np.mean(np.abs(np.diff(np.sign(x)))) / 2]
     vec += bands + list(orders)
     vec += [centroid, flatness, env_peak_order, env_prom, knock_kurt, irregularity, min_dip]

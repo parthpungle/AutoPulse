@@ -157,8 +157,27 @@ export default function VehicleApp() {
           <div className="row"><Wrench size={16} color="var(--accent)" /><div className="eyebrow">Simulate a breakdown</div><div className="spacer" />
             <button className="btn ghost" disabled={!broken} onClick={() => act('/repair', { fault: 'all' })}>Repair all</button></div>
 
+          <div className="row" style={{ gap: 10, marginTop: 4 }}>
+            <span className="kpi-label">Engine sound</span>
+            <div className="spacer" />
+            <Tabs value={s.source} onChange={(src) => act('/control', { source: src })}
+              items={[['sim', 'Simulated'], ['replay', 'Real recording']]} />
+          </div>
+          {s.source === 'replay' && (
+            <label className="field">
+              <select value={s.recording || ''} onChange={(e) => act('/control', { source: 'replay', recording: e.target.value })}
+                aria-label="Real recording">
+                {s.options.recordings.map((r) => (
+                  <option key={r.id} value={r.id}>{r.id} · {r.label.split(' (')[0]}{r.sample ? ' · sample' : ''}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {s.source === 'replay' && <div className="muted" style={{ fontSize: 12 }}>
+            Streams the recording 1 s at a time, looping; OBD stays simulated. The engine buttons below apply when you switch back to Simulated.</div>}
+
           <div className="kpi-label" style={{ marginTop: 4 }}>Engine (heard by the vibration sensor)</div>
-          <div className="fault-grid">
+          <div className="fault-grid" style={{ opacity: s.source === 'replay' ? 0.45 : 1 }}>
             {s.options.engine_faults.map((f) => (
               <button key={f.id} className={`fault ${s.truth.engine_fault === f.id ? 'on' : ''} ${f.id === 'healthy' ? 'healthy' : ''}`}
                 onClick={() => act('/inject', { fault: f.id })}>
@@ -171,6 +190,20 @@ export default function VehicleApp() {
             <input type="range" min="0.2" max="1" step="0.05" defaultValue={s.severity}
               onPointerUp={(e) => act('/control', { severity: +e.target.value })} onKeyUp={(e) => act('/control', { severity: +e.target.value })} />
           </label>
+
+          <div className="kpi-label" style={{ marginTop: 6 }}>Stress test · where it breaks</div>
+          <div className="stack" style={{ gap: 8 }}>
+            <div className="row" style={{ gap: 8 }}><span className="muted" style={{ fontSize: 12, width: 92 }}>Noise</span>
+              <Tabs value={String(s.stress?.noise_mult ?? 1)} onChange={(v) => act('/control', { noise_mult: +v })}
+                items={[['1', '×1'], ['5', '×5'], ['10', '×10']]} /></div>
+            <div className="row" style={{ gap: 8 }}><span className="muted" style={{ fontSize: 12, width: 92 }}>Fault strength</span>
+              <Tabs value={s.stress?.severity_band || 'slider'} onChange={(v) => act('/control', { severity_band: v })}
+                items={[['slider', 'Slider'], ['normal', 'Normal 0.4–1'], ['early', 'Early 0.1–0.3']]} /></div>
+            <div className="row" style={{ gap: 8 }}><span className="muted" style={{ fontSize: 12, width: 92 }}>Engine speed</span>
+              <Tabs value={String(s.stress?.rpm_override || 0)} onChange={(v) => act('/control', { rpm_override: +v })}
+                items={[['0', 'Driver'], ['5500', '5500 rpm'], ['6500', '6500 rpm']]} /></div>
+            <div className="muted" style={{ fontSize: 12 }}>Models are trained on 750–4000 rpm, normal noise and fault strength 0.4–1.</div>
+          </div>
 
           <div className="kpi-label" style={{ marginTop: 6 }}>Vehicle (read over OBD-II)</div>
           <div className="obd-list">

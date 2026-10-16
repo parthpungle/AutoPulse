@@ -65,7 +65,10 @@ def estimate_rpm(x, fs, lo_hz=12.0, hi_hz=90.0):
 
 def load_engine_audio(fs_out=24000, window_s=1.0, hop_s=0.5):
     """Real phone recordings of engines. Returns a list of 1 s windows with clip ids, so
-    train/test can be split by recording (windows of one clip never sit on both sides)."""
+    train/test can be split by recording (windows of one clip never sit on both sides).
+    Windowing is shared with real_audio.windows_from_signal(), which classifies new recordings."""
+    from . import real_audio
+    assert (fs_out, window_s, hop_s) == (real_audio.FS, real_audio.WINDOW_S, real_audio.HOP_S)
     out = []
     for f in sorted((RAW / "engine_audio").glob("*.wav")):
         label = AUDIO_CLASS_MAP.get(f.stem.rsplit("_", 1)[0])
@@ -76,10 +79,8 @@ def load_engine_audio(fs_out=24000, window_s=1.0, hop_s=0.5):
         if y.ndim > 1:
             y = y.mean(axis=1)
         y = resample_poly(y, fs_out, fs) if fs != fs_out else y
-        y = (y - y.mean()) / (y.std() + 1e-9)
-        n, hop = int(window_s * fs_out), int(hop_s * fs_out)
-        for start in range(0, len(y) - n + 1, hop):
-            out.append({"clip": f.stem, "label": label, "signal": y[start:start + n].astype(np.float32), "fs": fs_out})
+        for w in real_audio.clip_windows(y)[0]:
+            out.append({"clip": f.stem, "label": label, "signal": w, "fs": fs_out})
     return out
 
 

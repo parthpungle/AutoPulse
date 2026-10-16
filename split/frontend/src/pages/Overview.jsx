@@ -1,6 +1,7 @@
 import { ChevronRight, HeartPulse, Power } from 'lucide-react';
 import Car3D from '../components/Car3D.jsx';
-import { Spark, Status, StatusIcon, scoreStatus } from '../components/ui.jsx';
+import { SourceTag, Spark, Status, StatusIcon, scoreStatus } from '../components/ui.jsx';
+import { useApi } from '../api.js';
 import { CAR_INFO, carName } from '../cars.js';
 import { series, useLive } from '../live.jsx';
 
@@ -17,6 +18,9 @@ export default function Overview({ go }) {
   const issues = systems.filter((c) => c.status !== 'ok');
   const facts = issues.length ? issues : systems.slice(0, 5);
   const recent = history.slice(-120);
+  const real = useApi('/results').data?.real?.audio;               // the headline accuracy: real recordings only
+  const best = real && Object.entries(real.models).sort((a, b) => b[1].macro_f1.mean - a[1].macro_f1.mean)[0];
+  const replay = engine.source === 'real recording';
 
   return (
     <div className="overview">
@@ -35,10 +39,18 @@ export default function Overview({ go }) {
             <span className="big" style={{ color: `var(--${st === 'ok' ? 'good' : st})` }}>{score}</span>
             <div>
               <div className="kpi-label">Health score</div>
-              <div style={{ marginTop: 4 }}><Status status={st} /></div>
+              <div className="row" style={{ marginTop: 4, gap: 8 }}><Status status={st} />
+                <SourceTag kind="simulator" label={replay ? 'Simulated car · real engine sound' : 'Simulated car'} /></div>
             </div>
           </div>
           <div style={{ marginTop: 8, fontSize: 15 }}>{verdict}</div>
+          {best && (
+            <div className="row" style={{ marginTop: 10, gap: 8, flexWrap: 'wrap', fontSize: 13 }}>
+              <span className="ink2">Engine-sound models: <b>{(best[1].accuracy.mean * 100).toFixed(1)}%</b> on {real.n_recordings} real
+                recordings ({best[0].split(' (')[0]}, held out by recording)</span>
+              <SourceTag kind="real" />
+            </div>
+          )}
           {alerts[0] && alerts[0].severity !== 'info' && (
             <div className="top-alert" style={{ '--c': `var(--${alerts[0].severity})` }}>
               <StatusIcon status={alerts[0].severity} size={15} />
@@ -68,7 +80,14 @@ export default function Overview({ go }) {
               <span className="spacer" /><ChevronRight size={15} color="var(--muted)" />
             </button>
           ))}
-          {engine.state === 'running' && (
+          {engine.state === 'running' && engine.anomaly == null && (
+            <div className="fact" style={{ cursor: 'default' }}>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Engine sound: real recording. The own-normal baseline is paused (it was set up on simulated engines).
+              </div>
+            </div>
+          )}
+          {engine.state === 'running' && engine.anomaly != null && (
             <div className="fact" style={{ cursor: 'default' }}>
               <div style={{ width: '100%' }}>
                 <div className="kpi-label">Engine vs its own normal</div>

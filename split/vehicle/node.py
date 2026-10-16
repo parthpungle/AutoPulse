@@ -26,7 +26,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from pydantic import BaseModel
 
 from autopulse.generator import CAR_TYPES, ENGINE_FAULTS, FAULT_LABELS
-from autopulse.livecar import MODES, LiveCar
+from autopulse.livecar import MODES, LiveCar, recordings
 from autopulse.telemetry import OBD_FAULTS
 from autopulse.wire import BEACON_PORT, PROTOCOL, STREAM_PORT, encode_frame
 
@@ -187,6 +187,11 @@ class Control(BaseModel):
     mode: str | None = None
     ambient: float | None = None
     severity: float | None = None
+    source: str | None = None           # engine sound: "sim" or "replay"
+    recording: str | None = None        # which real recording to replay
+    noise_mult: float | None = None     # stress: background noise x1, x5, x10
+    severity_band: str | None = None    # stress: "normal" (0.4-1.0), "early" (0.1-0.3), "slider" = use severity
+    rpm_override: float | None = None   # stress: fixed engine speed; 0 = back to the driver
 
 
 class Fault(BaseModel):
@@ -198,6 +203,8 @@ def state(request: Request):
     local_only(request)
     return {"name": NAME, "code": CODE, "ip": lan_ip(), "port": PORT, **vehicle_info(),
             "ignition": car.ignition, "mode": car.mode, "ambient": car.ambient, "severity": car.severity,
+            "source": car.source, "recording": car.recording,
+            "stress": {"noise_mult": car.noise_mult, "severity_band": car.severity_band, "rpm_override": car.rpm_override},
             "trip_s": car.trip_t, "truth": car.truth(), "obd": latest["obd"],
             "clients": [{"ip": c["ip"], "since_s": int(time.time() - c["since"])} for c in clients.values()],
             "stats": {"frames": stats["seq"], "kb_sent": round(stats["bytes"] / 1000), "kbps": round(stats["rate_bps"] / 1000, 1)},
@@ -205,6 +212,7 @@ def state(request: Request):
             "options": {"cars": [{"id": k, "label": v["label"]} for k, v in CAR_TYPES.items()],
                         "modes": [{"id": k, "label": v["label"]} for k, v in MODES.items()],
                         "engine_faults": [{"id": f, "label": FAULT_LABELS[f]} for f in ENGINE_FAULTS],
+                        "recordings": [{"id": r["id"], "label": r["label"], "sample": r["sample"]} for r in recordings()],
                         "obd_faults": [{"id": k, "label": v} for k, v in OBD_FAULTS.items() if k != "none"]}}
 
 
@@ -224,6 +232,30 @@ def control(c: Control, request: Request):
             car.ambient = float(c.ambient)
         if c.severity is not None:
             car.severity = float(min(max(c.severity, 0.2), 1.0))
+        if c.source is not None or c.recording is not None:
+            before = (car.source, car.recording)
+            try:
+                car.set_source(c.source or car.source, c.recording)
+            except ValueError as e:
+                raise HTTPException(400, str(e)) from e
+            if (car.source, car.recording) != before:
+                say("Engine sound: simulated" if car.source == "sim" else f"Engine sound: real recording {car.recording}", "ctl")
+        if c.noise_mult is not None and c.noise_mult != car.noise_mult:
+            car.noise_mult = float(min(max(c.noise_mult, 1.0), 20.0))
+            say(f"Stress: background noise x{car.noise_mult:g}", "ctl")
+        if c.severity_band is not None:
+            band = None if c.severity_band == "slider" else c.severity_band
+            if band not in (None, "normal", "early"):
+                raise HTTPException(400, f"unknown severity band {c.severity_band}")
+            if band != car.severity_band:
+                car.severity_band = band
+                say("Stress: fault strength " + {None: "from the slider", "normal": "normal 0.4-1.0",
+                                                 "early": "early 0.1-0.3"}[band], "ctl")
+        if c.rpm_override is not None:
+            rpm = float(c.rpm_override) or None
+            if rpm != car.rpm_override:
+                car.rpm_override = rpm
+                say(f"Stress: engine held at {rpm:.0f} rpm" if rpm else "Stress: engine speed back to the driver", "ctl")
         if c.ignition is not None and c.ignition != car.ignition:
             (car.start if c.ignition else car.stop)()
             say("Engine started" if c.ignition else "Engine stopped", "ctl")

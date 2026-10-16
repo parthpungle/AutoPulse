@@ -18,6 +18,16 @@ async function call(path, body) {
   return p;
 }
 
+/** POST one audio file to the real-audio models. Throws an Error carrying the server's message (413/415/503). */
+export async function classifyAudio(blob, name = 'clip.wav') {
+  const form = new FormData();
+  form.append('file', blob, name);
+  const r = await fetch('/api/classify-audio', { method: 'POST', body: form });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(body.detail || `classify-audio: HTTP ${r.status}`), { status: r.status });
+  return body;
+}
+
 /** useApi('/startup', scenario) -> { data, loading, error }. Keeps the previous data while
  *  refetching, so charts dim instead of flashing empty. */
 export function useApi(path, body) {

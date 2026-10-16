@@ -106,6 +106,7 @@ a { color: var(--accent); text-decoration: none; }
 .status.warning { color: var(--warning); }
 .status.critical { color: var(--critical); }
 .status.info { color: var(--info); }
+.status.unsure { color: var(--s4); }
 .status.pending { color: var(--muted); }
 .kpi-label { font: 500 10.5px var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
 .kpi-value { font-size: 26px; font-weight: 500; letter-spacing: -.01em; margin-top: 4px; }
@@ -334,3 +335,19 @@ button.link-pill:hover { border-color: rgba(255, 255, 255, 0.24); }
 .check:disabled { cursor: default; }
 .check:disabled:hover { background: transparent; }
 
+
+/* source tags (components/ui.jsx SourceTag): the border style differs per kind as well as the colour */
+.source-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 4px;
+  font: 600 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+  color: var(--src); border: 1.5px solid var(--src); vertical-align: middle; }
+.source-tag.src-real { background: var(--src); color: #0f0e0d; }
+.source-tag.src-real_injected { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--src) 28%, transparent) 0 4px, transparent 4px 8px); color: var(--ink); }
+.source-tag.src-simulink { border-style: double; border-width: 3px; padding: 1px 7px; }
+.source-tag.src-simulator { border-style: dashed; color: var(--ink-2); }
+.evi-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 2px; }
+.evi-head h3 { margin: 0; font-size: 16px; font-weight: 600; }
+details.sim-upper > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; }
+details.sim-upper > summary::-webkit-details-marker { display: none; }
+details.sim-upper > summary::before { content: '▸'; color: var(--muted); }
+details.sim-upper[open] > summary::before { content: '▾'; }
+.unsure-banner { display: flex; gap: 12px; align-items: flex-start; border: 1.5px dashed var(--s4); background: color-mix(in srgb, var(--s4) 8%, var(--surface)); }

@@ -15,7 +15,7 @@ const PAGES = [
   { id: 'overview', name: 'Overview', icon: LayoutDashboard, title: 'Overview', sub: 'The paired car, live', live: true },
   { id: 'check', name: 'Health check', icon: HeartPulse, title: 'Health check', sub: 'Every subsystem, scanned from the live stream', live: true },
   { id: 'drive', name: 'Live drive', icon: Gauge, title: 'Live drive', sub: 'OBD-II telemetry with safety rules and guidance', live: true },
-  { id: 'signatures', name: 'Signatures', icon: AudioWaveform, title: 'Signature lab', sub: 'The engine’s latest second in time, frequency and order', live: true },
+  { id: 'signatures', name: 'Signatures', icon: AudioWaveform, title: 'Signature lab', sub: 'The engine’s latest second, or a real clip, in time, frequency and order', live: true },
   { id: 'insights', name: 'Insights', icon: TrendingUp, title: 'Insights', sub: "Learning a car's normal, and normal wear" },
   { id: 'evidence', name: 'Evidence', icon: FlaskConical, title: 'Evidence', sub: 'Real-data, MATLAB and Simulink results' },
 ];
@@ -98,7 +98,7 @@ function Shell() {
         </header>
         <div className="content" key={page}>
           <div className="fade-in" style={{ height: page === 'overview' ? '100%' : 'auto' }}>
-            {P.live && !latest ? <NoVehicle onPair={() => setDrawer(true)} /> : (
+            {P.live && !latest && page !== 'signatures' ? <NoVehicle onPair={() => setDrawer(true)} /> : (
               <>
                 {page === 'overview' && <Overview go={setPage} />}
                 {page === 'check' && <HealthCheck />}

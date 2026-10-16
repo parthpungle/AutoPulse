@@ -4,6 +4,7 @@ stream (backend/live.py) and serves the studies behind the Insights and Evidence
     .venv\\Scripts\\python -m uvicorn backend.app:app --port 8000
 """
 import asyncio
+import io
 import json
 import os
 import threading
@@ -12,18 +13,21 @@ from pathlib import Path
 
 import joblib
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import soundfile as sf
+from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from autopulse import real_audio
 from autopulse.baseline import predict_days_to, simulate_life, simulate_wear
 from autopulse.generator import CAR_TYPES, ENGINE_FAULTS, FAULT_LABELS
 from autopulse.models import HAS_TORCH, make_cnn
 from autopulse.telemetry import OBD_FAULTS
 from autopulse.wire import STREAM_PORT
-from backend.live import LiveHub
+from autopulse.realdata import estimate_rpm
+from backend.live import LiveHub, build_sig
 
 ROOT = Path(__file__).resolve().parents[1]
 MODELS = ROOT / "models"
@@ -149,12 +153,62 @@ def wear():
                         "limit": 3.2, "months_left": round(days_left / 30, 1) if days_left else None}}
 
 
+# ------------------------------------------------------------------ classify a real clip (Signatures -> Real clip)
+CLIP_MAX_BYTES, CLIP_MAX_S = 10_000_000, 30.0
+
+
+@app.get("/api/real-audio")
+def real_audio_meta():
+    """What the real-audio models were trained on (meta.json), or null if train_real.py has not been run."""
+    return real_audio.meta()
+
+
+def _classify(x, fs):
+    res = real_audio.classify_clip(x, fs)
+    if res["n_windows"]:
+        wins, _ = real_audio.windows_from_signal(x, fs)
+        k = res["classes"].index(res["verdict"]) if res["verdict"] in res["classes"] else \
+            int(np.argmax(res["ensemble"]))
+        best = int(np.argmax(np.asarray(res["per_window"])[:, k]))  # the window most sure of the overall verdict
+        res["sig"] = build_sig(wins[best], real_audio.FS, estimate_rpm(wins[best], real_audio.FS))
+        res["sig_window"] = best
+    m = real_audio.meta()
+    res["model_info"] = {k: m[k] for k in ("source", "n_recordings", "n_windows", "trained_at")}
+    res["duration_s"] = round(len(x) / fs, 2)
+    return res
+
+
+@app.post("/api/classify-audio")
+async def classify_audio(file: UploadFile = File(...)):
+    """One recording -> the real-audio models' verdict per 1 s window and overall, plus the signature views of the
+    window they are most sure about. WAV/FLAC/OGG decode here; the page converts MP3/WebM/M4A to WAV first."""
+    data = await file.read(CLIP_MAX_BYTES + 1)
+    if len(data) > CLIP_MAX_BYTES:
+        raise HTTPException(413, "The file is larger than 10 MB. Upload 30 seconds or less.")
+    try:
+        info = sf.info(io.BytesIO(data))
+        if info.duration > CLIP_MAX_S:
+            raise HTTPException(413, f"The clip is {info.duration:.0f} s long; the limit is {CLIP_MAX_S:.0f} s.")
+        x, fs = sf.read(io.BytesIO(data), dtype="float32")
+    except HTTPException:
+        raise
+    except Exception as e:                                          # noqa: BLE001 - libsndfile cannot read it
+        raise HTTPException(415, "This audio format cannot be decoded on the server (WAV, FLAC or OGG work). "
+                                 "Use the page's Upload button, which converts MP3/WebM/M4A to WAV first.") from e
+    if real_audio.load_real_models() is None:
+        raise HTTPException(503, "The real-audio models are not trained on this laptop: run train_real.py "
+                                 "(needs scripts/download_data.py engine_audio).")
+    return await asyncio.to_thread(_classify, x, fs)
+
+
 # ------------------------------------------------------------------ evidence
 @app.get("/api/results")
 def results():
     load = lambda n: json.loads((MODELS / n).read_text()) if (MODELS / n).exists() else None  # noqa: E731
     return {"simulator": load("metrics.json"), "real": load("real_metrics.json"),
-            "matlab": load("matlab_crosscheck.json")}
+            "matlab": load("matlab_crosscheck.json"),
+            "fusion": load("fusion_metrics.json"), "robustness": load("robustness.json"),   # null until written
+            "robustness_randomized": load("robustness_randomized.json")}
 
 
 @app.get("/api/health")
@@ -165,7 +219,7 @@ def health():
 @app.on_event("startup")
 async def warm():
     # load models and the 8-month baseline study in the background so the first click is instant
-    threading.Thread(target=lambda: (models(), _life()), daemon=True).start()
+    threading.Thread(target=lambda: (models(), real_audio.load_real_models(), _life()), daemon=True).start()
     hub.loop = asyncio.get_running_loop()
     hub.start_discovery()
     auto = os.environ.get("AUTOPULSE_AUTOPAIR")          # "host:port:code", set by run.bat in the Both role

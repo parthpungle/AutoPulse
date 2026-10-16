@@ -39,25 +39,83 @@ def make_cnn(n_classes):
     )
 
 
-def train_cnn(specs, y, n_classes, epochs=18, seed=0):
+def spec_augment(xb, gen, n_freq_masks=2, max_freq=8, n_time_masks=2, max_time_frac=0.10):
+    """SpecAugment on a batch (B, 1, F, T) of normalised spectrograms: zero (= the mean) random frequency bands
+    of up to max_freq bins and random time spans of up to max_time_frac of the frames."""
+    xb = xb.clone()
+    B, _, F, T = xb.shape
+    for i in range(B):
+        for _ in range(n_freq_masks):
+            w = int(torch.randint(0, max_freq + 1, (1,), generator=gen))
+            f0 = int(torch.randint(0, max(1, F - w), (1,), generator=gen))
+            xb[i, :, f0:f0 + w, :] = 0
+        for _ in range(n_time_masks):
+            w = int(torch.randint(0, max(1, int(max_time_frac * T)) + 1, (1,), generator=gen))
+            t0 = int(torch.randint(0, max(1, T - w), (1,), generator=gen))
+            xb[i, :, :, t0:t0 + w] = 0
+    return xb
+
+
+def train_cnn(specs, y, n_classes, epochs=18, seed=0, init=None, lr=2e-3, augment=False, class_weighted=False,
+              groups=None, patience=None, seeds=None):
+    """init: a trained CNN to start from (fine-tuning, e.g. simulator-pretrained), usually with a lower lr.
+    Optional, all off by default (train.py's behaviour is unchanged):
+      augment         SpecAugment (2 frequency masks <= 8 bins, 2 time masks <= 10%)
+      class_weighted  cross-entropy weighted by inverse class frequency
+      groups+patience early stopping: hold out ~20% of the groups (e.g. recordings) as validation, train up to
+                      `epochs`, stop after `patience` epochs without a better validation loss, keep the best weights
+      seeds           train one model per seed and return the list (cnn_proba averages their probabilities)"""
+    if seeds:
+        return [train_cnn(specs, y, n_classes, epochs, s, init, lr, augment, class_weighted, groups, patience)
+                for s in seeds]
     torch.manual_seed(seed)
     X = torch.tensor(np.stack([normalize_spec(s) for s in specs])[:, None], dtype=torch.float32)
     Y = torch.tensor(y, dtype=torch.long)
+    Xv = Yv = None
+    if groups is not None and patience:
+        from sklearn.model_selection import StratifiedGroupKFold
+        tr, va = next(StratifiedGroupKFold(5, shuffle=True, random_state=seed).split(np.zeros(len(y)), y, groups))
+        X, Y, Xv, Yv = X[tr], Y[tr], X[va], Y[va]
     model = make_cnn(n_classes)
-    opt = torch.optim.Adam(model.parameters(), lr=2e-3)
-    loss_fn = nn.CrossEntropyLoss()
+    if init is not None:
+        model.load_state_dict(init.state_dict())
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    weight = None
+    if class_weighted:
+        counts = np.bincount(Y.numpy(), minlength=n_classes).astype(float)
+        weight = torch.tensor(len(Y) / (n_classes * np.maximum(counts, 1)), dtype=torch.float32)
+    loss_fn = nn.CrossEntropyLoss(weight=weight)
+    gen = torch.Generator().manual_seed(seed + 1) if augment else None
+    best, best_state, since = np.inf, None, 0
     for _ in range(epochs):
         model.train()
         perm = torch.randperm(len(X))
         for i in range(0, len(X), 64):
             b = perm[i:i + 64]
+            xb = spec_augment(X[b], gen) if augment else X[b]
             opt.zero_grad()
-            loss_fn(model(X[b]), Y[b]).backward()
+            loss_fn(model(xb), Y[b]).backward()
             opt.step()
+        if Xv is not None:
+            model.eval()
+            with torch.no_grad():
+                v = float(loss_fn(model(Xv), Yv))
+            if v < best - 1e-4:
+                best, since = v, 0
+                best_state = {k: t.clone() for k, t in model.state_dict().items()}
+            else:
+                since += 1
+                if since >= patience:
+                    break
+    if best_state is not None:
+        model.load_state_dict(best_state)
     return model.eval()
 
 
 def cnn_proba(model, specs):
+    """Class probabilities; a list of CNNs (seed-averaging) gives the mean of their probabilities."""
+    if isinstance(model, (list, tuple)):
+        return np.mean([cnn_proba(m, specs) for m in model], axis=0)
     X = torch.tensor(np.stack([normalize_spec(s) for s in specs])[:, None], dtype=torch.float32)
     with torch.no_grad():
         return torch.softmax(model(X), dim=1).numpy()

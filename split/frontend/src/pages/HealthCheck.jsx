@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play, RotateCcw } from 'lucide-react';
 import Car3D from '../components/Car3D.jsx';
-import { Ring, Status, StatusIcon, scoreStatus } from '../components/ui.jsx';
+import { Ring, Status, StatusIcon, UnsureBanner, scoreStatus } from '../components/ui.jsx';
 import { carName } from '../cars.js';
 import { useLive } from '../live.jsx';
 
@@ -35,7 +35,7 @@ export default function HealthCheck() {
   };
   useEffect(() => { run(); return () => clearInterval(timer.current); }, []);
 
-  const { systems: checks, zones: liveZones, score, verdict, vehicle: v } = latest;
+  const { systems: checks, zones: liveZones, score, verdict, vehicle: v, engine } = latest;
   const revealed = step >= checks.length;
   const zones = revealed ? liveZones : Object.fromEntries(Object.keys(liveZones).map((k) => [k, 'ok']));
   const selected = checks.find((c) => c.id === sel);
@@ -56,6 +56,7 @@ export default function HealthCheck() {
       </div>
 
       <div className="stack">
+        {revealed && <UnsureBanner engine={engine} />}
         <div className="panel panel-pad">
           <div className="ring-wrap">
             <Ring value={revealed ? score : 0} status={revealed ? st : 'muted'} />
