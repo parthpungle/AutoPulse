@@ -270,7 +270,8 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
 }
 
 /* ---------------------------------------------------------------- sensor array (pinned) */
-.tt-sec--sensors { height: calc(100vh + 7 * 60vh); }
+/* 8 cards, 35vh of scroll apart (stepped: one gesture is one card, see StepSection) */
+.tt-sec--sensors { height: calc(100vh + 7 * 35vh); }
 .tt-sensors { pointer-events: none; justify-content: flex-start; }
 .tt-sensors > * { pointer-events: auto; }
 .tt-sensors__intro { max-width: 320px; transition: opacity 0.6s, transform 0.6s cubic-bezier(0.2, 0.7, 0.1, 1); }

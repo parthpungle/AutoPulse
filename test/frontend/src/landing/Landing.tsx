@@ -63,53 +63,28 @@ export function Landing() {
     if (section !== 1) setDetail(false);
   }, [section]);
 
-  // Sensor Array: arrow keys step through the cards (and hand back to the page at either end),
-  // a horizontal swipe or drag does the same
+  // Sensor Array: arrow keys, Space and Page Up/Down step through the cards and hand back to the
+  // page at either end (wheel and touch gestures are stepped by the engine itself)
   useEffect(() => {
     if (!engine) return;
-    const last = SENSORS.length - 1;
     const onKey = (e: KeyboardEvent) => {
       if (nav.current.section !== 1 || nav.current.detail || e.altKey || e.metaKey || e.ctrlKey) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const onControl = tag === 'BUTTON' || tag === 'A';
       // Enter on the page (not on a focused control) opens the active card's details
-      if (e.key === 'Enter' && tag !== 'BUTTON' && tag !== 'A') {
+      if (e.key === 'Enter' && !onControl) {
         e.preventDefault();
         setDetail(true);
         return;
       }
-      const c = nav.current.card;
-      const next = e.key === 'ArrowRight' || e.key === 'ArrowDown';
-      const prev = e.key === 'ArrowLeft' || e.key === 'ArrowUp';
-      if ((next && c < last) || (prev && c > 0)) {
-        e.preventDefault();
-        engine.goToCard(c + (next ? 1 : -1));
-      }
-    };
-    let sx = 0;
-    let sy = 0;
-    let down = false;
-    // touch only: on desktop the wheel and trackpad scroll the page and the cards never grab them
-    const onDown = (e: PointerEvent) => {
-      down = e.pointerType === 'touch' && nav.current.section === 1 && !nav.current.detail;
-      sx = e.clientX;
-      sy = e.clientY;
-    };
-    const onUp = (e: PointerEvent) => {
-      if (!down) return;
-      down = false;
-      const dx = e.clientX - sx;
-      const dy = e.clientY - sy;
-      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.3) engine.goToCard(nav.current.card + (dx < 0 ? 1 : -1));
+      let dir = 0;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey && !onControl)) dir = 1;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey && !onControl)) dir = -1;
+      if (dir && engine.stepCard(dir)) e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
-    window.addEventListener('pointerdown', onDown, { passive: true });
-    window.addEventListener('pointerup', onUp, { passive: true });
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('pointerdown', onDown);
-      window.removeEventListener('pointerup', onUp);
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [engine]);
 
   // fonts count toward the preloader; the cursor lives for the page's lifetime

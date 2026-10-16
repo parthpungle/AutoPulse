@@ -4,7 +4,7 @@ import { Color, HalfFloatType, MathUtils, Mesh, Scene, Vector3, WebGLRenderer, W
 import { preloadFont } from 'troika-three-text';
 import { SENSORS, SENSOR_COUNT } from '../content/sensors';
 import { Cards, FONT_DISPLAY, FONT_MONO, SCRAMBLE } from './carousel/Cards';
-import { CarouselState } from './carousel/CarouselState';
+import { StepSection } from './scroll/StepSection';
 import { Flows } from './sim/Flows';
 import { FlowPaths } from './sim/Paths';
 import type { Material } from 'three';
@@ -111,7 +111,7 @@ export class Experience {
   private disposed = false;
   private section = -1;
   private fluidResizeTimer = 0;
-  readonly carousel: CarouselState;
+  readonly carousel: StepSection;
   readonly paths = new FlowPaths();
   readonly flows = new Flows();
   private readonly tipPos = new Vector3();
@@ -137,7 +137,8 @@ export class Experience {
     this.canvas.className = 'tt-gl';
     container.appendChild(this.canvas);
     this.scroll = new ScrollState(options.sections, this.reduced);
-    this.carousel = new CarouselState(this.scroll, 1, SENSOR_COUNT);
+    this.carousel = new StepSection(this.scroll, 1, SENSOR_COUNT, this.reduced);
+    this.carousel.logging = new URLSearchParams(location.search).has('debug');
     this.pointer.ghost = !this.reduced;
     this.ready = this.init();
   }
@@ -355,7 +356,7 @@ export class Experience {
     const sf = sc.sectionFloat;
     this.signals.update(dt, s, this.reduced);
     this.main.wide = this.layout.wide === 1;
-    this.carousel.update(dt);
+    this.carousel.update();
     this.main.carousel = this.reduced ? 0 : this.carousel.value;
     this.main.updateCamera(sf, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
     const cam = this.main.camera;
@@ -489,7 +490,7 @@ export class Experience {
     const hit = this.cards.pick(p.x * 2 - 1, p.y * 2 - 1, this.main.camera);
     if (hit < 0) return;
     if (hit === this.carousel.active) this.options.onOpenCard?.(hit);
-    else this.carousel.goToCard(hit);
+    else this.carousel.go(hit);
   };
 
   /**
@@ -500,7 +501,7 @@ export class Experience {
   setDetail(open: boolean) {
     if (open === this.detail || this.failed || !this.cards) return;
     this.detail = open;
-    this.carousel.snapEnabled = !open;
+    this.carousel.enabled = !open;
     if (open) this.scroll.lenis.stop();
     else this.scroll.lenis.start();
     const cards = this.cards;
@@ -524,7 +525,12 @@ export class Experience {
 
   /** Bring sensor card i to the front (scrolls the page to it). */
   goToCard(i: number) {
-    this.carousel.goToCard(i);
+    this.carousel.go(i);
+  }
+
+  /** Step the Sensor Array by ±1 (keys); false when that would leave the section. */
+  stepCard(dir: number) {
+    return this.carousel.step(dir);
   }
 
   get activeSensor() {
@@ -581,6 +587,7 @@ export class Experience {
   private onMotion = () => {
     this.reduced = this.motionQuery.matches;
     this.scroll.setReduced(this.reduced);
+    this.carousel.setReduced(this.reduced);
     this.pointer.ghost = !this.reduced;
     this.composite.setFadeReveal(this.reduced);
     if (this.reduced) this.fluid.clear();
@@ -611,6 +618,8 @@ export class Experience {
         heap.length = 0;
       },
       sampleHeap: () => heap.push(mem()),
+      /** ?debug: the Sensor Array's recent gesture decisions, for replaying real traces. */
+      gestures: () => this.carousel.log.slice(),
     };
   }
 

@@ -87,7 +87,7 @@ Vite's dev server and `backend/app.py` (single-port mode) both serve `/dashboard
 
 **Sensor Array** (`src/experience/sensors/`, `carousel/`, `src/content/sensors.ts`): a pinned section built around a procedural inline-four crankshaft, with one glass card per sensor (acoustic microphone, accelerometer, crank position, coolant, throttle, lambda/fuel trims, current clamp, OBD-II/CAN).
 
-- Scroll, a touch swipe, arrow keys and the left index all move one carousel value; each card snaps into place.
+- The section steps: one wheel gesture, swipe, arrow/Space/Page key or index click moves exactly one card, settling in about 0.4 s. Trackpad inertia doesn't skip cards, and the page scroll jumps with the card so the scrollbar stays truthful. Past the first or last card the page scrolls on. `?debug` can record gestures (copy the JSON) for replaying real trackpads.
 - Each card's ink-cloud artwork shows that sensor's synthetic signal; the title settles with a scramble and colour split.
 - Each sensor is a procedural model mounted around the crank. The active one flies out of its mount to a showcase spot left of centre (about a third of the screen tall). There it turns slowly, tilts toward the cursor and sits on a soft contact shadow, lit by a 3-point rig whose rim light is in the sensor's colour. The others wait on their mounts, each marked by a pulsing ring in its colour. The crank stays dimmed in the background.
 - The active card sits in the right third. The other cards fan out above and below it, smaller and fainter, and never cover the showcased sensor. On phones the sensor takes the top of the screen and the cards run along the bottom.

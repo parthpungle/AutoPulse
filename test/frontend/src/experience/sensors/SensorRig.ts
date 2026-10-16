@@ -75,7 +75,7 @@ interface SensorInst {
 /** Sensors on the engine are small; the showcased one is scaled to the spot's height. */
 const MOUNT_SCALE = 0.9;
 const SLOT_MAT: Record<Slot, MatKey> = { steel: 'steel', darkSteel: 'darkSteel', brass: 'brass', blackPlastic: 'blackPlastic', rubber: 'rubber', ceramic: 'ceramic', grille: 'steel' };
-const FLY_TIME = 0.9;
+const FLY_TIME = 0.42;
 const SPIN_SPEED = MathUtils.degToRad(8);
 const CURSOR_TILT = MathUtils.degToRad(6);
 /** Exploded view: parts move apart along the sensor's axis by this much of their offset. */
@@ -304,7 +304,7 @@ export class SensorRig {
     for (let j = 0; j < this.sensors.length; j++) {
       const s = this.sensors[j];
       const goal = j === i ? 1 : 0;
-      if (s.fly.value !== goal) gsap.to(s.fly, { value: goal, duration: reduced ? 0.6 : FLY_TIME, ease: reduced ? 'none' : 'power3.inOut', overwrite: true });
+      if (s.fly.value !== goal) gsap.to(s.fly, { value: goal, duration: reduced ? 0.6 : FLY_TIME, ease: reduced ? 'none' : 'expo.out', overwrite: true });
     }
     // only the showcased model casts the silhouette shadow
     if (prev >= 0) for (const m of this.sensors[prev].meshes) m.mesh.layers.disable(ContactShadow.LAYER);
