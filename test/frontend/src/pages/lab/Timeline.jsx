@@ -89,11 +89,11 @@ export default function Timeline({ rows, frames, now, threshold, onset, inspect,
   return (
     <section className="panel panel-pad lab-timeline" aria-labelledby="lab-tl-title">
       <div className="row">
-        <h2 className="eyebrow lab-eyebrow" id="lab-tl-title"><span className="num">04</span> / Timeline · last 3 min</h2>
+        <h2 className="eyebrow lab-eyebrow" id="lab-tl-title"><span className="num">06</span> / Timeline · last 3 min</h2>
         <div className="spacer" />
         <span className="lab-tl__hint">Drag, or focus and use ← →, to inspect a past second</span>
       </div>
-      <div ref={ref} className="chart lab-tl" tabIndex={0} role="slider" aria-label="Inspect a past second"
+      <div ref={ref} id="lab-timeline" className="chart lab-tl" tabIndex={0} role="slider" aria-label="Inspect a past second"
         aria-valuemin={-SPAN} aria-valuemax={0} aria-valuenow={inspect == null ? 0 : inspect - now}
         aria-valuetext={inspect == null ? 'live' : `${now - inspect} seconds ago`} onKeyDown={onKey}
         onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); pick(e.clientX); }}

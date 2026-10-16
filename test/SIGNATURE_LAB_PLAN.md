@@ -20,7 +20,13 @@ Built from the three exploration reports (design language, dashboard, backend). 
   - The timeline's classifier lane plots 1 − healthy_p (the non-healthy share). History has no per-class shares, so this can sit above 0.50 while no single class does. The confirmed-fault bar (from the store) is the ground truth for the alarm.
   - The deviation and classifier lines cover the backend's 900 s history. The bar and scrubbing only cover seconds this page has stored (≤180 s, since it opened), and the timeline says so.
   - Inspecting changes Evidence and Signals only. The verdict, detectors and banner stay live (ISA-101: status always shows now).
-- Phases 4–6: not started
+- Phase 4: done. Notes for later phases:
+  - The dial folds the 200 ms snippet with a comb search for the firings. The store also learns a phase-free normal per firing ("cycle", 30 bins of 6°).
+  - Knock shows on the dial, but modestly. The snippet is 4 kHz with no anti-alias filter, so the knock ringing folds into the same band as normal combustion ringing. What stands out is energy late in each firing interval (about 130–160° after firing, +4 dB averaged over the four), where a healthy ring has died away. Wishlist item 1 (an anti-aliased signal) would sharpen this.
+  - Misfire shows one slow firing sector (about −40 rpm), and healthy shows even lobes. No cylinder number appears anywhere.
+  - The browser's learned normal is lost on reload, so a tab opened during a fault shows "learning" until it sees about 10 healthy seconds. Persisting `baselines` per car in localStorage would fix this; it is not in the plan.
+  - Page order: 01 Verdict, 02 Detectors, 03 Engine cycle, 04 Evidence, 05 Why · where · what next, 06 Timeline, Signals.
+- Phases 5–6: not started
 
 ---
 

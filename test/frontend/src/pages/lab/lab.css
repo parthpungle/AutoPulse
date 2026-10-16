@@ -74,7 +74,7 @@
 .lab-ev__callout circle { fill: none; stroke: var(--text-max); stroke-width: 1.5; }
 .lab-ev__callout polyline { stroke: var(--text-1); stroke-width: 1; }
 .lab-ev__callout text { fill: var(--text-max); font-weight: 500; }
-.lab-ev text.lab-ev__learning { font: 400 13px var(--sans); fill: var(--lab-caption); }
+.lab-ev__learning { margin: 0; font-size: 13px; color: var(--lab-caption); }
 
 /* inspecting a past second */
 .lab-inspect { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; padding: 8px 12px;
@@ -97,3 +97,47 @@
 .lab-tl__cursor line { stroke: var(--accent); stroke-width: 1.5; }
 .lab-tl__cursor rect { fill: var(--accent); }
 .lab-tl__cursor text { fill: var(--bg-0); font-weight: 500; }
+
+/* evidence row: the engine cycle beside the evidence chart */
+.lab-l2 { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--lab-gap); align-items: stretch; }
+@media (max-width: 1180px) { .lab-l2 { grid-template-columns: 1fr; } }
+.lab-tag { font: 400 12px var(--sans); color: var(--lab-caption); border: 1px solid var(--line-2); border-radius: var(--r); padding: 2px 8px; }
+
+/* 03 / Engine cycle */
+.lab-cycle { display: flex; flex-direction: column; gap: 6px; width: 452px; max-width: 100%; }
+@media (max-width: 1180px) { .lab-cycle { width: auto; } }
+.lab-cycle__dial { display: flex; justify-content: center; }
+.lab-cycle__where { margin: 0; font-size: 14px; color: var(--text-max); }
+.lab-dial text { font: 400 11px var(--mono); fill: var(--text-2); }
+.lab-dial__frame { fill: none; stroke: var(--line-2); stroke-width: 1; }
+.lab-dial__frame--outer { stroke: var(--rule-strong); }
+.lab-dial__tick { stroke: var(--text-dim); stroke-width: 1; }
+.lab-dial__tick--major { stroke: var(--text-2); stroke-width: 1.5; }
+.lab-dial__band { fill: var(--band); stroke: var(--band-edge); stroke-width: 1; }
+.lab-dial__excess { fill: var(--lab-excess-fill); stroke: var(--lab-excess); stroke-width: 1; }
+.lab-dial__live { fill: none; stroke: var(--trace); stroke-width: 1.75; stroke-linejoin: round; }
+.lab-dial__firing line { stroke: var(--text-2); stroke-width: 1.5; }
+.lab-dial__firing text { fill: var(--text-1); font-weight: 500; }
+.lab-dial text.lab-dial__dev { fill: var(--text-2); font-weight: 400; }
+.lab-dial__firing--slow text, .lab-dial__firing--slow text.lab-dial__dev { fill: var(--lab-excess); }
+.lab-dial__firing--slow line { stroke: var(--lab-excess); }
+.lab-dial text.lab-dial__deg { fill: var(--lab-caption); font-size: 10px; }
+.lab-dial__peak { fill: none; stroke: var(--text-max); stroke-width: 1.5; }
+.lab-dial text.lab-dial__center { font: 400 20px var(--mono); fill: var(--text-max); }
+.lab-dial text.lab-dial__center-sub { font: 400 11px var(--sans); fill: var(--lab-caption); }
+.lab-dial text.lab-dial__msg { font: 400 13px var(--sans); fill: var(--lab-caption); }
+
+/* 05 / Why · where · what next */
+.lab-why__list { margin: 10px 0 0; }
+.lab-why__row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 16px; padding: 9px 0; border-top: 1px solid var(--line); align-items: baseline; }
+.lab-why__row dt { font: 500 12px var(--cond); letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); }
+.lab-why__row dd { margin: 0; font-size: 14px; color: var(--text-1); }
+.lab-why__go { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 0; border: 0;
+  background: none; text-align: left; color: var(--text-max); font-size: 14px; }
+.lab-why__go svg { flex: none; color: var(--text-dim); transition: transform var(--dur-micro) var(--ease), color var(--dur-micro); }
+.lab-why__go:hover svg, .lab-why__go:focus-visible svg { color: var(--accent); transform: translateX(3px); }
+
+/* one-shot highlight on the chart a line points to */
+@keyframes lab-focus { from { box-shadow: 0 0 0 2px var(--accent); } to { box-shadow: 0 0 0 2px transparent; } }
+.lab-focus { animation: lab-focus 1.2s var(--ease); outline: none; }
+@media (prefers-reduced-motion: reduce) { .lab-focus { animation: none; box-shadow: 0 0 0 2px var(--accent); } }

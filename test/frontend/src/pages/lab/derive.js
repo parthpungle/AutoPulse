@@ -147,3 +147,12 @@ export const bearingOutOfView = (rpm) => 7.15 * (rpm / 60) > 399;
 /** Firing frequency harmonics of a four-cylinder engine (rpm/30, 2×, 3×) up to fmax. */
 export const firingHarmonics = (rpm, fmax, n = 3) =>
   Array.from({ length: n }, (_, k) => ({ x: (k + 1) * (rpm / 30), label: `${k + 1}× firing` })).filter((m) => m.x <= fmax);
+
+/** How many separate runs of this fault id the lab has stored (since this page opened, ≤ 180 s). */
+export function occurrences(frames, fault) {
+  let n = 0;
+  frames.forEach((f, i) => { if (f.engine.fault === fault && (i === 0 || frames[i - 1].engine.fault !== fault)) n++; });
+  return n;
+}
+
+export const ordinal = (n) => `${n}${['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]}`;

@@ -20,8 +20,8 @@ const CAPTION = {
   orders: 'Amplitude at multiples of crank speed, linear.',
 };
 
-/** What to show and say for the current second. */
-function choose(sig, engine, store) {
+/** What to show and say for the current second (also read by the Why / Where panel). */
+export function chooseEvidence(sig, engine, store) {
   const ctx = engine.context;
   const spec = baselineFor(store, ctx, 'spectrum');
   const env = baselineFor(store, ctx, 'envelope');
@@ -91,6 +91,9 @@ function choose(sig, engine, store) {
       const half = ord.mean ? ` · 0.5× order ×${(sig.orders.amp[0] / Math.max(ord.mean[0], 1e-6)).toFixed(1)} vs normal` : '';
       return {
         view: 'misfire', title: 'crank speed at every firing', kind: 'crank', caption: CAPTION.crank, weak: w.phase,
+        // in frequency a misfire is the half order: one weak firing per 720° cycle
+        freq: ord.mean ? `0.5× crank order (once per cycle) ×${(sig.orders.amp[0] / Math.max(ord.mean[0], 1e-6)).toFixed(1)} vs this car's normal.`
+          : `0.5× crank order (once per cycle) at ${sig.orders.amp[0].toFixed(3)}, linear.`,
         readout: { value: `${minus(w.mean - w.others)} rpm`, text: `every 4th firing vs the other three${half}` },
       };
     }
@@ -119,7 +122,7 @@ function choose(sig, engine, store) {
 }
 
 export default function Evidence({ sig, engine, store }) {
-  const ev = choose(sig, engine, store);
+  const ev = chooseEvidence(sig, engine, store);
   const ctx = contextWords(engine.context).toLowerCase();
   const normal = ev.base
     ? `Normal = mean ± 2σ of ${ev.base.n} s the models called healthy (${ctx}), learned in this browser.`
@@ -127,29 +130,29 @@ export default function Evidence({ sig, engine, store }) {
   const summary = `${ev.title}. ${ev.readout.value ? `${ev.readout.value} ${ev.readout.text}` : ev.readout.pending}.`;
 
   return (
-    <section className="panel panel-pad lab-evidence" data-view={ev.view} data-fault={engine.fault} data-normal-n={ev.base?.n ?? ev.learnN ?? ''}
+    <section id="lab-evidence" tabIndex={-1} className="panel panel-pad lab-evidence" data-view={ev.view} data-fault={engine.fault} data-normal-n={ev.base?.n ?? ev.learnN ?? ''}
       aria-labelledby="lab-ev-title">
       <div className="lab-evidence__head">
-        <h2 className="eyebrow lab-eyebrow" id="lab-ev-title"><span className="num">03</span> / Evidence · {ev.title}</h2>
+        <h2 className="eyebrow lab-eyebrow" id="lab-ev-title"><span className="num">04</span> / Evidence · {ev.title}</h2>
         <div className="lab-readout" aria-live="polite">
           {ev.readout.value ? <><span className="num">{ev.readout.value}</span><span>{ev.readout.text}</span></>
             : <span className="lab-readout__pending">{ev.readout.pending}</span>}
         </div>
       </div>
 
-      {ev.kind === 'chart' && (
-        <EvidenceChart {...ev.props} base={ev.base} summary={summary}
-          learning={ev.base ? null : `Learning this car's normal · ${ev.learnN} / ${BASELINE_MIN} s in ${ctx}`} />
+      {ev.kind === 'chart' && !ev.base && (
+        <p className="lab-ev__learning">Learning this car's normal · {ev.learnN} / {BASELINE_MIN} healthy s in {ctx}. The band appears once it has.</p>
       )}
+      {ev.kind === 'chart' && <EvidenceChart {...ev.props} base={ev.base} summary={summary} height={340} />}
       {ev.kind === 'crank' && (
         <div role="img" aria-label={summary}>
-          <VBars labels={Array.from(sig.crank.dev, (_, k) => k + 1)} values={Array.from(sig.crank.dev)} height={300} showEvery={5}
+          <VBars labels={Array.from(sig.crank.dev, (_, k) => k + 1)} values={Array.from(sig.crank.dev)} height={340} showEvery={5}
             fmt={(v) => minus(v)} colorOf={(_, i) => (i % 4 === ev.weak ? 'var(--lab-excess)' : 'var(--s3)')} />
         </div>
       )}
       {ev.kind === 'orders' && (
         <div role="img" aria-label={summary}>
-          <VBars labels={sig.orders.labels} values={sig.orders.amp} height={300} fmt={(v) => v.toFixed(3)}
+          <VBars labels={sig.orders.labels} values={sig.orders.amp} height={340} fmt={(v) => v.toFixed(3)}
             colorOf={(_, i) => (i === 1 ? 'var(--lab-excess)' : 'var(--s3)')} />
         </div>
       )}

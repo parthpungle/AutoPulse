@@ -5,12 +5,15 @@ import Heatmap from '../components/charts/Heatmap.jsx';
 import { VBars } from '../components/charts/Bars.jsx';
 import { Tabs } from '../components/ui.jsx';
 import { useLive } from '../live.jsx';
-import { labStore, sigAt, useLabStore } from './lab/labStore.js';
+import { baselineFor, labStore, sigAt, useLabStore } from './lab/labStore.js';
 import { contextWords, onset } from './lab/derive.js';
 import Verdict from './lab/Verdict.jsx';
 import Detectors from './lab/Detectors.jsx';
 import ModelDrawer from './lab/ModelDrawer.jsx';
-import Evidence from './lab/Evidence.jsx';
+import Evidence, { chooseEvidence } from './lab/Evidence.jsx';
+import Cycle from './lab/Cycle.jsx';
+import WhyWhere from './lab/WhyWhere.jsx';
+import { describeCycle, foldCycle } from './lab/cycle.js';
 import Timeline from './lab/Timeline.jsx';
 import './lab/lab.css';
 
@@ -39,6 +42,8 @@ export default function Signatures() {
   const { sig, engine } = latest;
   const past = inspect == null ? null : frames.find((f) => f.clock === inspect) ?? null;
   const pastSig = useMemo(() => past && sigAt(past, store.axes, sig.orders.labels), [past, store.axes, sig?.orders.labels]);
+  const shownSig = pastSig ?? sig;
+  const fold = useMemo(() => shownSig && foldCycle(shownSig.time.y, shownSig.rpm), [shownSig]);
 
   useEffect(() => {                         // the picked second has scrolled out of the buffer: back to live
     if (inspect != null && !past) setInspect(null);
@@ -60,8 +65,10 @@ export default function Signatures() {
     );
   }
   const onServiced = () => { serviced(); labStore.forgetBaseline(); };
-  const shownSig = pastSig ?? sig;
   const shownEngine = past ? { ...engine, ...past.engine } : engine;
+  const cycleBase = baselineFor(store, shownEngine.context, 'cycle');
+  const where = describeCycle(fold, shownSig.crank.dev, cycleBase.mean ? cycleBase : null);
+  const ev = chooseEvidence(shownSig, shownEngine, store);
   const fault = onset(frames, engine.fault ?? 'healthy');
 
   return (
@@ -89,7 +96,13 @@ export default function Signatures() {
           <button className="btn" onClick={() => setInspect(null)}>Back to live</button>
         </div>
       )}
-      <Evidence sig={shownSig} engine={shownEngine} store={store} />
+      <div className="lab-l2">
+        <Cycle fold={fold} dev={shownSig.crank.dev} base={cycleBase.mean ? cycleBase : null} where={where}
+          ctxWords={contextWords(shownEngine.context).toLowerCase()} />
+        <Evidence sig={shownSig} engine={shownEngine} store={store} />
+      </div>
+
+      <WhyWhere latest={latest} frames={frames} ev={ev} where={where} onInspect={setInspect} />
 
       <Timeline rows={history} frames={frames} now={latest.row.clock} threshold={engine.threshold}
         onset={engine.fault && engine.fault !== 'healthy' ? fault?.clock : null} inspect={past ? inspect : null} onInspect={setInspect} />

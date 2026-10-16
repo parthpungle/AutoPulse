@@ -3,6 +3,7 @@
 // LiveProvider for every frame whatever tab is open. It also learns a baseline spectrum per engine
 // context (in this browser), for the "this car's normal" band on the evidence charts.
 import { useSyncExternalStore } from 'react';
+import { foldCycle } from './cycle.js';
 
 const KEEP = 180;          // seconds of signals kept
 export const BASELINE_MIN = 10;   // healthy seconds per context before a baseline is shown
@@ -11,7 +12,7 @@ export const BASELINE_MIN = 10;   // healthy seconds per context before a baseli
 // and a repaired car then reads "sounds different" (info) until Mark serviced, so nothing would be
 // learned for the rest of the session.
 const LEARN_HEALTHY_P = 0.6;
-const LEARNED = ['spectrum', 'envelope', 'orders'];
+const LEARNED = ['spectrum', 'envelope', 'orders', 'cycle'];   // cycle: energy per 6° after a firing
 
 const empty = () => ({ car: null, frames: [], baselines: {}, axes: null, version: 0 });
 let state = empty();
@@ -43,6 +44,7 @@ function learn(baselines, context, f) {
   const next = {};
   for (const key of LEARNED) {
     const y = f[key];
+    if (!y) { if (prev[key]) next[key] = prev[key]; continue; }      // e.g. no firings found this second
     const b = prev[key] ?? { n: 0, mean: new Float64Array(y.length), m2: new Float64Array(y.length) };
     welford(b, y);
     next[key] = b;
@@ -81,7 +83,8 @@ function push(m) {
   };
   const frames = [...(base.frames.length >= KEEP ? base.frames.slice(base.frames.length - KEEP + 1) : base.frames), f];
   const healthy = engine.fault === 'healthy' && engine.healthy_p >= LEARN_HEALTHY_P;
-  const baselines = healthy ? learn(base.baselines, engine.context, f) : base.baselines;
+  const fold = healthy ? foldCycle(sig.time.y, sig.rpm) : null;
+  const baselines = healthy ? learn(base.baselines, engine.context, { ...f, cycle: fold.ok ? fold.profile : null }) : base.baselines;
   const axes = base.axes ?? {
     spectrum: f32(sig.spectrum.f), envelope: f32(sig.envelope.f),
     spectrogramF: f32(sig.spectrogram.f), spectrogramT: f32(sig.spectrogram.t), time: f32(sig.time.t_ms),
@@ -98,7 +101,7 @@ export const labStore = {
 };
 
 /**
- * This car's normal for one signal ('spectrum' | 'envelope' | 'orders') in one context:
+ * This car's normal for one signal ('spectrum' | 'envelope' | 'orders' | 'cycle') in one context:
  * { n, mean, std } (Float64Array per bin), or just { n } while fewer than BASELINE_MIN seconds.
  */
 export function baselineFor(s, context, key = 'spectrum') {
