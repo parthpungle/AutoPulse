@@ -117,6 +117,8 @@ export class Cards {
   readonly cards: Card[] = [];
   readonly glassTexel = new Vector2(1, 1);
   readonly params = { refraction: 1, tilt: 8 };
+  /** 0..1: how present the Sensor Array is on screen (set by the engine from the scroll). */
+  presence = 1;
   private readonly geometry: ExtrudeGeometry;
   private readonly raycaster = new Raycaster();
   private readonly hits: Intersection<Object3D>[] = [];
@@ -406,7 +408,8 @@ export class Cards {
       card.mesh.scale.setScalar(slot.scale);
 
       const active = d < 1 ? 1 - d : 0;
-      let opacity = reduced ? Math.max(0, 1 - d * 1.6) : slot.opacity;
+      // the whole set fades with the section: in as the Sensor Array arrives, out as it leaves
+      let opacity = (reduced ? Math.max(0, 1 - d * 1.6) : slot.opacity) * this.presence;
       // expansion: this card turns square to the camera and grows onto the panel; the rest fade
       const e = i === this.expandIndex ? this.expansion.value : 0;
       const grow = u.uGrow.value as Vector2;

@@ -502,10 +502,17 @@ export class Experience {
 
   /** Sensor Array: card placement, hover, the active card (glitch reveal, DOM, backdrop tint). */
   private updateCards(dt: number, sf: number) {
-    const near = Math.abs(sf - 1) < 1;
+    // cards fade in over the second half of the hero -> Sensor Array morph and out over the first
+    // half of the way to Signatures (they used to pop in at full strength as soon as it began)
+    const presence = MathUtils.smoothstep(sf, 0.5, 0.95) * (1 - MathUtils.smoothstep(sf, 1.05, 1.5));
+    this.cards.presence = presence;
+    const near = presence > 0.003;
     this.main.cardsVisible = near;
     this.cards.group.visible = near;
-    if (!near) return;
+    if (!near) {
+      this.updateHint(dt, 99);
+      return;
+    }
     const p = this.pointer;
     if (this.hoverDirty) {
       this.hoverDirty = false;
