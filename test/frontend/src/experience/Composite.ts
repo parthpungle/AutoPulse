@@ -70,7 +70,7 @@ export class Composite {
   private bloomOn = true;
   private readonly caOffset = new Vector2();
 
-  constructor(renderer: WebGLRenderer, camera: Camera, backdrop: Texture, particles: Texture, shared: Shared, palette: Palette) {
+  constructor(renderer: WebGLRenderer, camera: Camera, backdrop: Texture, main: Texture, shared: Shared, palette: Palette) {
     this.composer = new EffectComposer(renderer, { frameBufferType: HalfFloatType, multisampling: 0, depthBuffer: false, stencilBuffer: false });
     this.material = new ShaderMaterial({
       vertexShader: GLSL.fullscreenVert,
@@ -80,7 +80,7 @@ export class Composite {
       uniforms: {
         uTexel: { value: new Vector2() },
         tBackdrop: { value: backdrop },
-        tParticles: { value: particles },
+        tMain: { value: main },
         uReveal: { value: 0 },
         uFadeReveal: { value: 0 },
         uTrans: { value: 0 },

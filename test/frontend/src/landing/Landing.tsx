@@ -7,7 +7,7 @@ import { Experience } from './Experience';
 import { Cursor } from './Cursor';
 import { Preloader } from './Preloader';
 import { heroIntro, setupReveals } from './reveals';
-import { CTA, DASHBOARD_URL, EVENT, GITHUB_URL, HERO, NAV_LABELS, RECOGNITION, SIGNALS, SIGNATURES, STATE_KEYS, TEAM_NAME } from './content';
+import { CTA, DASHBOARD_URL, EVENT, GITHUB_URL, HERO, NAV_LABELS, RECOGNITION, SENSOR_ARRAY, SIGNATURES, STATE_KEYS, TEAM_NAME } from './content';
 import type { StateKey } from './content';
 
 const AUTO_CYCLE_MS = 3500;
@@ -37,7 +37,6 @@ export function Landing() {
   const root = useRef<HTMLDivElement>(null);
   const pre = useRef<Preloader | null>(null);
   const picked = useRef(false);
-  const signalTags = useRef<(HTMLDivElement | null)[]>([]);
   const clusterTags = useRef<(HTMLDivElement | null)[]>([]);
 
   if (!pre.current) pre.current = new Preloader();
@@ -74,7 +73,6 @@ export function Landing() {
       }
       if (cancelled) return;
       if (ok) {
-        signalTags.current.forEach((t, i) => t && engine.anchorSignal(t, i));
         clusterTags.current.forEach((t, i) => t && engine.anchorCluster(t, i));
       }
       await pre.current?.done;
@@ -163,11 +161,6 @@ export function Landing() {
       </header>
 
       <div className="tt-anchors" aria-hidden="true">
-        {SIGNALS.channels.map((c, i) => (
-          <div key={c.key} className="tt-tag tt-tag--signal" ref={(el) => void (signalTags.current[i] = el)}>
-            <span>{c.tag}</span>
-          </div>
-        ))}
         {CLUSTERS.map((c, i) => (
           <div key={c.key} className={`tt-tag tt-tag--cluster${activeIndex === i ? ' on' : ''}`} ref={(el) => void (clusterTags.current[i] = el)}>
             <span>{c.label}</span>
@@ -194,7 +187,7 @@ export function Landing() {
                 <a className="tt-btn tt-btn--primary" href={DASHBOARD_URL}>
                   {HERO.primary} <span className="tt-btn__arrow">→</span>
                 </a>
-                <a className="tt-btn tt-btn--ghost" href="#signals" onClick={(e) => goTo(e, '#signals')}>
+                <a className="tt-btn tt-btn--ghost" href="#sensors" onClick={(e) => goTo(e, '#sensors')}>
                   {HERO.secondary} <span className="tt-btn__arrow">↓</span>
                 </a>
               </div>
@@ -208,23 +201,15 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="tt-sec" data-section="1" id="signals" aria-labelledby="signals-title">
+        <section className="tt-sec" data-section="1" id="sensors" aria-labelledby="sensors-title">
           <div className="tt-sec__inner">
             <div className="tt-copy">
               <p className="tt-eyebrow" data-reveal="chars">
-                {SIGNALS.eyebrow}
+                {SENSOR_ARRAY.eyebrow}
               </p>
-              <h2 className="tt-h2" id="signals-title" data-reveal="lines">
-                {SIGNALS.title}
+              <h2 className="tt-h2" id="sensors-title" data-reveal="lines">
+                {SENSOR_ARRAY.title}
               </h2>
-              <ul className="tt-channels" data-reveal="stagger">
-                {SIGNALS.channels.map((c) => (
-                  <li key={c.key} className="tt-channel">
-                    <span className="tt-channel__label">{c.label}</span>
-                    <p>{c.text}</p>
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
         </section>

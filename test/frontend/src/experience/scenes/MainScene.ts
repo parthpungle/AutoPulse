@@ -1,14 +1,15 @@
-import { AdditiveBlending, BufferAttribute, BufferGeometry, MathUtils, PerspectiveCamera, Points, ShaderMaterial, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, CustomBlending, MathUtils, OneFactor, PerspectiveCamera, Points, ShaderMaterial, Vector3, ZeroFactor } from 'three';
 import type { Texture } from 'three';
+import { orbitPose } from '../carousel/CarouselLayout';
 import { GLSL } from '../shaders';
 import type { Palette } from '../theme';
 import type { Shared } from '../Uniforms';
 import { FXScene } from './FXScene';
 
-/** Camera framing per section: position and look-at target (dolly and tilt). */
+/** Camera framing per section: position and look-at target. Section 1 orbits the crankshaft instead. */
 const KEYS = [
   { p: [0, 0, 12], t: [0, 0.3, 0] },
-  { p: [0, 0.3, 11.2], t: [0, 0, 0] },
+  { p: [0, 0, 12], t: [0, 0, 0] }, // unused: Sensor Array uses orbitPose()
   { p: [0.6, 2.2, 11.4], t: [0.6, -0.5, -1.2] },
   { p: [0, 0, 11.6], t: [0, 0, 0] },
   { p: [0, 0, 11.6], t: [0, 0, 0] },
@@ -17,11 +18,19 @@ const KEYS = [
 export const CAMERA_FOV = 35;
 export const CAMERA_BASE_Z = 12;
 
-/** Additive soft sprites whose positions are fetched from the simulation textures. */
-export class ParticleScene extends FXScene {
+/**
+ * The main 3-D layer: one full-resolution render target with a depth buffer. The solids (the
+ * Sensor Array rig, opaque, alpha 1) draw first; the particles follow with depth test on, so the
+ * crankshaft occludes the streams, adding light without writing coverage (RGB added, alpha kept).
+ * The composite then lays this layer over the backdrop: bd * (1 - a) + rgb.
+ */
+export class MainScene extends FXScene {
   readonly camera = new PerspectiveCamera(CAMERA_FOV, 1, 0.1, 100);
   readonly material: ShaderMaterial;
   readonly points: Points;
+  /** Carousel position 0..7, set by the experience each frame. */
+  carousel = 0;
+  wide = true;
   private readonly geometry: BufferGeometry;
   private readonly look = new Vector3();
   private readonly pA = new Vector3();
@@ -32,7 +41,7 @@ export class ParticleScene extends FXScene {
   private readonly fullCount: number;
 
   constructor(side: number, count: number, rand: Float32Array, shared: Shared, palette: Palette) {
-    super(1);
+    super(1, true);
     const n = side * side;
     this.fullCount = count;
     this.drawCount = count;
@@ -52,9 +61,13 @@ export class ParticleScene extends FXScene {
       vertexShader: GLSL.pointsVert,
       fragmentShader: GLSL.pointsFrag,
       transparent: true,
-      depthTest: false,
+      depthTest: true,
       depthWrite: false,
-      blending: AdditiveBlending,
+      blending: CustomBlending,
+      blendSrc: OneFactor,
+      blendDst: OneFactor,
+      blendSrcAlpha: ZeroFactor,
+      blendDstAlpha: OneFactor,
       uniforms: {
         uTime: shared.uTime,
         uBeat: shared.uBeat,
@@ -100,16 +113,22 @@ export class ParticleScene extends FXScene {
     this.material.uniforms.uPointScale.value = bufferHeight / (2 * Math.tan(MathUtils.degToRad(CAMERA_FOV) / 2));
   }
 
-  /** Camera along the section keyframes, plus pointer parallax. */
+  private pose(i: number, pos: Vector3, look: Vector3) {
+    if (i === 1) {
+      orbitPose(this.carousel, this.wide, pos, look);
+      return;
+    }
+    const k = KEYS[i];
+    pos.set(k.p[0], k.p[1], k.p[2]);
+    look.set(k.t[0], k.t[1], k.t[2]);
+  }
+
+  /** Camera along the section keyframes (orbiting the crank in the Sensor Array), plus parallax. */
   updateCamera(sectionFloat: number, px: number, py: number) {
     const i = Math.min(KEYS.length - 2, Math.floor(sectionFloat));
     const f = Math.min(1, Math.max(0, sectionFloat - i));
-    const a = KEYS[i];
-    const b = KEYS[i + 1];
-    this.pA.set(a.p[0], a.p[1], a.p[2]);
-    this.pB.set(b.p[0], b.p[1], b.p[2]);
-    this.tA.set(a.t[0], a.t[1], a.t[2]);
-    this.tB.set(b.t[0], b.t[1], b.t[2]);
+    this.pose(i, this.pA, this.tA);
+    this.pose(i + 1, this.pB, this.tB);
     this.camera.position.lerpVectors(this.pA, this.pB, f);
     this.look.lerpVectors(this.tA, this.tB, f);
     this.camera.position.x += px * 0.45;

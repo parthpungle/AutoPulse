@@ -27,6 +27,10 @@ void main() {
   float size = uSize * (0.45 + 1.1 * aRand.z * aRand.z) * (0.8 + 0.25 * min(e, 2.0)) * (1.0 + 0.5 * kp);
   float px = size * uPointScale / -mv.z;
   float a = uAlpha * uFade * (1.0 - 0.85 * stall);
+  // particles that drift right up to the lens (orbit camera) fade instead of filling the screen
+  a *= smoothstep(0.9, 2.6, -mv.z);
+  // emphasis 0 means "not part of this shape": invisible
+  a *= smoothstep(0.0, 0.04, e);
   // sub-pixel sprites shimmer; keep them at 1.5 px and fade by area instead
   if (px < 1.5) {
     a *= px * px / 2.25;

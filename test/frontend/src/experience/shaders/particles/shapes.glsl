@@ -4,7 +4,6 @@
 //   xyz = home position, w = emphasis (1 normal, >1 brighter and warmer, <1 dimmer)
 
 uniform vec4 uL0;   // hero      : half width, amplitude, thickness, y offset
-uniform vec4 uL1;   // signals   : centre x, half width, lane gap, y offset
 uniform vec4 uL2;   // spectrum  : centre x, width, height, base y
 uniform vec4 uL3;   // clusters  : centre x, centre y, half width, half height
 uniform vec4 uL4;   // ring      : centre x, centre y, radius, thickness
@@ -29,38 +28,15 @@ vec4 shapeHero(vec4 d, float t) {
   return vec4(s * uL0.x, y, z, 1.0 + 1.3 * pulse);
 }
 
-vec4 shapeSignals(vec4 d, float t) {
-  float s = d.x;
-  float u = s * PI;
-  float ch = d.z;
-  float h = uL1.z;
-  float y;
-  float thick;
-  float e = 1.0;
-  if (ch < 0.5) {
-    // acoustic: dense, high frequency
-    y = 0.55 * sin(u * 26.0 + t * 2.2) + 0.3 * sin(u * 47.0 - t * 3.1) + 0.25 * snoise(vec3(u * 6.0, t * 0.6, 0.0));
-    y *= h * 0.2 * (0.7 + 0.3 * sin(u * 1.3 - t * 0.5));
-    thick = h * 0.014;
-  } else if (ch < 1.5) {
-    // vibration: a ringing burst at every firing, travelling along the lane
-    float ph = fract(s * 2.5 - t * 0.45);
-    float env = exp(-ph * 5.0) * smoothstep(0.0, 0.025, ph);
-    y = sin(u * 58.0) * env * h * 0.42 + 0.015 * h * sin(u * 9.0 + t);
-    thick = h * 0.01 * (1.0 + 1.5 * env);
-    e = 1.0 + 1.1 * env;
-  } else {
-    // telemetry: slow, sample-and-hold steps, like a 1 Hz bus value
-    float seg = (s + 1.0) * 7.0;
-    float k = floor(seg);
-    float v0 = 0.5 + 0.45 * sin(k * 0.9 + t * 0.4) * cos(k * 0.37 - t * 0.25);
-    float v1 = 0.5 + 0.45 * sin((k + 1.0) * 0.9 + t * 0.4) * cos((k + 1.0) * 0.37 - t * 0.25);
-    float v = mix(v0, v1, smoothstep(0.9, 1.0, fract(seg)));
-    y = (floor(v * 6.0 + 0.5) / 6.0 - 0.5) * h * 0.7;
-    thick = h * 0.011;
-  }
-  y += (1.0 - ch) * h + uL1.w + d.y * thick;
-  return vec4(uL1.x + s * uL1.y, y, d.y * thick * 0.6 + 0.15 * sin(u * 2.0 + ch), e);
+// Sensor Array (interim until the signal streams land): only ~12% of particles show, as slow,
+// faint deep-field dust far around the crankshaft; the rest rest on the axis, invisible (e = 0).
+// d = (angle, height, radius, random), all 0..1.
+vec4 shapeSensors(vec4 d, float t) {
+  if (d.w > 0.12) return vec4(0.0, mix(-6.0, 3.0, d.y), 0.0, 0.0);
+  float ang = d.x * 2.0 * PI + t * 0.02 * (0.4 + d.w * 8.0);
+  float r = 4.5 + d.z * 7.0;
+  float y = mix(-9.0, 6.0, d.y) + 0.25 * sin(t * 0.2 + d.x * 6.28);
+  return vec4(cos(ang) * r, y, sin(ang) * r, 0.12 + 0.12 * d.z);
 }
 
 // A fake engine spectrum, f in 0..1 of a 12 kHz span.
@@ -133,7 +109,7 @@ vec4 shapeRing(vec4 d, float t) {
 
 vec4 shape(float sec, vec4 d, float t) {
   if (sec < 0.5) return shapeHero(d, t);
-  if (sec < 1.5) return shapeSignals(d, t);
+  if (sec < 1.5) return shapeSensors(d, t);
   if (sec < 2.5) return shapeSpectrum(d, t);
   if (sec < 3.5) return shapeClusters(d, t);
   return shapeRing(d, t);

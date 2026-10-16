@@ -1,7 +1,8 @@
-// Combines the backdrop and particle layers. Section changes bend the particle layer slightly
-// (a small radial colour split at mid-morph); the intro wipe is drawn here too.
+// Lays the main 3-D layer (solids with coverage in alpha, particles as added light) over the
+// backdrop: bd * (1 - a) + rgb. Section changes bend the main layer slightly (a small radial
+// colour split at mid-morph); the intro wipe is drawn here too.
 uniform sampler2D tBackdrop;
-uniform sampler2D tParticles;
+uniform sampler2D tMain;
 uniform float uReveal;
 uniform float uFadeReveal;   // reduced motion: plain fade instead of the wipe
 uniform float uTrans;
@@ -16,12 +17,9 @@ void main() {
   vec3 bd = texture2D(tBackdrop, vUv).rgb;
   vec2 dir = vUv - 0.5;
   float k = 0.006 * uTrans;
-  vec3 pt = vec3(
-    texture2D(tParticles, vUv - dir * k).r,
-    texture2D(tParticles, vUv).g,
-    texture2D(tParticles, vUv + dir * k).b
-  );
-  vec3 col = bd + pt;
+  vec4 mid = texture2D(tMain, vUv);
+  vec3 m = vec3(texture2D(tMain, vUv - dir * k).r, mid.g, texture2D(tMain, vUv + dir * k).b);
+  vec3 col = bd * (1.0 - clamp(mid.a, 0.0, 1.0)) + m;
   col += uAccent * uFlash * 0.04 * (1.0 - smoothstep(0.0, 0.8, length(dir)));
 
   if (uReveal < 1.0) {

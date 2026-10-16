@@ -79,7 +79,6 @@ export class ParticleSim {
         uReduced: { value: 0 },
         uViewProj: { value: this.viewProj },
         uL0: { value: layout.L0 },
-        uL1: { value: layout.L1 },
         uL2: { value: layout.L2 },
         uL3: { value: layout.L3 },
         uL4: { value: layout.L4 },

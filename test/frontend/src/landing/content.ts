@@ -16,14 +16,9 @@ export const HERO = {
   secondary: 'How it works',
 };
 
-export const SIGNALS = {
-  eyebrow: '01 / Signals',
-  title: 'Three sensors. One engine.',
-  channels: [
-    { key: 'acoustic', label: 'Acoustic', tag: 'Mic · audio', text: 'A microphone near the block hears combustion. Knock rings between 5.5 and 8 kHz.' },
-    { key: 'vibration', label: 'Vibration', tag: 'Accel · 24 kHz', text: 'An accelerometer feels every firing. A weak cylinder shows up as a missing beat.' },
-    { key: 'obd', label: 'OBD-II / CAN', tag: 'Bus · 1 Hz', text: 'RPM, coolant temperature, throttle and fuel trims say what the engine was doing when it sounded wrong.' },
-  ],
+export const SENSOR_ARRAY = {
+  eyebrow: '01 / Sensor array',
+  title: 'What each sensor hears.',
 };
 
 export const SIGNATURES = {
@@ -62,4 +57,4 @@ export const CTA = {
   button: 'Launch dashboard',
 };
 
-export const NAV_LABELS = ['Intro', 'Signals', 'Signatures', 'Recognition', 'Launch'];
+export const NAV_LABELS = ['Intro', 'Sensor array', 'Signatures', 'Recognition', 'Launch'];

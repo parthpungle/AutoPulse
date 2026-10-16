@@ -12,7 +12,7 @@ export async function mountDebug(exp: Experience): Promise<() => void> {
   document.body.appendChild(readout);
   const timer = window.setInterval(() => {
     const s = exp.perf.stats(120);
-    readout.textContent = `${s.avgFps.toFixed(0)} fps · p95 ${s.p95Ms.toFixed(1)} ms · tier ${exp.settings.tier} · ${exp.particles.count.toLocaleString()} pts · dpr ${exp.sizes.dpr}`;
+    readout.textContent = `${s.avgFps.toFixed(0)} fps · p95 ${s.p95Ms.toFixed(1)} ms · tier ${exp.settings.tier} · ${exp.main.count.toLocaleString()} pts · dpr ${exp.sizes.dpr}`;
   }, 250);
 
   const q = { tier: exp.settings.tier as number, state: exp.state as EngineState, autoDrop: true };
@@ -33,7 +33,7 @@ export async function mountDebug(exp: Experience): Promise<() => void> {
   sim.add(sp, 'curlSpeed', 0, 1, 0.01);
   sim.add(sp, 'fluidAmp', 0, 10, 0.1);
   sim.add(exp.params, 'alpha', 0, 2, 0.01);
-  sim.add(exp.particles.material.uniforms.uSize, 'value', 0.002, 0.1, 0.001).name('size');
+  sim.add(exp.main.material.uniforms.uSize, 'value', 0.002, 0.1, 0.001).name('size');
 
   const fl = gui.addFolder('Fluid');
   const fp = exp.fluid.params;

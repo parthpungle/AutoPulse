@@ -12,9 +12,12 @@ export abstract class FXScene {
   /** Render target size as a fraction of the drawing buffer. */
   protected readonly scale: number;
 
-  constructor(scale = 1) {
+  protected readonly depth: boolean;
+
+  constructor(scale = 1, depth = false) {
     this.scale = scale;
-    this.rt = new WebGLRenderTarget(1, 1, { type: HalfFloatType, format: RGBAFormat, minFilter: LinearFilter, magFilter: LinearFilter, depthBuffer: false });
+    this.depth = depth;
+    this.rt = new WebGLRenderTarget(1, 1, { type: HalfFloatType, format: RGBAFormat, minFilter: LinearFilter, magFilter: LinearFilter, depthBuffer: depth });
   }
 
   setSize(bufferWidth: number, bufferHeight: number) {
@@ -23,7 +26,7 @@ export abstract class FXScene {
 
   render(renderer: WebGLRenderer) {
     renderer.setRenderTarget(this.rt);
-    renderer.clear(true, false, false);
+    renderer.clear(true, this.depth, false);
     renderer.render(this.scene, this.camera);
   }
 

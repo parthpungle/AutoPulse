@@ -5,7 +5,7 @@ import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 // assigned in random order, so any prefix of the texture still covers every shape evenly (that is
 // what lets a quality drop simply draw fewer particles).
 
-export const SECTIONS = ['hero', 'signals', 'signatures', 'recognition', 'cta'] as const;
+export const SECTIONS = ['hero', 'sensors', 'signatures', 'recognition', 'cta'] as const;
 
 /** Recognition clusters, in plot space (-1..1). Shared with the shader and the DOM labels. */
 export const CLUSTERS = [
@@ -54,12 +54,11 @@ const FILLS: Fill[] = [
     o[i + 2] = g();
     o[i + 3] = r();
   },
-  // 1 signals: arc position, thickness offset, channel (audio 40%, vibration 35%, telemetry 25%), random
-  (o, i, r, g) => {
-    o[i] = r() * 2 - 1;
-    o[i + 1] = g();
-    const c = r();
-    o[i + 2] = c < 0.4 ? 0 : c < 0.75 ? 1 : 2;
+  // 1 sensor array: angle, height, radius, random (all 0..1)
+  (o, i, r) => {
+    o[i] = r();
+    o[i + 1] = r();
+    o[i + 2] = Math.pow(r(), 0.7);
     o[i + 3] = r();
   },
   // 2 spectrogram: column, height fraction, time row (more particles in the front rows), jitter

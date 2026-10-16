@@ -20,7 +20,9 @@ import { canRenderHalfFloat } from './gl/caps';
 import { themePalette } from './theme';
 import type { Palette } from './theme';
 import { BackdropScene } from './scenes/BackdropScene';
-import { CAMERA_BASE_Z, CAMERA_FOV, ParticleScene } from './scenes/ParticleScene';
+import { CAMERA_BASE_Z, CAMERA_FOV, MainScene } from './scenes/MainScene';
+import { SensorRig } from './sensors/SensorRig';
+import { SyntheticSignals } from './signals/SyntheticSignals';
 import { FluidSim } from './sim/FluidSim';
 import { ParticleSim } from './sim/ParticleSim';
 import { generateTargets } from './sim/Targets';
@@ -65,6 +67,7 @@ export class Experience {
   readonly params = { alpha: 0.62 };
   readonly scroll: ScrollState;
   readonly pointer = new Pointer();
+  readonly signals = new SyntheticSignals();
 
   renderer!: WebGLRenderer;
   sizes!: Sizes;
@@ -75,8 +78,12 @@ export class Experience {
   fluid!: FluidSim;
   sim!: ParticleSim;
   backdrop!: BackdropScene;
-  particles!: ParticleScene;
+  main!: MainScene;
   composite!: Composite;
+  rig!: SensorRig;
+  /** Draw calls in the last frame: everything, and the 3-D scene alone. */
+  calls = 0;
+  sceneCalls = 0;
   state: EngineState = 'baseline';
   reduced: boolean;
 
@@ -145,8 +152,11 @@ export class Experience {
     this.fluid.params.iterations = this.settings.jacobi;
     this.sim = new ParticleSim(r, this.quad, this.settings.side, set, this.shared, this.layout);
     this.backdrop = new BackdropScene(this.quad.geometry, this.shared, this.palette);
-    this.particles = new ParticleScene(this.settings.side, this.settings.count, set.rand, this.shared, this.palette);
-    this.composite = new Composite(r, this.particles.camera, this.backdrop.rt.texture, this.particles.rt.texture, this.shared, this.palette);
+    this.main = new MainScene(this.settings.side, this.settings.count, set.rand, this.shared, this.palette);
+    this.rig = new SensorRig(r, this.palette, this.settings.tier >= 2);
+    this.rig.attach(this.main.scene);
+    r.info.autoReset = false;
+    this.composite = new Composite(r, this.main.camera, this.backdrop.rt.texture, this.main.rt.texture, this.shared, this.palette);
     this.composite.setBloom(this.settings.bloom);
     this.composite.setFadeReveal(this.reduced);
     this.onResize();
@@ -194,10 +204,17 @@ export class Experience {
     r.setRenderTarget(scratch);
     await r.compileAsync(tmp, this.quad.camera);
     r.setRenderTarget(scratch);
-    await r.compileAsync(this.particles.scene, this.particles.camera);
+    await r.compileAsync(this.main.scene, this.main.camera);
+    // both material tiers for the rig, so a quality drop only swaps materials
+    const high = this.rig.isHighTier;
+    this.rig.setHighTier(!high);
+    r.setRenderTarget(scratch);
+    await r.compileAsync(this.main.scene, this.main.camera);
+    r.render(this.main.scene, this.main.camera);
+    this.rig.setHighTier(high);
     for (const m of mats) this.quad.render(r, m, scratch);
     r.setRenderTarget(scratch);
-    r.render(this.particles.scene, this.particles.camera);
+    r.render(this.main.scene, this.main.camera);
     r.setRenderTarget(null);
     tmp.clear();
     scratch.dispose();
@@ -227,10 +244,6 @@ export class Experience {
     applyState(this.shared, this.palette, state);
   }
 
-  anchorSignal(el: HTMLElement, channel: number) {
-    this.anchors.add(el, 1, (out) => this.layout.signalAnchor(channel, out));
-  }
-
   anchorCluster(el: HTMLElement, index: number) {
     this.anchors.add(el, 3, (out) => this.layout.clusterAnchor(index, out));
   }
@@ -256,6 +269,8 @@ export class Experience {
 
   private frame(dt: number) {
     const s = this.shared;
+    const r = this.renderer;
+    r.info.reset();
     s.uTime.value += dt * (this.reduced ? 0.35 : 1);
     const time = s.uTime.value;
     const sc = this.scroll;
@@ -264,8 +279,11 @@ export class Experience {
     p.update(dt, time);
 
     const sf = sc.sectionFloat;
-    this.particles.updateCamera(sf, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
-    const cam = this.particles.camera;
+    this.signals.update(dt, s, this.reduced);
+    this.main.wide = this.layout.wide === 1;
+    this.rig.update(this.signals, sf);
+    this.main.updateCamera(sf, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
+    const cam = this.main.camera;
     this.sim.viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
 
     if (!this.reduced) {
@@ -278,17 +296,19 @@ export class Experience {
     this.sim.uniforms.uReduced.value = this.reduced ? 1 : 0;
     this.sim.step(dt, this.fluid.texture);
 
-    const pu = this.particles.material.uniforms;
-    this.particles.setTextures(this.sim.positions, this.sim.velocities);
+    const pu = this.main.material.uniforms;
+    this.main.setTextures(this.sim.positions, this.sim.velocities);
     pu.uFade.value = this.reduced ? Math.abs(2 * sc.morph - 1) : 1;
-    pu.uAlpha.value = this.params.alpha * this.particles.densityBoost;
+    pu.uAlpha.value = this.params.alpha * this.main.densityBoost;
 
-    const r = this.renderer;
     this.backdrop.update(sc.progress, 0);
     this.backdrop.render(r);
-    this.particles.render(r);
+    const before = r.info.render.calls;
+    this.main.render(r);
+    this.sceneCalls = r.info.render.calls - before;
     this.composite.update(this.reduced ? 0 : p.speed, this.reduced ? 0 : Math.sin(Math.PI * sc.morph), s.uValve.value);
     this.composite.render(dt);
+    this.calls = r.info.render.calls;
 
     this.anchors.update(cam, this.sizes.width, this.sizes.height, sf);
     const idx = Math.round(sf);
@@ -307,7 +327,7 @@ export class Experience {
     const bw = Math.round(width * dpr);
     const bh = Math.round(height * dpr);
     this.backdrop.setSize(bw, bh);
-    this.particles.setSize(bw, bh);
+    this.main.setSize(bw, bh);
     this.composite.setSize(width, height);
     const aspect = width / height;
     const vh = 2 * CAMERA_BASE_Z * Math.tan(MathUtils.degToRad(CAMERA_FOV) / 2);
@@ -330,9 +350,10 @@ export class Experience {
   setTier(tier: Tier) {
     const next = tierSettings(tier);
     this.settings = { ...next, side: this.settings.side };
-    this.particles.setDrawCount(next.count);
+    this.main.setDrawCount(next.count);
     this.fluid.params.iterations = next.jacobi;
     this.composite.setBloom(next.bloom);
+    this.rig.setHighTier(tier >= 2);
     this.sizes.setMaxDpr(next.dprCap);
     this.applyFluidSize();
     this.perf.hold(1.5);
@@ -369,7 +390,7 @@ export class Experience {
     const mem = () => (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? 0;
     (window as unknown as Record<string, unknown>).__tt = {
       engine: this,
-      perf: () => ({ ...this.perf.stats(), tier: this.settings.tier, particles: this.particles.count, gpu: this.quality.gpu, source: this.quality.source, dpr: this.sizes.dpr, heap: heap.slice() }),
+      perf: () => ({ ...this.perf.stats(), tier: this.settings.tier, particles: this.main.count, calls: this.calls, sceneCalls: this.sceneCalls, gpu: this.quality.gpu, source: this.quality.source, dpr: this.sizes.dpr, heap: heap.slice() }),
       resetPerf: () => {
         this.perf.reset();
         heap.length = 0;
@@ -380,7 +401,7 @@ export class Experience {
 
   /** For the debug panel and the README numbers. */
   get world() {
-    return { view: this.layout.view.clone(), camera: this.particles.camera.position.clone() as Vector3 };
+    return { view: this.layout.view.clone(), camera: this.main.camera.position.clone() as Vector3 };
   }
 
   get isRunning() {
@@ -403,7 +424,8 @@ export class Experience {
     this.fluid?.dispose();
     this.sim?.dispose();
     this.backdrop?.dispose();
-    this.particles?.dispose();
+    this.main?.dispose();
+    this.rig?.dispose();
     this.composite?.dispose();
     this.quad?.dispose();
     if (this.renderer) {

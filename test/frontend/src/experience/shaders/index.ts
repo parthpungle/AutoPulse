@@ -10,6 +10,8 @@ import fullscreenVert from './fullscreen.vert.glsl?raw';
 import copy from './copy.frag.glsl?raw';
 import backdrop from './backdrop.frag.glsl?raw';
 import composite from './composite.frag.glsl?raw';
+import sheenVert from './sheen.vert.glsl?raw';
+import sheenFrag from './sheen.frag.glsl?raw';
 import advect from './fluid/advect.frag.glsl?raw';
 import splat from './fluid/splat.frag.glsl?raw';
 import curl from './fluid/curl.frag.glsl?raw';
@@ -30,5 +32,7 @@ export const GLSL = {
   position,
   pointsVert: join(state, pointsVert),
   pointsFrag,
+  sheenVert,
+  sheenFrag,
   fluid: { advect, splat, curl, vorticity, divergence, scale, pressure, gradient },
 };
