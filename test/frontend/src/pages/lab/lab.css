@@ -1,0 +1,10 @@
+/* Signature lab. Every rule sits under .lab so nothing leaks into the other tabs; new tokens are
+   --lab-*, everything else is the dashboard's own (styles.css). See SIGNATURE_LAB_PLAN.md §2. */
+.lab {
+  /* excess over this car's normal: a deviation, not an alarm (alarm hues stay --p1..p4) */
+  --lab-excess: #e2a78a;
+  --lab-excess-fill: rgba(226, 167, 138, 0.28);
+  /* captions brighter than --muted, for projectors (WCAG AA on --bg-1) */
+  --lab-caption: #9aa5b3;
+  --lab-gap: 12px;
+}

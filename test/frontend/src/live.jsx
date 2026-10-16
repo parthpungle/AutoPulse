@@ -1,6 +1,7 @@
 // The live feed from the dashboard API: link state (paired vehicle), the newest diagnosed
 // frame, and a rolling 15-minute history for the charts. One WebSocket shared by every screen.
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { labStore } from './pages/lab/labStore.js';
 
 const MAX = 900;
 const Ctx = createContext(null);
@@ -31,7 +32,7 @@ export function LiveProvider({ children }) {
         if (m.type === 'hello') {
           setLink(m.link); setHistory(m.history || []); setLatest(m.latest); setReady(true);
           carRef.current = m.latest ? `${m.latest.vehicle.car_type}/${m.latest.vehicle.unit}` : null;
-          if (m.latest) setLastAt(Date.now());
+          if (m.latest) { setLastAt(Date.now()); labStore.push(m.latest); }
         } else if (m.type === 'link') {
           setLink(m.link);
         } else if (m.type === 'frame') {
@@ -40,6 +41,7 @@ export function LiveProvider({ children }) {
           const changed = carRef.current !== null && carRef.current !== key;   // a different car: start the charts over
           carRef.current = key;
           setLatest(m);
+          labStore.push(m);                                     // the Signature lab keeps its own rolling buffer
           setHistory((h) => (changed ? [m.row] : [...(h.length >= MAX ? h.slice(h.length - MAX + 1) : h), m.row]));
           setLastAt(Date.now());
         }
