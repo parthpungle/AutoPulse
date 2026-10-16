@@ -8,8 +8,8 @@ export function linkView({ link, live, stale, api }) {
   if (live) return { tone: 'good', Icon: CircleDot, text: `Live · ${carName(link.vehicle?.car_type)}`, pulse: true };
   if (stale) return { tone: 'warning', Icon: TriangleAlert, text: 'No data from the vehicle' };
   if (link.state === 'connecting' || link.state === 'lost') return { tone: 'warning', Icon: LoaderCircle, text: link.state === 'lost' ? 'Reconnecting…' : 'Connecting…', spin: true };
-  if (link.state === 'error') return { tone: 'critical', Icon: OctagonAlert, text: link.error || 'Pairing failed' };
-  return { tone: 'muted', Icon: Link2Off, text: 'No vehicle paired' };
+  if (link.state === 'error') return { tone: 'critical', Icon: OctagonAlert, text: "Couldn't connect" };   // the reason is in the drawer
+  return { tone: 'muted', Icon: Link2Off, text: 'Connect a vehicle' };
 }
 
 export function LinkPill({ onClick }) {

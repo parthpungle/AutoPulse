@@ -76,14 +76,23 @@ export default function VehicleApp() {
         <div className="muted" style={{ fontSize: 13 }}>This laptop is the car. Sensors stream to the paired dashboard.</div>
         <div className="spacer" />
         <div className="veh-pair">
-          <div><div className="kpi-label">Address</div><code>{s.ip}:{s.port}</code></div>
+          <div title={(s.addresses || [s.ip]).join(', ')}><div className="kpi-label">Address</div><code>{(s.addresses || [s.ip])[0]}</code>
+            {(s.addresses || []).length > 1 && <div className="muted" style={{ fontSize: 11 }}>also {(s.addresses).slice(1).join(', ')}</div>}</div>
           <div><div className="kpi-label">Pairing code</div><code className="big-code">{s.code}</code></div>
           <div className={`link-pill ${s.clients.length ? 'good' : 'muted'}`}>
             <Radio size={15} className={s.clients.length ? 'pulse-ico' : ''} />
-            {s.clients.length ? `${s.clients.length} dashboard${s.clients.length > 1 ? 's' : ''} paired` : 'No dashboard yet'}
+            {s.clients.length ? `${s.clients.length} dashboard${s.clients.length > 1 ? 's' : ''} connected` : 'Waiting for a dashboard'}
           </div>
         </div>
       </header>
+
+      {s.clients.length === 0 && (
+        <div className="veh-guide">
+          <b>Connect a dashboard</b>
+          <span>On the dashboard laptop: open <em>Vehicle link</em> → choose <em>{s.name}</em> (or type <code>{(s.addresses || [s.ip])[0]}</code>) → enter <code>{s.code}</code>.</span>
+          <span className="muted">Not connecting? Same Wi-Fi on both · allow Python through this laptop's firewall · campus Wi-Fi can block it: use a phone hotspot.</span>
+        </div>
+      )}
 
       <div className="veh-grid">
         {/* ---------------- the car */}

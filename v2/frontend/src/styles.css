@@ -506,3 +506,48 @@ button.link-pill:hover { border-color: rgba(255, 255, 255, 0.24); }
 /* spotlight: where the answer lives */
 @keyframes spot { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent); } 60% { box-shadow: 0 0 0 10px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 .spot { outline: 2px solid var(--accent) !important; outline-offset: 4px; border-radius: 3px; animation: spot 1s ease-out 3; }
+
+.veh-guide { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding: 9px 24px; border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 6%, transparent); font-size: 13px; color: var(--text-1); }
+.veh-guide b { font: 600 13px var(--cond); letter-spacing: .04em; text-transform: uppercase; color: var(--accent); }
+.veh-guide em { font-style: normal; color: var(--text-max); font-weight: 500; }
+.veh-guide code { font: 500 12.5px var(--mono); color: var(--text-max); background: var(--bg-2); padding: 1px 6px; border-radius: 3px; }
+
+/* ---------- vehicle link drawer ---------- */
+.drawer.vl { width: min(420px, 100vw); gap: 16px; overflow-y: auto; }
+.vl-h { font: 600 19px var(--cond); color: var(--text-max); margin-top: 2px; }
+.vl-connected { display: flex; flex-direction: column; gap: 16px; }
+.vl-status { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-left: 2px solid var(--accent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 80%); }
+.vl-status.warn { border-left-color: var(--p2); background: linear-gradient(90deg, color-mix(in srgb, var(--p2) 9%, transparent), transparent 80%); }
+.vl-title { font: 600 16px var(--cond); color: var(--text-max); }
+.vl-live { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); flex: none; }
+.vl-facts { display: grid; grid-template-columns: 120px 1fr; gap: 8px 12px; margin: 0; font-size: 13px; }
+.vl-facts dt { color: var(--text-dim); }
+.vl-facts dd { margin: 0; color: var(--text-1); }
+.vl-actions { display: flex; gap: 10px; }
+.vl-flow { display: flex; flex-direction: column; gap: 14px; }
+.vl-step { display: flex; flex-direction: column; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--line); transition: opacity var(--dur-state); }
+.vl-step.later { opacity: .45; }
+.vl-step-h { display: flex; align-items: center; gap: 10px; font: 600 14px var(--cond); letter-spacing: .02em; color: var(--text-max); }
+.vl-n { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font: 600 11px var(--mono); flex: none;
+  border: 1px solid var(--line-2); color: var(--text-2); }
+.vl-step.now .vl-n { border-color: var(--accent); color: var(--accent); }
+.vl-step.done .vl-n { background: var(--accent); border-color: var(--accent); color: var(--bg-0); }
+.vl-empty { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); padding: 6px 0; }
+.vl-list { display: flex; flex-direction: column; gap: 6px; }
+.vl-card { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 3px; text-align: left;
+  border: 1px solid var(--line-2); background: var(--bg-2); color: var(--text-2); transition: border-color var(--dur-micro); }
+.vl-card:hover { border-color: var(--text-dim); }
+.vl-card.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg-2)); color: var(--text-1); }
+.vl-card-t { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.vl-card-t b { color: var(--text-max); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vl-card-t small { font-size: 12px; color: var(--text-dim); }
+.vl-alt { align-self: flex-start; }
+.vl-manual { display: flex; flex-direction: column; gap: 8px; }
+.vl-check { display: flex; align-items: flex-start; gap: 7px; font-size: 12.5px; color: var(--text-1); min-height: 18px; line-height: 1.4; }
+.vl-check svg { flex: none; margin-top: 2px; }
+.vl-go { height: 40px; justify-content: center; font-size: 13px; }
+.vl-help summary { cursor: pointer; font: 500 12px var(--cond); letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); }
+.vl-help ul { margin: 8px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--text-2); display: flex; flex-direction: column; gap: 5px; }
+.vl-help em { font-style: normal; color: var(--text-1); }

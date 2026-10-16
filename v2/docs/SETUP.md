@@ -66,12 +66,13 @@ Only port **8200** has to be reachable from the other laptop. The UI (5173) and 
 ```text
   1. Vehicle laptop    run.bat → 1      prints   Address 192.168.1.23:8200 · Pairing code 4821
   2. Dashboard laptop  run.bat → 2      opens    http://localhost:5173  → Vehicle link drawer
-  3. Dashboard         pick the car under "On this network"  (or type 192.168.1.23)
-  4. Dashboard         enter 4821 → Pair → pill turns green: "Live · SUV"
+  3. Dashboard         Vehicle link → 1 choose the car (or type its address: it is checked at once)
+  4. Dashboard         2 enter 4821 → Connect → pill reads "Live · SUV"
 ```
 
 - The address and code are also at the top of the vehicle's control panel.
 - The code changes every time the vehicle starts. The dashboard reconnects on its own after short drops, but needs the new code after a vehicle restart.
+- To move to another vehicle laptop: Vehicle link → **Switch vehicle** (disconnects and shows the list again). **Disconnect** alone just stops the stream.
 - Several dashboards can pair with one vehicle at the same time, e.g. a judge's laptop as a second screen.
 - Breakdown controls only answer requests from the vehicle laptop itself. Another machine on the network can watch the stream (with the code) but cannot drive or break the car.
 
@@ -151,7 +152,7 @@ On macOS / Linux, use `.venv/bin/python` and `export VAR=value`; everything else
 | *Wrong pairing code* | The code changes on every vehicle start: use the one in its console now |
 | Pill says *No data from the vehicle* | The vehicle node stopped or the network dropped. The dashboard keeps retrying; restart the vehicle and pair again if its code changed |
 | *Something is already listening on port …* | An earlier AutoPulse window is still open, or the original app (`..\run.bat`) is running. Close it, then re-run |
-| Campus Wi-Fi isolates clients | Use a phone hotspot for both laptops |
+| *Can hear the vehicle but can't reach it* | The Wi-Fi blocks laptop-to-laptop traffic (client isolation: broadcasts get through, direct connections don't), or the vehicle laptop's firewall blocks Python. Put both laptops on a phone hotspot. The dashboard detects this and says so |
 | Dashboard engine says *Engine off* | Press **Start engine** on the vehicle laptop |
 | `npm` or `python` not found | Install them (see [Requirements](#requirements)) and open a new console |
 | First run very slow on the dashboard | PyTorch CPU (~200 MB) is downloading. Later runs skip it |

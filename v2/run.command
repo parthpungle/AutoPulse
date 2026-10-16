@@ -33,10 +33,20 @@ esac
 echo "[OK] Role: $ROLE_NAME"
 
 # ---- Python and Node -------------------------------------------------
+# macOS ships Python 3.9 as "python3"; AutoPulse needs 3.10+, so look for a newer one first
 PY=""
-for c in python3.11 python3.12 python3; do command -v "$c" >/dev/null 2>&1 && { PY="$c"; break; }; done
-[ -z "$PY" ] && { echo "[ERROR] Python 3.11+ not found. Install it from python.org or 'brew install python@3.11'."; exit 1; }
-echo "[OK] Python: $($PY --version)"
+for c in python3.13 python3.12 python3.11 python3.10 python3; do
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then PY="$c"; break; fi
+done
+if [ -z "$PY" ]; then
+  echo "[ERROR] Python 3.10 or newer is needed (macOS's built-in python3 is 3.9)."
+  echo "        Install one:  brew install python@3.12   (or python.org), then run this again."
+  exit 1
+fi
+echo "[OK] Python: $($PY --version) ($(command -v $PY))"
+if [ -d .venv ] && ! .venv/bin/python -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+  echo "[..] Rebuilding .venv: it was made with an older Python"; rm -rf .venv
+fi
 command -v node >/dev/null 2>&1 || { echo "[ERROR] Node.js not found. Install the LTS build from nodejs.org or 'brew install node'."; exit 1; }
 echo "[OK] Node: $(node --version)"
 
@@ -50,7 +60,14 @@ cmp -s "$REQ" "$LOCK" 2>/dev/null && NEED=0
 if [ "$NEED" = 0 ]; then echo "[OK] Python dependencies up to date"; else
   "$VPY" -m pip install --upgrade pip -q
   if [ "$ROLE" = 1 ]; then echo "[..] Installing vehicle dependencies (small, no PyTorch) ..."; "$VPY" -m pip install -r "$REQ" || exit 1
-  else echo "[..] Installing Python dependencies (first run pulls PyTorch) ..."; "$VPY" -m pip install -r "$REQ" || exit 1; fi
+  else
+    # everything except PyTorch must install; PyTorch only powers the CNN vote, so it is optional here
+    echo "[..] Installing Python dependencies ..."
+    grep -v '^torch' "$REQ" > .venv/requirements-core.txt
+    "$VPY" -m pip install -r .venv/requirements-core.txt || exit 1
+    echo "[..] Installing PyTorch for the CNN (optional) ..."
+    "$VPY" -m pip install "$(grep '^torch' "$REQ")" || "$VPY" -m pip install torch ||       echo "[WARN] PyTorch did not install: the dashboard runs with SVM, Softmax and ANN, without the CNN vote."
+  fi
   cp "$REQ" "$LOCK"; echo "[OK] Python dependencies installed"
 fi
 if [ -d frontend/node_modules ] && cmp -s frontend/package.json frontend/node_modules/.autopulse-package.lock 2>/dev/null; then
@@ -84,7 +101,8 @@ case "$ROLE" in
     echo "  VEHICLE - this laptop is the car"
     echo "    Control panel : http://localhost:$UI_PORT/vehicle.html"
     echo "    Dashboards pair with $LAN_IP using code $AUTOPULSE_CODE"
-    echo "  macOS may ask whether Python can accept incoming connections: click Allow."
+    echo "  macOS will ask whether Python can accept incoming connections: click Allow,"
+    echo "  or dashboards cannot reach this laptop (System Settings > Network > Firewall)."
     echo "================================================"
     start_ui; wait_port $UI_PORT; open_url "http://localhost:$UI_PORT/vehicle.html"
     "$VPY" -m uvicorn vehicle.node:app --host 0.0.0.0 --port $VEHICLE_PORT --no-access-log --log-level warning

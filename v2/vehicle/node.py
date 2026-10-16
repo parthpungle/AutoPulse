@@ -55,6 +55,22 @@ def lan_ip():
         s.close()
 
 
+def all_ips():
+    """Every IPv4 address this laptop has on a real network, the routed one first. Laptops with a VPN,
+    WSL or virtualisation adapters have several, and the routed guess alone can be the wrong one."""
+    found = [lan_ip()]
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            found.append(info[4][0])
+    except OSError:
+        pass
+    out = []
+    for ip in found:
+        if ip not in out and not ip.startswith(("127.", "169.254.")):
+            out.append(ip)
+    return out or ["127.0.0.1"]
+
+
 def say(msg, kind="info"):
     stamp = time.strftime("%H:%M:%S")
     log.append({"time": stamp, "kind": kind, "msg": msg})
@@ -101,12 +117,13 @@ def beacon_loop(stop):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     while not stop.is_set():
-        ip = lan_ip()
+        ips = all_ips()
         msg = json.dumps({"app": "autopulse", "role": "vehicle", "protocol": PROTOCOL, "port": PORT,
-                          **vehicle_info(), "ignition": car.ignition}).encode()
+                          **vehicle_info(), "ignition": car.ignition, "addresses": ips}).encode()
         targets = {"255.255.255.255"}
-        if ip.count(".") == 3 and not ip.startswith("127."):
-            targets.add(ip.rsplit(".", 1)[0] + ".255")          # subnet broadcast, for multi-adapter laptops
+        for ip in ips:                                          # subnet broadcast on every network we are on
+            if ip.count(".") == 3 and not ip.startswith("127."):
+                targets.add(ip.rsplit(".", 1)[0] + ".255")
         for t in targets:
             try:
                 s.sendto(msg, (t, BEACON_PORT))
@@ -116,7 +133,7 @@ def beacon_loop(stop):
 
 
 def banner():
-    ip = lan_ip()
+    ip = " or ".join(all_ips())
     line = "=" * 60
     print(f"\n{line}\n  AutoPulse VEHICLE is on the network\n"
           f"    Name          : {NAME}\n    Address       : {ip}:{PORT}\n    Pairing code  : {CODE}\n\n"
@@ -154,7 +171,7 @@ def root():
 @app.get("/api/hello")
 def hello():
     return {"app": "autopulse", "role": "vehicle", "protocol": PROTOCOL, "port": PORT, "ignition": car.ignition,
-            **vehicle_info()}
+            "addresses": all_ips(), **vehicle_info()}
 
 
 @app.websocket("/ws/stream")
@@ -196,7 +213,7 @@ class Fault(BaseModel):
 @app.get("/api/state")
 def state(request: Request):
     local_only(request)
-    return {"name": NAME, "code": CODE, "ip": lan_ip(), "port": PORT, **vehicle_info(),
+    return {"name": NAME, "code": CODE, "ip": lan_ip(), "addresses": all_ips(), "port": PORT, **vehicle_info(),
             "ignition": car.ignition, "mode": car.mode, "ambient": car.ambient, "severity": car.severity,
             "trip_s": car.trip_t, "truth": car.truth(), "obd": latest["obd"],
             "clients": [{"ip": c["ip"], "since_s": int(time.time() - c["since"])} for c in clients.values()],

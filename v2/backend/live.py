@@ -87,6 +87,43 @@ def context_key(rpm, coolant):
     return f"{'cold' if coolant < 60 else 'warm'}_{band}"
 
 
+
+def explain(e, host, port, heard=None):
+    """Turn a socket error into what to do about it. `heard` is the vehicle's name when its discovery
+    broadcast reached us: then the network carries broadcasts but blocks direct connections."""
+    import socket as _s
+    timed_out = isinstance(e, (TimeoutError, asyncio.TimeoutError)) or "timed out" in str(e).lower()
+    if heard and timed_out:
+        return (f"This laptop can hear {heard} on the network but can't reach it directly. This Wi-Fi is blocking "
+                "laptop-to-laptop connections (client isolation, common on campus and hotel Wi-Fi), or the vehicle "
+                "laptop's firewall is blocking Python. Put both laptops on a phone hotspot and try again.")
+    if isinstance(e, ConnectionRefusedError) or getattr(e, "errno", None) in (61, 111, 10061):
+        return (f"{host} answered, but nothing is listening on port {port}. Start the vehicle on that laptop "
+                "(run.bat or run.command, role 1) and try again.")
+    if isinstance(e, _s.gaierror):
+        return f"Can't find '{host}'. Check the address: it looks like 192.168.1.23."
+    if isinstance(e, (TimeoutError, asyncio.TimeoutError)) or "timed out" in str(e).lower():
+        return (f"No reply from {host}. Check both laptops are on the same Wi-Fi and the vehicle laptop's firewall "
+                "allows Python. Campus and hotel Wi-Fi often block laptop-to-laptop traffic: a phone hotspot works.")
+    if isinstance(e, OSError) and getattr(e, "errno", None) in (51, 65, 101, 113, 10051, 10065):
+        return f"No route to {host}. The two laptops are not on the same network."
+    return f"Couldn't connect to {host}:{port} ({type(e).__name__}: {e})."
+
+
+def probe(host, port, timeout=3.0, heard=None):
+    """Is a vehicle node reachable at host:port? Used before asking for the code."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://{host}:{port}/api/hello", timeout=timeout) as resp:
+            b = json.loads(resp.read())
+        if b.get("app") != "autopulse":
+            return {"ok": False, "error": f"Something at {host}:{port} answered, but it is not an AutoPulse vehicle."}
+        return {"ok": True, **b, "ip": host}
+    except Exception as e:                                       # noqa: BLE001
+        reason = getattr(e, "reason", e)
+        return {"ok": False, "error": explain(reason if isinstance(reason, BaseException) else e, host, port, heard)}
+
+
 class LiveHub:
     def __init__(self, models):
         self.models = models                     # () -> (feature models, cnn or None, (prior mean, prior std))
@@ -139,6 +176,11 @@ class LiveHub:
                     continue
         threading.Thread(target=listen, daemon=True).start()
 
+    def heard(self, host):
+        """Name of the vehicle whose beacon came from this address recently, if any."""
+        b = next((b for (ip, _), b in self.discovered.items() if ip == host and time.time() - b["seen"] < 15), None)
+        return b.get("name") if b else None
+
     def discover(self):
         now, mine = time.time(), lan_ips()
         found = []
@@ -185,13 +227,15 @@ class LiveHub:
             self.set_link(state="unpaired", host=None, port=None, vehicle=None, error=None)
 
     async def _run(self, host, port, code):
+        """Stream from the vehicle. A first attempt that fails stops with a plain explanation (so the
+        user can fix it and retry); a link that worked and then dropped keeps reconnecting."""
         from websockets.asyncio.client import connect
         from websockets.exceptions import ConnectionClosed, InvalidHandshake
-        backoff = 1.0
+        backoff, connected = 1.0, False
         while True:
             try:
                 async with connect(f"ws://{host}:{port}/ws/stream?code={code}", max_size=8_000_000,
-                                   open_timeout=4, ping_interval=10) as ws:
+                                   open_timeout=5, ping_interval=10) as ws:
                     pinger = asyncio.create_task(self._ping(ws))
                     try:
                         async for raw in ws:
@@ -199,7 +243,7 @@ class LiveHub:
                             if msg.get("type") == "pong":
                                 self.link["latency_ms"] = round((time.time() - msg["t"]) * 500)  # half the round trip
                             elif msg.get("type") == "hello":
-                                backoff = 1.0
+                                backoff, connected = 1.0, True
                                 self.set_link(state="live", vehicle=msg["vehicle"], error=None, since=time.time())
                             elif msg.get("type") == "frame":
                                 out = await asyncio.to_thread(self.process, msg)
@@ -209,17 +253,19 @@ class LiveHub:
                                 self.push(out)
                     finally:
                         pinger.cancel()
-                self.set_link(state="lost", error="The vehicle stopped streaming")
+                self.set_link(state="lost", error="The vehicle stopped streaming. Reconnecting…")
             except asyncio.CancelledError:
                 raise
             except ConnectionClosed as e:
                 if e.rcvd is not None and e.rcvd.code == 4401:
-                    self.set_link(state="error", error="Wrong pairing code")
+                    self.set_link(state="error", error="Wrong code. Use the 4-digit code shown on the vehicle laptop right now.")
                     return
-                self.set_link(state="lost", error="The vehicle closed the connection")
+                self.set_link(state="lost", error="The vehicle closed the connection. Reconnecting…")
             except (OSError, InvalidHandshake, TimeoutError, ValueError) as e:
-                self.set_link(state="lost" if self.link["since"] else "connecting",
-                              error=f"Cannot reach {host}:{port} ({type(e).__name__})")
+                if not connected:
+                    self.set_link(state="error", error=explain(e, host, port, self.heard(host)))
+                    return
+                self.set_link(state="lost", error=f"Lost the vehicle at {host}. Reconnecting…")
             await asyncio.sleep(backoff)
             backoff = min(backoff * 1.6, 5.0)
 

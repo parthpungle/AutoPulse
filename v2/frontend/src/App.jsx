@@ -39,13 +39,13 @@ function NoVehicle({ onPair }) {
   return (
     <div className="empty fade-in">
       <div className="empty-ico"><Link2 size={28} strokeWidth={1.5} /></div>
-      <h2>{waiting ? 'Waiting for the vehicle…' : 'No vehicle paired'}</h2>
+      <h2>{waiting ? 'Waiting for the vehicle…' : 'No vehicle connected'}</h2>
       <p className="note">
         {waiting
           ? `Trying ${link.host}:${link.port}. Check the vehicle laptop is running and on the same network.`
-          : 'This laptop is the dashboard. Start run.bat on the vehicle laptop (role 1), then pair with the code it shows.'}
+          : 'This laptop is the dashboard. Start the vehicle laptop (run.bat or run.command, role 1), then connect with the code it shows.'}
       </p>
-      <button className="btn primary" onClick={onPair}><Link2 size={15} />{waiting ? 'Vehicle link' : 'Pair a vehicle'}</button>
+      <button className="btn primary" onClick={onPair}><Link2 size={15} />{waiting ? 'Vehicle link' : 'Connect a vehicle'}</button>
     </div>
   );
 }

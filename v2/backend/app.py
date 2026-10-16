@@ -81,6 +81,14 @@ def discover():
     return {"vehicles": hub.discover(), "link": hub.link}
 
 
+@app.get("/api/probe")
+def probe_vehicle(host: str, port: int = STREAM_PORT):
+    """Quick check before pairing: is there an AutoPulse vehicle at host:port, and if not, why."""
+    from backend.live import probe
+    host = host.strip()
+    return probe(host, port, heard=hub.heard(host))
+
+
 @app.post("/api/pair")
 async def pair(p: Pair):
     return await hub.pair(p.host.strip(), p.port, p.code.strip())
