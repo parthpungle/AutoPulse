@@ -16,7 +16,11 @@ Built from the three exploration reports (design language, dashboard, backend). 
   - The per-context band is wide on the harmonic combs: a context spans a whole rpm band, so the comb moves within it.
   - At about 3,000 rpm the bearing peak found can be the pulley-rate modulation (about 2.8× crank) rather than the 7.15–9.82× defect rate, which then lies above 400 Hz. The readout only says "a repetition that is not an engine order".
   - The evidence panel carries `data-view`, `data-fault` and `data-normal-n` for tests. Read those, not the store: after a hot reload Vite gives labStore a new URL, so `import('/src/pages/lab/labStore.js')` returns an empty copy.
-- Phases 3–6: not started
+- Phase 3: done. Notes for later phases:
+  - The timeline's classifier lane plots 1 − healthy_p (the non-healthy share). History has no per-class shares, so this can sit above 0.50 while no single class does. The confirmed-fault bar (from the store) is the ground truth for the alarm.
+  - The deviation and classifier lines cover the backend's 900 s history. The bar and scrubbing only cover seconds this page has stored (≤180 s, since it opened), and the timeline says so.
+  - Inspecting changes Evidence and Signals only. The verdict, detectors and banner stay live (ISA-101: status always shows now).
+- Phases 4–6: not started
 
 ---
 

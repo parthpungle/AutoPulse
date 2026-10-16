@@ -75,3 +75,25 @@
 .lab-ev__callout polyline { stroke: var(--text-1); stroke-width: 1; }
 .lab-ev__callout text { fill: var(--text-max); font-weight: 500; }
 .lab-ev text.lab-ev__learning { font: 400 13px var(--sans); fill: var(--lab-caption); }
+
+/* inspecting a past second */
+.lab-inspect { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; padding: 8px 12px;
+  background: var(--bg-3); border: 1px solid var(--accent); border-radius: var(--r); font-size: 13.5px; color: var(--text-1); }
+.lab-inspect b { color: var(--text-max); font-weight: 500; }
+.lab-inspect .btn { margin-left: auto; }
+
+/* 04 / Timeline */
+.lab-timeline { display: flex; flex-direction: column; gap: 6px; }
+.lab-tl { cursor: ew-resize; touch-action: none; border-radius: var(--r); }
+.lab-tl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lab-tl__hint { font-size: 12.5px; color: var(--lab-caption); }
+.lab-tl svg text { font: 400 11px var(--mono); fill: var(--text-2); }
+.lab-tl text.lab-tl__lane { font: 500 12px var(--sans); fill: var(--text-1); }
+.lab-tl .lab-tl__thr { stroke: var(--text-1); stroke-width: 1; stroke-dasharray: 5 4; }
+.lab-tl text.lab-tl__thr-label { fill: var(--text-1); }
+.lab-tl text.lab-tl__unseen { fill: var(--lab-caption); font-size: 10.5px; }
+.lab-tl__marker line { stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 2 3; }
+.lab-tl__marker text { fill: var(--text-1); }
+.lab-tl__cursor line { stroke: var(--accent); stroke-width: 1.5; }
+.lab-tl__cursor rect { fill: var(--accent); }
+.lab-tl__cursor text { fill: var(--bg-0); font-weight: 500; }

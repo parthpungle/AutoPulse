@@ -112,3 +112,25 @@ export function baselineFor(s, context, key = 'spectrum') {
 export function useLabStore(select = (s) => s) {
   return useSyncExternalStore(labStore.subscribe, () => select(labStore.get()));
 }
+
+/**
+ * A stored second as a frame-shaped sig (plain arrays, as the charts expect), so every evidence and
+ * drill-down view can show a past second exactly as it showed the live one. `labels` comes from the
+ * live sig (the order labels never change).
+ */
+export function sigAt(f, axes, labels) {
+  const nt = axes.spectrogramT.length;
+  return {
+    rpm: f.rpm,
+    time: { t_ms: Array.from(axes.time), y: Array.from(f.time) },
+    spectrum: { f: Array.from(axes.spectrum), db: Array.from(f.spectrum) },
+    spectrogram: {
+      f: Array.from(axes.spectrogramF), t: Array.from(axes.spectrogramT),
+      z: Array.from({ length: axes.spectrogramF.length }, (_, i) => Array.from(f.spectrogram.subarray(i * nt, (i + 1) * nt))),
+    },
+    envelope: { f: Array.from(axes.envelope), y: Array.from(f.envelope), orders: [0.5, 1, 1.5, 2].map((o) => (o * f.rpm) / 60) },
+    orders: { labels, amp: Array.from(f.orders) },
+    crank: { dev: Array.from(f.crank) },
+    marks: {},
+  };
+}

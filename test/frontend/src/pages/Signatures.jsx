@@ -1,16 +1,17 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Power } from 'lucide-react';
 import LineChart from '../components/charts/LineChart.jsx';
 import Heatmap from '../components/charts/Heatmap.jsx';
 import { VBars } from '../components/charts/Bars.jsx';
 import { Tabs } from '../components/ui.jsx';
-import { series, useLive } from '../live.jsx';
-import { labStore, useLabStore } from './lab/labStore.js';
-import { contextWords } from './lab/derive.js';
+import { useLive } from '../live.jsx';
+import { labStore, sigAt, useLabStore } from './lab/labStore.js';
+import { contextWords, onset } from './lab/derive.js';
 import Verdict from './lab/Verdict.jsx';
 import Detectors from './lab/Detectors.jsx';
 import ModelDrawer from './lab/ModelDrawer.jsx';
 import Evidence from './lab/Evidence.jsx';
+import Timeline from './lab/Timeline.jsx';
 import './lab/lab.css';
 
 const VIEWS = [
@@ -33,7 +34,21 @@ export default function Signatures() {
   const [view, setView] = useState('spectrum');
   const [drawer, setDrawer] = useState(false);
   const closeDrawer = useCallback(() => setDrawer(false), []);
+  // a past second picked on the timeline (row.clock), or null for live
+  const [inspect, setInspect] = useState(null);
   const { sig, engine } = latest;
+  const past = inspect == null ? null : frames.find((f) => f.clock === inspect) ?? null;
+  const pastSig = useMemo(() => past && sigAt(past, store.axes, sig.orders.labels), [past, store.axes, sig?.orders.labels]);
+
+  useEffect(() => {                         // the picked second has scrolled out of the buffer: back to live
+    if (inspect != null && !past) setInspect(null);
+  }, [inspect, past]);
+  useEffect(() => {
+    if (inspect == null || drawer) return undefined;
+    const onKey = (e) => e.key === 'Escape' && setInspect(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [inspect, drawer]);
 
   if (engine.state === 'off' || !sig) {
     return (
@@ -44,8 +59,10 @@ export default function Signatures() {
       </div>
     );
   }
-  const H = history.slice(-180);
   const onServiced = () => { serviced(); labStore.forgetBaseline(); };
+  const shownSig = pastSig ?? sig;
+  const shownEngine = past ? { ...engine, ...past.engine } : engine;
+  const fault = onset(frames, engine.fault ?? 'healthy');
 
   return (
     <div className="lab">
@@ -66,25 +83,24 @@ export default function Signatures() {
         <Detectors engine={engine} onServiced={onServiced} />
       </div>
 
-      <Evidence sig={sig} engine={engine} store={store} />
+      {past && (
+        <div className="lab-inspect" role="status">
+          <span>Viewing <b className="num">−{latest.row.clock - inspect} s</b> · evidence and signals show that second; the verdict above stays live.</span>
+          <button className="btn" onClick={() => setInspect(null)}>Back to live</button>
+        </div>
+      )}
+      <Evidence sig={shownSig} engine={shownEngine} store={store} />
+
+      <Timeline rows={history} frames={frames} now={latest.row.clock} threshold={engine.threshold}
+        onset={engine.fault && engine.fault !== 'healthy' ? fault?.clock : null} inspect={past ? inspect : null} onInspect={setInspect} />
 
       <section className="panel panel-pad" aria-labelledby="lab-signals-title">
         <div className="row" style={{ marginBottom: 14 }}>
           <h2 className="eyebrow lab-eyebrow" id="lab-signals-title">Signals</h2>
           <Tabs items={VIEWS} value={view} onChange={setView} />
         </div>
-        <Plot view={view} d={sig} />
+        <Plot view={view} d={shownSig} />
         <div className="chart-caption">{WHY[view]}</div>
-      </section>
-
-      <section className="panel panel-pad" aria-label="Deviation from this car's normal, last 3 minutes">
-        <div className="eyebrow" style={{ marginBottom: 10 }}>Deviation from this car’s own normal · last 3 min</div>
-        <LineChart height={170} hlines={[{ y: engine.threshold, label: 'Deviation threshold' }]} fmtY={(v) => v.toFixed(0)}
-          fmtX={() => ''} legend={false}
-          series={[{ id: 'a', label: 'Deviation (RMS of top-5 feature z-scores)', color: 'var(--s1)', x: series(H, 'clock'), y: series(H, 'anomaly') }]} />
-        <div className="chart-caption">
-          Dashed line: the deviation threshold, {engine.threshold}. Crossing it does not raise the alarm; the classifier does (see 02 / Detectors).
-        </div>
       </section>
 
       {drawer && <ModelDrawer engine={engine} onClose={closeDrawer} />}
