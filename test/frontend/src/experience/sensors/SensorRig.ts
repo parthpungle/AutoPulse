@@ -48,13 +48,16 @@ function bakeEnvironment(renderer: WebGLRenderer) {
 interface SensorInst {
   outer: Group;
   inner: Group;
-  /** Each mesh with its two tier variants (per-sensor materials sharing programs). */
-  meshes: { mesh: Mesh; high: Material; low: Material }[];
+  /** Each mesh (one per part) with its two tier variants (per-sensor materials sharing programs)
+   *  and how far it sits from the model's centre along the sensor's axis (the exploded view). */
+  meshes: { mesh: Mesh; high: Material; low: Material; axial: number }[];
   disc: Mesh | null;
   /** On the engine: position and orientation (tip toward the crank axis), in rig space. */
   rest: Vector3;
   mountQuat: Quaternion;
   tip: Vector3;
+  /** The part the tip belongs to (it carries the tip along in the exploded view). */
+  tipPart: Mesh;
   /** Free end of the cable and, for the throttle and the clamp, the axis the flow passes through. */
   cableEnd: Vector3;
   through: Vector3[] | null;
@@ -75,6 +78,8 @@ const SLOT_MAT: Record<Slot, MatKey> = { steel: 'steel', darkSteel: 'darkSteel',
 const FLY_TIME = 0.9;
 const SPIN_SPEED = MathUtils.degToRad(8);
 const CURSOR_TILT = MathUtils.degToRad(6);
+/** Exploded view: parts move apart along the sensor's axis by this much of their offset. */
+const EXPLODE = 0.8;
 /** The showcase pose looks slightly down onto the model. */
 const PITCH = 0.3;
 /** Tunables for the showcase lighting (also in the ?debug panel). Offsets are in camera terms
@@ -130,6 +135,8 @@ export class SensorRig {
   private env: WebGLRenderTarget | null = null;
   private highTier = true;
   private active = -1;
+  /** 0..1 exploded view of the showcased sensor (the detail view). */
+  readonly exploded = { value: 0 };
   private tiltX = 0;
   private tiltY = 0;
   private readonly colors = SENSORS.map((s) => new Color(s.color));
@@ -187,7 +194,7 @@ export class SensorRig {
     const inner = new Group();
     inner.rotation.x = -Math.PI / 2; // builder space has the tip at -Y; this turns it to +Z
     outer.add(inner);
-    const meshes: { mesh: Mesh; high: Material; low: Material }[] = [];
+    const meshes: { mesh: Mesh; high: Material; low: Material; axial: number }[] = [];
     const geometries: BufferGeometry[] = [];
     const box = new Box3();
     const add = (g: BufferGeometry, key: MatKey, cut: 'none' | 'hex' | 'slots') => {
@@ -195,9 +202,9 @@ export class SensorRig {
       const lo = makeMaterial(key, false);
       const mesh = new Mesh(g, highTier ? hi : lo);
       inner.add(mesh);
-      meshes.push({ mesh, high: hi, low: lo });
-      geometries.push(g);
       g.computeBoundingBox();
+      meshes.push({ mesh, high: hi, low: lo, axial: (g.boundingBox!.min.y + g.boundingBox!.max.y) / 2 });
+      geometries.push(g);
       box.union(g.boundingBox!);
       return mesh;
     };
@@ -210,6 +217,18 @@ export class SensorRig {
     // fitting: the model stands upright in the showcase, so its builder-space height counts most
     const ext = box.getSize(new Vector3());
     const fit = Math.max(ext.y, 0.85 * Math.max(ext.x, ext.z));
+    const midY = (box.min.y + box.max.y) / 2;
+    for (const m of meshes) m.axial -= midY;
+    // the part nearest the tip
+    let tipPart = meshes[0].mesh;
+    let best = Infinity;
+    for (const m of meshes) {
+      const d = m.mesh.geometry.boundingBox!.distanceToPoint(parts.tip);
+      if (d < best) {
+        best = d;
+        tipPart = m.mesh;
+      }
+    }
     inner.updateMatrix();
     const center = box.getCenter(new Vector3()).applyMatrix4(inner.matrix);
     const radius = ext.length() / 2;
@@ -235,7 +254,7 @@ export class SensorRig {
       setTip(m.high, glow, parts.through ? 0.32 : 0.24);
       setTip(m.low, glow, 0);
     }
-    return { outer, inner, meshes, disc, rest, mountQuat, tip: parts.tip, cableEnd: parts.cableEnd, through: parts.through ?? null, fly: { value: 0 }, center, radius, fit, spin: -0.7, geometries };
+    return { outer, inner, meshes, disc, rest, mountQuat, tip: parts.tip, tipPart, cableEnd: parts.cableEnd, through: parts.through ?? null, fly: { value: 0 }, center, radius, fit, spin: -0.7, geometries };
   }
 
   attach(scene: Scene) {
@@ -262,10 +281,20 @@ export class SensorRig {
     return this.active;
   }
 
-  /** World position of sensor i's stream origin (its tip). */
-  tipWorld(i: number, out: Vector3) {
+  /** Sensor i's tip in builder space, following its part in the exploded view. */
+  tipLocal(i: number, out: Vector3) {
     const s = this.sensors[i];
-    return s.inner.localToWorld(out.copy(s.tip));
+    return out.copy(s.tip).add(s.tipPart.position);
+  }
+
+  /** World position of sensor i's tip (where its flow arrives). */
+  tipWorld(i: number, out: Vector3) {
+    return this.sensors[i].inner.localToWorld(this.tipLocal(i, out));
+  }
+
+  /** Take the showcased sensor apart along its axis (detail open) or put it back together. */
+  setExploded(on: boolean, reduced: boolean) {
+    gsap.to(this.exploded, { value: on && !reduced ? 1 : 0, duration: 0.7, ease: 'power3.inOut', overwrite: true });
   }
 
   /** Fly sensor i out to the showcase and send the others home. */
@@ -339,7 +368,9 @@ export class SensorRig {
         s.outer.scale.setScalar(MOUNT_SCALE);
       } else {
         if (!reduced) s.spin += dt * SPIN_SPEED;
-        const sc = targetH / s.fit;
+        // exploded, the model is taller: shrink it so it still fits the spot
+        const ex = i === active ? this.exploded.value : 0;
+        const sc = (targetH / s.fit) / (1 + 0.55 * ex);
         // camera-facing, upright, pitched toward the viewer, turning on its own axis, plus the cursor
         this.showQ.copy(camera.quaternion);
         this.showQ.multiply(this.q.setFromAxisAngle(Y_AXIS, this.tiltY));
@@ -357,6 +388,8 @@ export class SensorRig {
         s.outer.quaternion.copy(s.mountQuat).slerp(this.showQ, t);
         s.outer.scale.setScalar(MathUtils.lerp(MOUNT_SCALE, sc, t));
       }
+      const ex = i === active ? this.exploded.value * t : 0;
+      for (const m of s.meshes) m.mesh.position.y = m.axial * EXPLODE * ex;
       const dim = MathUtils.lerp(0.45, 1, t) * fade;
       const env = MathUtils.lerp(1, RIG_LIGHTS.showEnv, t);
       for (const m of s.meshes) {
@@ -383,8 +416,8 @@ export class SensorRig {
 
     // contact shadow under the showcased model
     const s = this.sensors[a];
-    const sc = targetH / s.fit;
-    this.shadow.place(this.spot, s.radius * sc * 0.8, camera, 0.85 * shown, this.highTier);
+    const sc = targetH / s.fit / (1 + 0.55 * this.exploded.value);
+    this.shadow.place(this.spot, s.radius * sc * (0.8 + 0.4 * this.exploded.value), camera, 0.85 * shown, this.highTier);
   }
 
   /** The spot plus an offset in camera terms (right, up, toward the viewer). */
@@ -403,6 +436,7 @@ export class SensorRig {
     for (const m of [...this.crankMats.body, ...this.crankMats.bearings]) m.dispose();
     for (const s of this.sensors) {
       gsap.killTweensOf(s.fly);
+      gsap.killTweensOf(this.exploded);
       for (const g of s.geometries) g.dispose();
       for (const m of s.meshes) {
         m.high.dispose();

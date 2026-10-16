@@ -69,7 +69,7 @@ export class FlowPaths {
       }
       return scale;
     }
-    this.local(rig, r, s.tip, this.tip);
+    this.local(rig, r, rig.tipLocal(r, this.tip), this.tip);
     // the flow leaves the engine on the side facing the sensor (wherever it is: on its mount or in
     // the showcase), at the sensor's height
     this.n.set(this.tip.x, 0, this.tip.z);

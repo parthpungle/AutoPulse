@@ -506,6 +506,7 @@ export class Experience {
     const cards = this.cards;
     const ex = cards.expansion;
     const panel = this.detailEl;
+    this.rig.setExploded(open, this.reduced);
     gsap.killTweensOf(ex);
     panel?.removeAttribute('data-settled');
     if (open) {
