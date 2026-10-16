@@ -323,9 +323,9 @@ export class Experience {
     const sf = sc.sectionFloat;
     this.signals.update(dt, s, this.reduced);
     this.main.wide = this.layout.wide === 1;
-    this.rig.update(this.signals, sf);
     this.carousel.update(dt);
     this.main.carousel = this.reduced ? 0 : this.carousel.value;
+    this.rig.update(dt, this.signals, sf, this.main.carousel, this.layout.wide === 1, this.main.camera);
     this.main.updateCamera(sf, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
     const cam = this.main.camera;
     this.sim.viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);

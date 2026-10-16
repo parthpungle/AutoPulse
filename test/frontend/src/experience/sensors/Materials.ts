@@ -1,4 +1,4 @@
-import { Color, MeshPhysicalMaterial, ShaderMaterial, UniformsLib, UniformsUtils } from 'three';
+import { Color, DoubleSide, MeshPhysicalMaterial, ShaderMaterial, UniformsLib, UniformsUtils } from 'three';
 import type { Material } from 'three';
 import { GLSL } from '../shaders';
 import type { Palette } from '../theme';
@@ -65,6 +65,42 @@ export function makeHighSet(): MaterialSet {
 
 export function makeLowSet(palette: Palette): MaterialSet {
   return { metal: makeSheen(palette), plastic: makeSheen(palette, '#0C0D11'), brass: makeSheen(palette, '#5A4626') };
+}
+
+/**
+ * Perforated metal: the hex grille of the microphone or the slotted lambda shield, cut in the
+ * fragment shader from the object-space position (cylindrical coordinates), double-sided so the
+ * inside shows through the holes.
+ */
+export function makePerforated(base: MeshPhysicalMaterial, kind: 'hex' | 'slots'): MeshPhysicalMaterial {
+  const m = base.clone();
+  m.side = DoubleSide;
+  const cut =
+    kind === 'hex'
+      ? `{
+          float ang = atan(vPObj.z, vPObj.x);
+          float rr = length(vPObj.xz);
+          vec2 g = vec2(ang * max(rr, 0.02), vPObj.y) / vec2(0.024, 0.0208);
+          float row = floor(g.y);
+          g.x += mod(row, 2.0) * 0.5;
+          vec2 f = fract(g) - 0.5;
+          if (dot(f * vec2(0.024, 0.0208), f * vec2(0.024, 0.0208)) < 0.0000475 && vPObj.y < -0.13) discard;
+        }`
+      : `{
+          float ang = atan(vPObj.z, vPObj.x);
+          float k = fract(ang / 6.2831853 * 8.0);
+          if (k > 0.4 && k < 0.6 && vPObj.y > -0.32 && vPObj.y < -0.19) discard;
+        }`;
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPObj;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPObj = position;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPObj;')
+      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n' + cut);
+  };
+  m.customProgramCacheKey = () => 'perforated-' + kind;
+  return m;
 }
 
 /** Sets a 0..1 brightness on either variant (physical: colour scale; sheen: uDim). */
