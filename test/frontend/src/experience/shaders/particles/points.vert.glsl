@@ -61,7 +61,7 @@ void main() {
       // valve wear: a fine high-frequency jitter, on screen
       if (ci == 3) {
         vec2 j = fract(sin(vec2(dot(aRef, vec2(12.9898, 78.233)), dot(aRef, vec2(39.3468, 11.135))) + floor(uTime * 40.0)) * 43758.5453) - 0.5;
-        gl_Position.xy += j * 0.007 * gl_Position.w * w3;
+        gl_Position.xy += j * 0.0022 * gl_Position.w * w3;
       }
     }
   }

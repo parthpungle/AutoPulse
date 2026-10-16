@@ -75,8 +75,9 @@ void main() {
   float kp = knockPulse(uTime);
   vec3 kdir = normalize(vec3((R.z - 0.5) * 0.6, (R.w - 0.5) + sign(R.w - 0.5) * 0.35, (R.x - 0.5) * 0.6));
   acc += kdir * kp * 110.0 * global;
-  // valve wear: high-frequency jitter
-  acc += (hash33(vec3(gl_FragCoord.xy, floor(uTime * 60.0))) - 0.5) * uValve * 110.0 * global;
+  // valve wear: a fine high-frequency shimmer. Small on purpose: this is random acceleration every
+  // frame, so at 110 it more than quadrupled the particles' speed instead of shimmering them
+  acc += (hash33(vec3(gl_FragCoord.xy, floor(uTime * 60.0))) - 0.5) * uValve * 22.0 * global;
   // misfire: a slice of particles stalls every 4th beat
   float stall = misfireStall(R.y, uTime) * global;
   acc *= 1.0 - stall;
