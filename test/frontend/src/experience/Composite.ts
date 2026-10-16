@@ -4,6 +4,8 @@ import { BlendFunction, BloomEffect, ChromaticAberrationEffect, Effect, EffectCo
 import { GLSL } from './shaders';
 import type { Palette } from './theme';
 import type { Shared } from './Uniforms';
+import { MAX_STRIPS, SEAM } from './seam/Seam';
+import type { Seam } from './seam/Seam';
 
 /** Final pass 1: combines the layer render targets (and draws the intro wipe). */
 class LayerPass extends Pass {
@@ -72,6 +74,10 @@ export class Composite {
    *  next to the card would otherwise spill over its text). */
   bloomScale = 1;
   private readonly caOffset = new Vector2();
+  /** The seam's strips in UV units (see seam/Seam.ts). */
+  private readonly strips = new Float32Array(MAX_STRIPS * 4);
+  /** Extra chromatic aberration while a seam crosses the screen. */
+  private cutCA = 0;
 
   constructor(renderer: WebGLRenderer, camera: Camera, backdrop: Texture, main: Texture, shared: Shared, palette: Palette) {
     this.composer = new EffectComposer(renderer, { frameBufferType: HalfFloatType, multisampling: 0, depthBuffer: false, stencilBuffer: false });
@@ -83,10 +89,17 @@ export class Composite {
       uniforms: {
         uTexel: { value: new Vector2() },
         tBackdrop: { value: backdrop },
-        tMain: { value: main },
+        tFrom: { value: main },
+        tTo: { value: main },
+        uCut: { value: 0 },
+        uSeam: { value: new Vector2() },
+        uBand: { value: 0 },
+        uStrips: { value: this.strips },
+        uStripCount: { value: 0 },
+        uMosaic: { value: SEAM.mosaic },
+        uCross: { value: -1 },
         uReveal: { value: 0 },
         uFadeReveal: { value: 0 },
-        uTrans: { value: 0 },
         uFlash: shared.uFlash,
         uTime: shared.uTime,
         uAspect: { value: 1 },
@@ -124,9 +137,44 @@ export class Composite {
     this.material.uniforms.uAspect.value = width / height;
   }
 
-  update(pointerSpeed: number, transition: number, valve: number) {
+  /** The two worlds on screen: `from` alone, or `from` above the seam and `to` below it. */
+  setLayers(from: Texture, to: Texture) {
+    const u = this.material.uniforms;
+    u.tFrom.value = from;
+    u.tTo.value = to;
+  }
+
+  /**
+   * The cut: seam position and strips (null: no seam). `cross` >= 0 replaces it with a plain
+   * crossfade (reduced motion).
+   */
+  setCut(seam: Seam | null, cross = -1) {
+    const u = this.material.uniforms;
+    u.uCross.value = cross;
+    u.uCut.value = seam && seam.active ? 1 : 0;
+    this.cutCA = 0;
+    if (!seam || !seam.active) return;
+    const H = seam.h;
+    const W = seam.w;
+    (u.uSeam.value as Vector2).set(1 - seam.l / H, 1 - seam.r / H);
+    u.uBand.value = SEAM.band;
+    u.uMosaic.value = SEAM.mosaic;
+    const s = seam.strips;
+    for (let k = 0; k < seam.count; k++) {
+      const o = k * 4;
+      this.strips[o] = s[o] / H;
+      this.strips[o + 1] = s[o + 1] / W;
+      this.strips[o + 2] = s[o + 2];
+      this.strips[o + 3] = s[o + 3] / W;
+    }
+    u.uStripCount.value = seam.count;
+    // a little more colour split on the whole frame while the band is on screen
+    this.cutCA = Math.sin(Math.PI * seam.t);
+  }
+
+  update(pointerSpeed: number, valve: number) {
     const p = this.params;
-    const k = Math.min(1, pointerSpeed / 3);
+    const k = Math.min(1, Math.max(pointerSpeed / 3, this.cutCA * 0.5));
     const off = p.caBase + (p.caMax - p.caBase) * k;
     this.caOffset.set(off, off * 0.6);
     this.ca.offset.copy(this.caOffset);
@@ -135,7 +183,6 @@ export class Composite {
     this.bloom.intensity = this.bloomOn ? p.bloomIntensity * this.bloomScale : 0;
     this.bloom.luminanceMaterial.threshold = p.bloomThreshold;
     this.bloom.mipmapBlurPass.radius = p.bloomRadius;
-    this.material.uniforms.uTrans.value = transition;
   }
 
   render(dt: number) {
