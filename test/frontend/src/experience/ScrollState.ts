@@ -1,9 +1,6 @@
 import Lenis from 'lenis';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
-/** A gate sees every wheel/touch event before Lenis; 'consume' cancels it and Lenis ignores it. */
-export type ScrollGate = (dx: number, dy: number, event: Event) => 'pass' | 'consume';
-
 /**
  * Smooth scroll (Lenis) and where we are in the story. Each section has a hold range in
  * "viewport centre" coordinates: a point (its centre) for ordinary sections, or the whole pinned
@@ -30,10 +27,6 @@ export class ScrollState {
   private pinned: Uint8Array;
   private centre = 0;
   private ro: ResizeObserver;
-  private readonly gates: ScrollGate[] = [];
-  /** Viewport height for layout, updated only when the width changes (iOS toolbars don't count). */
-  private vh = window.innerHeight;
-  private vw = window.innerWidth;
 
   constructor(sections: HTMLElement[], reduced: boolean) {
     this.sections = sections;
@@ -41,17 +34,7 @@ export class ScrollState {
     this.a0 = new Float32Array(n);
     this.a1 = new Float32Array(n);
     this.pinned = new Uint8Array(n);
-    // touch scrolls through Lenis on phones and tablets: native momentum can't be cancelled on iOS
-    // and would carry the page straight through a stepped section
-    const coarse = matchMedia('(pointer: coarse)').matches;
-    this.lenis = new Lenis({
-      autoRaf: false,
-      lerp: reduced ? 1 : 0.085,
-      smoothWheel: !reduced,
-      wheelMultiplier: 0.9,
-      syncTouch: coarse,
-      virtualScroll: this.gate,
-    });
+    this.lenis = new Lenis({ autoRaf: false, lerp: reduced ? 1 : 0.085, smoothWheel: !reduced, wheelMultiplier: 0.9 });
     this.lenis.on('scroll', ScrollTrigger.update);
     this.lenis.stop();
     this.ro = new ResizeObserver(this.measure);
@@ -64,35 +47,8 @@ export class ScrollState {
     this.lenis.options.smoothWheel = !reduced;
   }
 
-  /** Stepped sections register here (see StepSection). */
-  addGate(g: ScrollGate) {
-    this.gates.push(g);
-  }
-
-  removeGate(g: ScrollGate) {
-    const i = this.gates.indexOf(g);
-    if (i >= 0) this.gates.splice(i, 1);
-  }
-
-  private gate = ({ deltaX, deltaY, event }: { deltaX: number; deltaY: number; event: WheelEvent | TouchEvent }) => {
-    if (this.lenis.isStopped || event.ctrlKey) return true;
-    const path = event.composedPath();
-    for (const n of path) if (n instanceof HTMLElement && n.hasAttribute('data-lenis-prevent')) return true;
-    for (const g of this.gates) {
-      if (g(deltaX, deltaY, event) === 'consume') {
-        if (event.cancelable) event.preventDefault();
-        return false;
-      }
-    }
-    return true;
-  };
-
   measure = () => {
-    if (window.innerWidth !== this.vw) {
-      this.vw = window.innerWidth;
-      this.vh = window.innerHeight;
-    }
-    const vh = this.vh;
+    const vh = window.innerHeight;
     const y = window.scrollY;
     const maxCentre = Math.max(vh * 0.5, document.documentElement.scrollHeight - vh * 0.5);
     for (let i = 0; i < this.sections.length; i++) {
@@ -130,12 +86,12 @@ export class ScrollState {
 
   /** Scroll position at fraction `t` (0..1) of pinned section i. */
   scrollForLocal(i: number, t: number) {
-    const vh = this.vh;
+    const vh = window.innerHeight;
     return this.a0[i] + (this.a1[i] - this.a0[i]) * t - vh * 0.5;
   }
 
   update() {
-    const vh = this.vh;
+    const vh = window.innerHeight;
     const y = this.lenis.animatedScroll;
     const limit = this.lenis.limit;
     this.progress = limit > 0 ? y / limit : 0;

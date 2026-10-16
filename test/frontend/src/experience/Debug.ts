@@ -64,11 +64,6 @@ export async function mountDebug(exp: Experience): Promise<() => void> {
   sa.add(exp.cards.params, 'tilt', 0, 20, 0.5).name('card tilt (deg)');
   sa.add(exp.cards.params, 'refraction', 0, 4, 0.01).name('glass refraction');
 
-  // record real trackpad / mouse / phone gestures here, then replay them in a Playwright test
-  const gestures = { copy: () => void navigator.clipboard?.writeText(JSON.stringify(exp.carousel.log)), clear: () => (exp.carousel.log.length = 0) };
-  sa.add(gestures, 'copy').name('copy gesture log (JSON)');
-  sa.add(gestures, 'clear').name('clear gesture log');
-
   const fs = gui.addFolder('Flows & Showcase');
   const W = SHOWCASE.wide;
   fs.add(W.spot, 'x', 0, 1, 0.01).name('spot x');
