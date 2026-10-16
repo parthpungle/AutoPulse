@@ -1,15 +1,14 @@
 // Small shared UI pieces: status icon + word, score ring, tabs, stat tile, alert card.
-import { CircleCheck, Info, LoaderCircle, MapPin, OctagonAlert, TriangleAlert } from 'lucide-react';
+import { CircleCheck, LoaderCircle, MapPin } from 'lucide-react';
+import { AlarmShape, prio } from './hmi.jsx';
 
 export const STATUS_WORD = { ok: 'OK', info: 'Note', warning: 'Check', critical: 'Fault', pending: 'Waiting', checking: 'Checking' };
 
 export function StatusIcon({ status, size = 16 }) {
-  const p = { size, strokeWidth: 2 };
-  if (status === 'ok') return <CircleCheck {...p} color="var(--good)" />;
-  if (status === 'warning') return <TriangleAlert {...p} color="var(--warning)" />;
-  if (status === 'critical') return <OctagonAlert {...p} color="var(--critical)" />;
-  if (status === 'info') return <Info {...p} color="var(--info)" />;
-  return <LoaderCircle {...p} color="var(--muted)" className={status === 'checking' ? 'spin' : ''} />;
+  const p = prio(status);
+  if (p) return <AlarmShape priority={p} size={size} />;          // ISA-18.2: shape + number, never colour alone
+  if (status === 'ok') return <CircleCheck size={size} strokeWidth={1.75} color="var(--text-dim)" />;
+  return <LoaderCircle size={size} strokeWidth={2} color="var(--muted)" className={status === 'checking' ? 'spin' : ''} />;
 }
 
 export function Status({ status }) {
@@ -21,15 +20,15 @@ export const scoreStatus = (score) => (score >= 85 ? 'ok' : score >= 60 ? 'warni
 export function Ring({ value, size = 120, stroke = 9, status }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const col = `var(--${status === 'ok' ? 'good' : status})`;
+  const col = status === 'ok' ? 'var(--text-1)' : `var(--${status})`;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`Health score ${value}`}>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-3)" strokeWidth={stroke} />
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={col} strokeWidth={stroke} strokeLinecap="round"
         strokeDasharray={`${(c * value) / 100} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`}
         style={{ transition: 'stroke-dasharray .8s ease' }} />
-      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" fill="var(--ink)"
-        style={{ font: `500 ${size * 0.3}px var(--sans)` }}>{value}</text>
+      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" fill="var(--text-max)"
+        style={{ font: `400 ${size * 0.3}px var(--mono)` }}>{value}</text>
     </svg>
   );
 }
@@ -54,7 +53,7 @@ export function Stat({ label, value, unit, sub, tone }) {
   );
 }
 
-const SEV_VAR = { critical: '--critical', warning: '--warning', info: '--info', ok: '--good' };
+const SEV_VAR = { critical: '--p1', warning: '--p2', info: '--p4', ok: '--rule-strong' };
 
 export function AlertCard({ a }) {
   return (

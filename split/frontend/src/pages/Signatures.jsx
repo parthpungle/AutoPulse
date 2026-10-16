@@ -96,24 +96,24 @@ export default function Signatures() {
   );
 }
 
-function Plot({ view, d }) {
+export function Plot({ view, d, height = 320 }) {
   if (view === 'time') {
-    return <LineChart height={320} fmtX={(v) => `${v.toFixed(0)}`} xTitle="ms" fmtY={(v) => v.toFixed(1)} legend={false}
+    return <LineChart height={height} fmtX={(v) => `${v.toFixed(0)}`} xTitle="ms" fmtY={(v) => v.toFixed(1)} legend={false}
       series={[{ id: 'v', label: 'Block vibration', color: 'var(--s1)', x: d.time.t_ms, y: d.time.y, width: 1.2 }]} />;
   }
   if (view === 'spectrum') {
-    return <LineChart height={340} xDomain={[0, 10000]} fmtX={(v) => `${(v / 1000).toFixed(0)}k`} xTitle="Hz" legend={false}
+    return <LineChart height={height} xDomain={[0, 10000]} fmtX={(v) => `${(v / 1000).toFixed(0)}k`} xTitle="Hz" legend={false}
       bands={[{ x0: 5500, x1: 8000, label: 'knock band' }]}
       fmtY={(v) => v.toFixed(0)} series={[{ id: 's', label: 'Power (dB)', color: 'var(--s1)', x: d.spectrum.f, y: d.spectrum.db, width: 1.6 }]} />;
   }
-  if (view === 'spectrogram') return <Heatmap f={d.spectrogram.f} t={d.spectrogram.t} z={d.spectrogram.z} height={320} />;
+  if (view === 'spectrogram') return <Heatmap f={d.spectrogram.f} t={d.spectrogram.t} z={d.spectrogram.z} height={height} />;
   if (view === 'envelope') {
     const marks = d.envelope.orders.map((f, k) => ({ x: f, label: ['0.5×', '1×', '1.5×', '2×'][k], row: k % 2 }));
-    return <LineChart height={320} xDomain={[0, 400]} markers={marks} xTitle="Hz" fmtY={(v) => v.toFixed(1)} legend={false}
+    return <LineChart height={height} xDomain={[0, 400]} markers={marks} xTitle="Hz" fmtY={(v) => v.toFixed(1)} legend={false}
       series={[{ id: 'e', label: 'Envelope spectrum (normalised)', color: 'var(--s1)', x: d.envelope.f, y: d.envelope.y, width: 1.5 }]} />;
   }
-  if (view === 'orders') return <VBars labels={d.orders.labels} values={d.orders.amp} height={300} fmt={(v) => v.toFixed(3)} />;
+  if (view === 'orders') return <VBars labels={d.orders.labels} values={d.orders.amp} height={height} fmt={(v) => v.toFixed(3)} />;
   const dev = d.crank.dev;
-  return <VBars labels={dev.map((_, k) => k + 1)} values={dev} height={300} showEvery={5} fmt={(v) => `${v.toFixed(1)} rpm`}
+  return <VBars labels={dev.map((_, k) => k + 1)} values={dev} height={height} showEvery={5} fmt={(v) => `${v.toFixed(1)} rpm`}
     colorOf={(v) => (v < -15 ? 'var(--critical)' : 'var(--s1)')} />;
 }

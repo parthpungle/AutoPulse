@@ -42,8 +42,8 @@ const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 function Logo() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden>
-      <circle cx="12" cy="12" r="10.5" fill="none" stroke="#FF8A4C" strokeWidth="1.6" />
-      <path d="M3.5 12h4l2-5 3 10 2.2-7 1.3 2H20.5" fill="none" stroke="#F4F1EC" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="10.5" fill="none" stroke="#4fd1c5" strokeWidth="1.5" />
+      <path d="M3.5 12h4l2-5 3 10 2.2-7 1.3 2H20.5" fill="none" stroke="#f2f4f6" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }

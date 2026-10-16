@@ -73,7 +73,7 @@ export default function LineChart({
         aria-label={series.map((s) => s.label).join(', ')}>
         {bands.map((b) => (
           <g key={b.label}>
-            <rect x={x(b.x0)} y={M.t} width={Math.max(0, x(b.x1) - x(b.x0))} height={H - M.t - M.b} fill={b.fill || 'rgba(208,59,59,0.08)'} />
+            <rect x={x(b.x0)} y={M.t} width={Math.max(0, x(b.x1) - x(b.x0))} height={H - M.t - M.b} fill={b.fill || 'var(--band)'} />
             <text x={x(b.x0) + 6} y={M.t + 12} style={{ fill: b.labelColor || 'var(--critical)' }}>{b.label}</text>
           </g>
         ))}

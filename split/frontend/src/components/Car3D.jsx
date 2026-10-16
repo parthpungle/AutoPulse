@@ -16,15 +16,16 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-export const STATUS_HEX = { ok: '#0ca30c', info: '#c3c2b7', warning: '#fab219', critical: '#d03b3b' };
+// ISA-18.2 priority colours (critical ◆1, high ▲2, advisory ●4); healthy stays grey
+export const STATUS_HEX = { ok: '#9aa3ad', info: '#5ea9f0', warning: '#f2811d', critical: '#f05a5f' };
 const TYPES = ['hatchback', 'sedan', 'suv', 'pickup', 'coupe'];
 TYPES.forEach((t) => useGLTF.preload(`/models/${t}.glb`));
 
-const INK = '#efe9e1';
-const GLASS = '#8fb6e6';
-const PART = '#aaa39a';
-const ZONE_OK = '#a4bba9';
-const FOG = '#161514';
+const INK = '#d5dae0';
+const GLASS = '#8db4d8';
+const PART = '#9aa3ad';
+const ZONE_OK = '#8a939d';
+const FOG = '#14171b';
 
 // [width px, opacity] passes where the line is in view, and where the body hides it
 // Like a technical illustration: only the outline is bold, and it is recomputed from the view
@@ -36,7 +37,7 @@ const STYLE = {
   flow: { color: INK, vis: [[0.8, 0.12]], hid: [] },
   section: { color: INK, vis: [[0.8, 0.16]], hid: [[0.8, 0.04]] },
   glass: { color: GLASS, vis: [[1, 0.6]], hid: [[1, 0.1]] },
-  interior: { color: '#cfc8be', vis: [[1.1, 0.72]], hid: [[1, 0.24]] },
+  interior: { color: '#c3c9d1', vis: [[1.1, 0.72]], hid: [[1, 0.24]] },
   detail: { color: PART, vis: [[1, 0.62]], hid: [[1, 0.16]] },
   part: { color: PART, vis: [[1.1, 0.8]], hid: [[1, 0.3]] },
   zone: { color: ZONE_OK, vis: [[1.1, 0.7]], hid: [[1, 0.36]] },
@@ -217,7 +218,7 @@ function styled(scene, zones, opts) {
       } else {                                          // the shell: depth for hidden lines, plus a fresnel skin
         o.material = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
         o.renderOrder = -1;
-        const sk = new THREE.Mesh(o.geometry, skin('#d9d2c8', 0.008, 0.13));
+        const sk = new THREE.Mesh(o.geometry, skin('#c3c9d1', 0.008, 0.13));
         sk.renderOrder = 1;
         extra.push([o, sk]);
       }
@@ -225,7 +226,7 @@ function styled(scene, zones, opts) {
     }
     if (mat === 'Zone') {
       if (opts.hideZones) { o.visible = false; return; }
-      o.material = new THREE.MeshBasicMaterial({ color: sc, transparent: true, opacity: 0.2, depthWrite: false, depthTest: false, visible: bad });
+      o.material = new THREE.MeshBasicMaterial({ color: sc, transparent: true, opacity: 0.08, depthWrite: false, depthTest: false, visible: bad });
       if (bad) pulsing.push(o.material);
       jobs.push([o, positionsOf(new THREE.EdgesGeometry(o.geometry, 25)), style, bad]);
     } else if (mat === 'Tyre') {
@@ -283,7 +284,7 @@ function Model({ type, zones, onCenters, hideZones = false }) {
     const k = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 4);
     built.pulsing.forEach((m) => {
       if (m.isLineMaterial) m.opacity = m.userData.base * (0.45 + 0.55 * k);
-      else m.opacity = 0.06 + 0.2 * k;
+      else m.opacity = 0.03 + 0.08 * k;                 // fills stay faint: the glowing lines carry the alarm
     });
   });
   return <primitive object={built.root} />;
@@ -330,18 +331,62 @@ function Fit({ distance }) {
   return null;
 }
 
-function Floor() {
-  const geo = useMemo(() => {
-    const pts = [];
-    for (let x = -6; x <= 6.01; x += 0.3) for (let z = -4; z <= 4.01; z += 0.3) {
-      if (x * x / 36 + z * z / 16 < 1) pts.push(x, 0.002, z);
+/** NavPort's radar, laid on the floor: range rings, a degree scale and a sweep. The sweep turns only
+ *  while live data is arriving (motion = state), and takes the alarm colour when something is wrong. */
+function Stage({ live = true, color = '#4fd1c5' }) {
+  const sweep = useRef();
+  const { rings, ticks, fan, edge, dots } = useMemo(() => {
+    const circle = (r, n = 128) => {
+      const pts = [];
+      for (let k = 0; k <= n; k++) pts.push(new THREE.Vector3(Math.cos((k / n) * Math.PI * 2) * r, 0, Math.sin((k / n) * Math.PI * 2) * r));
+      return new THREE.BufferGeometry().setFromPoints(pts);
+    };
+    const tp = [];
+    for (let k = 0; k < 72; k++) {
+      const a = (k / 72) * Math.PI * 2, r0 = 3.62, r1 = k % 6 === 0 ? 3.86 : 3.72;
+      tp.push(Math.cos(a) * r0, 0, Math.sin(a) * r0, Math.cos(a) * r1, 0, Math.sin(a) * r1);
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    return g;
+    const tg = new THREE.BufferGeometry();
+    tg.setAttribute('position', new THREE.Float32BufferAttribute(tp, 3));
+    const n = 40, span = 1.1, R = 3.6, pos = [], al = [];
+    for (let k = 0; k < n; k++) {                      // a fan whose alpha rises towards the leading edge
+      const a0 = -(k / n) * span, a1 = -((k + 1) / n) * span, f = 1 - k / n;
+      pos.push(0, 0, 0, Math.cos(a0) * R, 0, Math.sin(a0) * R, Math.cos(a1) * R, 0, Math.sin(a1) * R);
+      al.push(f, f, f);
+    }
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    fg.setAttribute('a', new THREE.Float32BufferAttribute(al, 1));
+    const eg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(R, 0, 0)]);
+    const dp = [];
+    for (let x = -3.6; x <= 3.61; x += 0.3) for (let z = -3.6; z <= 3.61; z += 0.3) if (x * x + z * z < 3.4 * 3.4) dp.push(x, 0, z);
+    const dg = new THREE.BufferGeometry();
+    dg.setAttribute('position', new THREE.Float32BufferAttribute(dp, 3));
+    return { rings: [circle(1.8), circle(2.9), circle(3.6)], ticks: tg, fan: fg, edge: eg, dots: dg };
   }, []);
-  // drawn before the shell writes depth, so the floor shows through the car like the rest of the X-ray
-  return <points geometry={geo} renderOrder={-2}><pointsMaterial color="#3d3a35" size={0.024} sizeAttenuation fog={false} /></points>;
+  const fanMat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: { color: { value: new THREE.Color(color) } },
+    vertexShader: 'attribute float a; varying float vA; void main() { vA = a; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform vec3 color; varying float vA; void main() { gl_FragColor = vec4(color, 0.16 * vA * vA); }',
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fanMat.uniforms.color.value.set(color); }, [color, fanMat]);
+  useFrame((_, dt) => { if (live && sweep.current) sweep.current.rotation.y -= dt * 0.9; });
+  return (
+    <group position={[0, 0.004, 0]} renderOrder={-2}>
+      {rings.map((g, i) => (
+        <line key={i} geometry={g} renderOrder={-2}>
+          <lineBasicMaterial color="#9aa3ad" transparent opacity={[0.10, 0.16, 0.24][i]} fog={false} />
+        </line>
+      ))}
+      <lineSegments geometry={ticks} renderOrder={-2}><lineBasicMaterial color="#9aa3ad" transparent opacity={0.3} fog={false} /></lineSegments>
+      <points geometry={dots} renderOrder={-2}><pointsMaterial color="#4a515a" size={0.022} sizeAttenuation fog={false} /></points>
+      <group ref={sweep} visible={live}>
+        <mesh geometry={fan} material={fanMat} renderOrder={-2} />
+        <line geometry={edge} renderOrder={-2}><lineBasicMaterial color={color} transparent opacity={0.55} fog={false} /></line>
+      </group>
+    </group>
+  );
 }
 
 function Spin({ on, children }) {
@@ -361,7 +406,9 @@ export function CarThumb({ type, spin = false }) {
   );
 }
 
-export default function Car3D({ type, zones, focus = null, autoRotate = true, height = '100%', distance = 1 }) {
+export default function Car3D({ type, zones, focus = null, autoRotate = true, height = '100%', distance = 1, live = true }) {
+  const worst = Object.values(zones || {}).reduce((w, z) => (z === 'critical' || (z === 'warning' && w !== 'critical') ? z : w), 'ok');
+  const sweepColor = worst === 'ok' ? '#4fd1c5' : STATUS_HEX[worst];
   const centers = useRef({});
   const focusPoint = focus && centers.current[focus] ? centers.current[focus] : null;
   return (
@@ -372,7 +419,7 @@ export default function Car3D({ type, zones, focus = null, autoRotate = true, he
         <Suspense fallback={null}>
           <Model type={type} zones={zones} onCenters={(c) => { centers.current = c; }} />
         </Suspense>
-        <Floor />
+        <Stage live={live} color={sweepColor} />
         <Fit distance={distance} />
         <OrbitControls makeDefault enablePan={false} minDistance={4.5} maxDistance={16}
           maxPolarAngle={1.48} autoRotateSpeed={0.6} enableDamping />

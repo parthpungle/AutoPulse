@@ -83,6 +83,7 @@ Vehicle-only installs can use the smaller `requirements-vehicle.txt` (no PyTorch
 | **Discovery and pairing** | UDP beacon on the LAN, 4-digit pairing code, auto-reconnect, latency shown. Breakdown controls only accept requests from the vehicle laptop itself |
 | **Blind diagnosis** | The vehicle never sends what was injected. The dashboard works it out: signatures → SVM, Softmax, ANN, CNN vote (5 s smoothing) → adaptive per-car baseline; OBD-II → hard safety limits |
 | **Live dashboard** | Health score, see-through wireframe car with glowing fault zones, rolling telemetry, the engine's spectrum, spectrogram, envelope, orders and crank speed every second |
+| **Control-room cockpit** | ISA-101 design after TorqueTwin: grey while healthy, colour only for alarms with a priority shape, normal-band gauges and trends, acknowledgeable alarm banner. The car stays in the middle on a radar ring (NavPort) with sensors left, recognition right and the live signature below |
 | **Car dropdown** | Pick the car from a menu; its wireframe preview appears only while the menu is open |
 | **Technical-illustration cars** | Real car models drawn like a CAD X-ray: a bold outline recomputed from every view, thin panel gaps and surface flow, interior and mechanicals faint through the body |
 
