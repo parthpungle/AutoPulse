@@ -20,6 +20,10 @@ export interface SensorParts {
   disc: BufferGeometry | null;
   /** Where the signal stream leaves the sensor, in builder space. */
   tip: Vector3;
+  /** The free end of the cable (its data heads to the OBD-II port from here). */
+  cableEnd: Vector3;
+  /** Flows that pass through the part instead of ending at its tip (throttle bore, clamped cable). */
+  through?: Vector3[];
 }
 
 type Seg = { radial: number; curve: number };
@@ -91,6 +95,7 @@ function mic(s: Seg): SensorParts {
     grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.28, 0),
+    cableEnd: new Vector3(0.12, 0.84, -0.3),
   };
 }
 
@@ -106,6 +111,7 @@ function accelerometer(s: Seg): SensorParts {
     grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.32, 0),
+    cableEnd: new Vector3(0.7, 0.42, 0.1),
   };
 }
 
@@ -120,6 +126,7 @@ function crankSensor(s: Seg): SensorParts {
     grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.24, 0),
+    cableEnd: new Vector3(0.24, 0.78, 0.36),
   };
 }
 
@@ -135,6 +142,7 @@ function coolant(s: Seg): SensorParts {
     grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.32, 0),
+    cableEnd: new Vector3(0.26, 0.7, 0.32),
   };
 }
 
@@ -157,6 +165,8 @@ function throttle(s: Seg): SensorParts {
     grilleCut: 'hex',
     disc,
     tip: new Vector3(0.32, -0.08, 0),
+    through: [new Vector3(0, -1.3, 0), new Vector3(0, 0, 0), new Vector3(0, 1.3, 0)],
+    cableEnd: new Vector3(0.66, 0.5, 0.2),
   };
 }
 
@@ -172,6 +182,7 @@ function lambda(s: Seg): SensorParts {
     grilleCut: 'slots',
     disc: null,
     tip: new Vector3(0, -0.36, 0),
+    cableEnd: new Vector3(0.3, 0.74, 0.34),
   };
 }
 
@@ -194,6 +205,8 @@ function currentClamp(s: Seg): SensorParts {
     grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.3, 0),
+    through: [new Vector3(0, -1.4, 0), new Vector3(0, -0.6, 0), new Vector3(0, 0.2, 0), new Vector3(0.05, 0.6, 0.05), new Vector3(0.16, 1.25, 0.16)],
+    cableEnd: new Vector3(0.05, 0.6, 0.05),
   };
 }
 
@@ -221,6 +234,7 @@ function obd(s: Seg): SensorParts {
     grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.17, 0),
+    cableEnd: new Vector3(0.3, 0.6, 0.3),
   };
 }
 

@@ -1,4 +1,4 @@
-import { Color, DoubleSide, MeshPhysicalMaterial, MeshStandardMaterial, ShaderMaterial, UniformsLib, UniformsUtils } from 'three';
+import { Color, DoubleSide, MeshPhysicalMaterial, MeshStandardMaterial, ShaderMaterial, UniformsLib, UniformsUtils, Vector3 } from 'three';
 import type { Material } from 'three';
 import { GLSL } from '../shaders';
 
@@ -42,12 +42,17 @@ interface MatData {
   /** Emissive pulse (sensor tips "hearing"). */
   pulse: { value: number };
   pulseColor: { value: Color };
+  /** Where the pulse glows (builder space) and how far it reaches; radius 0 lights the whole part. */
+  tip: { value: Vector3 };
+  tipRadius: { value: number };
 }
 
 const SHEEN_PARS = /* glsl */ `
 uniform float uEdgeSheen;
 uniform float uPulse;
 uniform vec3 uPulseColor;
+uniform vec3 uTipObj;
+uniform float uTipR;
 `;
 // added to the lit colour: a thin-film-like hue that only shows at grazing angles
 const SHEEN_APPLY = /* glsl */ `
@@ -56,7 +61,8 @@ const SHEEN_APPLY = /* glsl */ `
   float fres = pow(1.0 - clamp(abs(dot(normal, vdir)), 0.0, 1.0), 4.0);
   vec3 film = 0.5 + 0.5 * cos(6.2831853 * (fres * 1.1 + vec3(0.62, 0.86, 0.12)));
   outgoingLight += film * fres * uEdgeSheen;
-  outgoingLight += uPulseColor * uPulse;
+  float near = uTipR > 0.0 ? smoothstep(uTipR, 0.0, distance(vPObj, uTipObj)) : 1.0;
+  outgoingLight += uPulseColor * uPulse * near;
 }
 `;
 
@@ -85,13 +91,15 @@ function makeHigh(key: MatKey, cut: Cut): Material {
   const params = { color: new Color(s.color), metalness: s.metalness, roughness: s.roughness, envMapIntensity: ENV_INTENSITY };
   const m = s.clearcoat ? new MeshPhysicalMaterial({ ...params, clearcoat: s.clearcoat, clearcoatRoughness: 0.4 }) : new MeshStandardMaterial(params);
   if (cut !== 'none') m.side = DoubleSide;
-  const data: MatData = { base: params.color.clone(), sheen: { value: s.sheen }, sheenBase: s.sheen, pulse: { value: 0 }, pulseColor: { value: new Color() } };
+  const data: MatData = { base: params.color.clone(), sheen: { value: s.sheen }, sheenBase: s.sheen, pulse: { value: 0 }, pulseColor: { value: new Color() }, tip: { value: new Vector3() }, tipRadius: { value: 0 } };
   m.userData.tt = data;
   const cutGlsl = cutCode(cut);
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uEdgeSheen = data.sheen;
     sh.uniforms.uPulse = data.pulse;
     sh.uniforms.uPulseColor = data.pulseColor;
+    sh.uniforms.uTipObj = data.tip;
+    sh.uniforms.uTipR = data.tipRadius;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vPObj;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPObj = position;');
@@ -127,7 +135,7 @@ function makeLow(key: MatKey): Material {
       },
     ]),
   });
-  const data: MatData = { base: shown.clone(), sheen: { value: 0 }, sheenBase: 0, pulse: m.uniforms.uRimAmt, pulseColor: m.uniforms.uRim };
+  const data: MatData = { base: shown.clone(), sheen: { value: 0 }, sheenBase: 0, pulse: m.uniforms.uRimAmt, pulseColor: m.uniforms.uRim, tip: { value: new Vector3() }, tipRadius: { value: 0 } };
   m.userData.tt = data;
   return m;
 }
@@ -154,6 +162,14 @@ export function setEnv(m: Material, k: number) {
   const d = m.userData.tt as MatData | undefined;
   if (!d || (m as ShaderMaterial).isShaderMaterial) return;
   (m as MeshStandardMaterial).envMapIntensity = ENV_INTENSITY * k;
+}
+
+/** Where a material's pulse glows: builder-space centre and reach (high tier; the cheap path glows all over). */
+export function setTip(m: Material, center: Vector3, radius: number) {
+  const d = m.userData.tt as MatData | undefined;
+  if (!d) return;
+  d.tip.value.copy(center);
+  d.tipRadius.value = radius;
 }
 
 /** Emissive pulse in a colour (rim on the cheap path), e.g. a sensor tip that "hears". */

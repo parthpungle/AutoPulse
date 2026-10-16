@@ -94,6 +94,8 @@ export class MainScene extends FXScene {
         uFade: { value: 1 },
         uColor: { value: palette.text },
         tStreams: { value: null },
+        uActiveSensor: { value: 0 },
+        uActiveTip: { value: null },
         uSecA: { value: 0 },
         uSecB: { value: 0 },
         uMorph: { value: 0 },

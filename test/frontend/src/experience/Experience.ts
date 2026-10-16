@@ -1,11 +1,12 @@
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Color, HalfFloatType, MathUtils, Mesh, Scene, Vector3, Vector4, WebGLRenderer, WebGLRenderTarget } from 'three';
+import { Color, HalfFloatType, MathUtils, Mesh, Scene, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three';
 import { preloadFont } from 'troika-three-text';
 import { SENSORS, SENSOR_COUNT } from '../content/sensors';
 import { Cards, FONT_DISPLAY, FONT_MONO, SCRAMBLE } from './carousel/Cards';
 import { CarouselState } from './carousel/CarouselState';
-import { StreamCurves } from './sim/Curves';
+import { Flows } from './sim/Flows';
+import { FlowPaths } from './sim/Paths';
 import type { Material } from 'three';
 import { Anchors } from './Anchors';
 import { Composite } from './Composite';
@@ -111,7 +112,9 @@ export class Experience {
   private section = -1;
   private fluidResizeTimer = 0;
   readonly carousel: CarouselState;
-  readonly streams = new StreamCurves();
+  readonly paths = new FlowPaths();
+  readonly flows = new Flows();
+  private readonly tipPos = new Vector3();
   cards!: Cards;
   private activeCard = -1;
   private detail = false;
@@ -185,10 +188,15 @@ export class Experience {
     this.main = new MainScene(this.settings.side, this.settings.count, set.rand, this.shared, this.palette);
     this.rig = new SensorRig(r, this.palette, this.settings.tier >= 2, this.shared);
     this.rig.attach(this.main.scene);
-    // streams: the sim reads the paths; the draw pass tints by sensor (sharing the morph uniforms)
+    // flows: the sim reads the paths and phases; the draw pass colours by pool (sharing the morph
+    // uniforms and the active sensor)
     const su = this.sim.uniforms;
     const pu = this.main.material.uniforms;
-    su.tCurves.value = this.streams.texture;
+    su.tPaths.value = this.paths.texture;
+    su.uRigOffset.value = this.paths.offset;
+    su.uFlowPhase.value = this.flows.phase;
+    pu.uActiveSensor = su.uActiveSensor;
+    pu.uActiveTip.value = this.tipPos;
     pu.uSecA = su.uSecA;
     pu.uSecB = su.uSecB;
     pu.uMorph = su.uMorph;
@@ -207,8 +215,8 @@ export class Experience {
     for (const t of set.targets) r.initTexture(t);
     r.initTexture(set.spawn);
     r.initTexture(set.randTexture);
-    this.streams.update(this.rig);
-    r.initTexture(this.streams.texture);
+    this.paths.update(this.rig);
+    r.initTexture(this.paths.texture);
     // card text: lay out every string and warm the glyph atlas with the scramble set
     await Promise.all([
       this.cards.sync(),
@@ -352,14 +360,18 @@ export class Experience {
     this.main.updateCamera(sf, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
     const cam = this.main.camera;
     // after the camera: the showcase spot is in camera space
-    this.rig.update(dt, this.signals, sf, this.carousel.active, this.main.wide, cam, this.cards.expansion.value, this.reduced, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
+    const active = this.carousel.active;
+    this.flows.update(dt, this.signals, s, active, this.reduced);
+    this.rig.update(dt, this.signals, sf, active, this.main.wide, cam, this.cards.expansion.value, this.reduced, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny, this.flows.arrival);
     if (this.rig.group.visible) {
-      this.streams.update(this.rig);
+      this.paths.update(this.rig);
       const su = this.sim.uniforms;
-      const a = this.signals.amp;
-      (su.uAmpA.value as Vector4).set(a[0], a[1], a[2], a[3]);
-      (su.uAmpB.value as Vector4).set(a[4], a[5], a[6], a[7]);
-      su.uCarousel.value = this.main.carousel;
+      su.uActiveSensor.value = active;
+      su.uDataPhase.value = this.flows.dataPhase;
+      su.uThrottle.value = this.signals.throttle;
+      su.uLambda.value = Math.max(-1, Math.min(1, this.signals.trace(5, this.signals.time) / 0.7));
+      su.uDataHalf.value = this.settings.tier <= 1 ? 1 : 0;
+      this.rig.tipWorld(active, this.tipPos);
     }
     this.sim.viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     this.updateCards(dt, sf);
@@ -632,7 +644,7 @@ export class Experience {
     this.main?.dispose();
     this.rig?.dispose();
     this.cards?.dispose();
-    this.streams.dispose();
+    this.paths.dispose();
     this.composite?.dispose();
     this.quad?.dispose();
     if (this.renderer) {

@@ -11,7 +11,7 @@ import type { Shared } from '../Uniforms';
 import { ContactShadow } from './ContactShadow';
 import { buildCrankshaft } from './Crankshaft';
 import type { CrankDims } from './Crankshaft';
-import { makeMaterial, setDim, setEnv, setPulse } from './HardwareMaterials';
+import { makeMaterial, setDim, setEnv, setPulse, setTip } from './HardwareMaterials';
 import type { MatKey } from './HardwareMaterials';
 import { MountRings } from './MountRings';
 import { SLOTS, buildSensor } from './SensorModels';
@@ -55,6 +55,9 @@ interface SensorInst {
   rest: Vector3;
   mountQuat: Quaternion;
   tip: Vector3;
+  /** Free end of the cable and, for the throttle and the clamp, the axis the flow passes through. */
+  cableEnd: Vector3;
+  through: Vector3[] | null;
   /** 0 on its mount .. 1 at the showcase spot (tweened on card change). */
   fly: { value: number };
   /** Model centre (outer space, scale 1), its bounding radius, and the extent fitted to the showcase height. */
@@ -226,7 +229,13 @@ export class SensorRig {
     outer.lookAt(0, y, 0);
     const mountQuat = outer.quaternion.clone();
     this.group.add(outer);
-    return { outer, inner, meshes, disc, rest, mountQuat, tip: parts.tip, fly: { value: 0 }, center, radius, fit, spin: -0.7, geometries };
+    // the arrival glow sits on the tip (on the bore or the jaw for flows that pass through)
+    const glow = parts.through ? new Vector3() : parts.tip;
+    for (const m of meshes) {
+      setTip(m.high, glow, parts.through ? 0.32 : 0.24);
+      setTip(m.low, glow, 0);
+    }
+    return { outer, inner, meshes, disc, rest, mountQuat, tip: parts.tip, cableEnd: parts.cableEnd, through: parts.through ?? null, fly: { value: 0 }, center, radius, fit, spin: -0.7, geometries };
   }
 
   attach(scene: Scene) {
@@ -276,9 +285,10 @@ export class SensorRig {
   /**
    * `sf` is the scroll section float (Sensor Array = 1), `c` the carousel position and `active`
    * its card; `detail` 0..1 is the card expansion (the spot moves into the visible left area);
-   * `px, py` (-1..1) is the pointer. Run after the camera has moved for this frame.
+   * `px, py` (-1..1) is the pointer; `arrival` 0..1 is the active flow reaching the showcased
+   * sensor's tip (it glows in its colour). Run after the camera has moved for this frame.
    */
-  update(dt: number, signals: SyntheticSignals, sf: number, active: number, wide: boolean, camera: PerspectiveCamera, detail: number, reduced: boolean, px: number, py: number) {
+  update(dt: number, signals: SyntheticSignals, sf: number, active: number, wide: boolean, camera: PerspectiveCamera, detail: number, reduced: boolean, px: number, py: number, arrival: number) {
     const near = sf > 0.15 && sf < 1.95;
     this.group.visible = near;
     this.shadow.mesh.visible = near;
@@ -352,8 +362,9 @@ export class SensorRig {
       for (const m of s.meshes) {
         setDim(m.mesh.material as Material, dim);
         setEnv(m.mesh.material as Material, env);
-        // the cheap path has no lights: fake the coloured rim there
-        if (!this.highTier) setPulse(m.mesh.material as Material, t * 0.8, this.colors[i]);
+        // the tip glows as the flow arrives; the cheap path has no lights, so it also fakes the rim
+        const hear = i === active ? arrival * t : 0;
+        setPulse(m.mesh.material as Material, this.highTier ? hear * 1.4 : t * 0.8 + hear * 0.5, this.colors[i]);
       }
       this.rings.alpha[i] = inSection * (0.7 - 0.35 * t);
     }

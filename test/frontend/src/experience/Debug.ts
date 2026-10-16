@@ -60,7 +60,7 @@ export async function mountDebug(exp: Experience): Promise<() => void> {
   sa.add(CAROUSEL, 'camRadius', 5, 14, 0.05).name('camera radius');
   sa.add(exp.cards.params, 'tilt', 0, 20, 0.5).name('card tilt (deg)');
   sa.add(exp.cards.params, 'refraction', 0, 4, 0.01).name('glass refraction');
-  sa.add(exp.sim.uniforms.uStreamDensity, 'value', 0, 1.5, 0.01).name('stream density');
+  sa.add(exp.sim.uniforms.uFlowDensity, 'value', 0, 1, 0.01).name('flow density');
 
   const fs = gui.addFolder('Flows & Showcase');
   const W = SHOWCASE.wide;

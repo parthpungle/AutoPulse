@@ -1,4 +1,4 @@
-import { Matrix4, NearestFilter, RGBAFormat, ShaderMaterial, Vector2, Vector4 } from 'three';
+import { Matrix4, NearestFilter, RGBAFormat, ShaderMaterial, Vector2 } from 'three';
 import type { DataTexture, Texture, WebGLRenderer } from 'three';
 import { DoubleFBO } from '../gl/DoubleFBO';
 import type { FullscreenQuad } from '../gl/FullscreenQuad';
@@ -83,11 +83,15 @@ export class ParticleSim {
         uL3: { value: layout.L3 },
         uL4: { value: layout.L4 },
         uClusterC: { value: layout.clusterC },
-        tCurves: { value: null },
-        uAmpA: { value: new Vector4(0.5, 0.5, 0.5, 0.5) },
-        uAmpB: { value: new Vector4(0.5, 0.5, 0.5, 0.5) },
-        uCarousel: { value: 0 },
-        uStreamDensity: { value: 1 },
+        tPaths: { value: null },
+        uRigOffset: { value: null },
+        uActiveSensor: { value: 0 },
+        uFlowPhase: { value: null },
+        uDataPhase: { value: 0 },
+        uThrottle: { value: 0 },
+        uLambda: { value: 0 },
+        uFlowDensity: { value: 1 },
+        uDataHalf: { value: 0 },
       },
     });
 

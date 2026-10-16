@@ -7,12 +7,14 @@ uniform float uAlpha;
 uniform float uFade;         // reduced-motion crossfade
 uniform vec3 uColor;
 uniform vec3 uAccent;
-// Sensor Array streams take their sensor's colour
-uniform sampler2D tStreams;     // the section-1 target (stream id in .x)
+// Sensor Array flows take their sensor's colour
+uniform sampler2D tStreams;     // the section-1 target (pool code in .x, see shapes.glsl)
 uniform float uSecA;
 uniform float uSecB;
 uniform float uMorph;
 uniform vec3 uSensorColors[8];
+uniform float uActiveSensor;
+uniform vec3 uActiveTip;        // world position of the active sensor's tip
 
 attribute vec2 aRef;
 attribute vec4 aRand;
@@ -49,8 +51,21 @@ void main() {
   float w1 = (abs(uSecA - 1.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 1.0) < 0.5 ? m : 0.0);
   vec3 base = uColor;
   if (w1 > 0.0) {
-    float id = texture2D(tStreams, aRef).x;
-    if (id < 7.5) base = mix(uColor, uSensorColors[int(id + 0.5)] * 1.25, w1);
+    vec4 D = texture2D(tStreams, aRef);
+    vec3 c = uColor;
+    int a = int(uActiveSensor + 0.5);
+    if (D.x > 9.5 && D.x < 18.5) {
+      c = uSensorColors[int(D.x - 9.5)];
+    } else if (D.x > 19.5 && D.x < 29.5) {
+      c = uSensorColors[a];
+      // CAN: each packet keeps the colour of the sensor it came from
+      if (a == 7) c = uSensorColors[int(floor(fract(D.w * 7.31) * 7.0))];
+      // coolant: cool off the block, warming to orange as it reaches the probe
+      if (a == 3) c = mix(vec3(0.31, 0.72, 1.0), c, 1.0 - smoothstep(0.25, 2.2, distance(P.xyz, uActiveTip)));
+    } else if (D.x > 29.5) {
+      c = uSensorColors[a];
+    }
+    base = mix(uColor, c * 1.25, w1);
   }
 
   float accentMix = clamp(sp * 0.85 + max(e - 1.0, 0.0) * 0.7 + kp * 0.6, 0.0, 1.0) * (1.0 - w1);

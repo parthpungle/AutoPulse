@@ -54,19 +54,17 @@ const FILLS: Fill[] = [
     o[i + 2] = g();
     o[i + 3] = r();
   },
-  // 1 sensor array: 88% signal streams (stream id 0..7, flow phase, tube radius, tube angle),
-  //   12% deep-field dust (id 8, height, radius, angle)
-  (o, i, r, g) => {
-    if (r() < 0.12) {
-      o[i] = 8;
-      o[i + 1] = r();
-      o[i + 2] = Math.pow(r(), 0.7);
-      o[i + 3] = r();
-      return;
-    }
-    o[i] = Math.floor(r() * 8);
+  // 1 sensor array (see shapes.glsl): pool code, flow phase, radius 0..1, angle.
+  //   10% deep-field dust (8), 25% trickles on each sensor's path (10 + sensor),
+  //   55% the active sensor's phenomenon flow (20), 10% its data dashes (30)
+  (o, i, r) => {
+    const pick = r();
+    if (pick < 0.1) o[i] = 8;
+    else if (pick < 0.35) o[i] = 10 + Math.floor(r() * 8);
+    else if (pick < 0.9) o[i] = 20;
+    else o[i] = 30;
     o[i + 1] = r();
-    o[i + 2] = Math.min(2.2, Math.abs(g()));
+    o[i + 2] = o[i] === 8 ? Math.pow(r(), 0.7) : r();
     o[i + 3] = r();
   },
   // 2 spectrogram: column, height fraction, time row (more particles in the front rows), jitter
