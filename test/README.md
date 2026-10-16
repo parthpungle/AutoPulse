@@ -81,17 +81,28 @@ Vite's dev server and `backend/app.py` (single-port mode) both serve `/dashboard
 | Setting | Effect |
 |---------|--------|
 | `VITE_DASHBOARD_URL` | Where *Launch dashboard* goes (default `/dashboard`), e.g. `VITE_DASHBOARD_URL=https://… npm run build` |
-| `?debug` | lil-gui tuning panel (particles, fluid, post, engine state, quality tier) and an FPS readout |
+| `?debug` | lil-gui tuning panel (particles, fluid, post, engine state, quality tier, "Flows & Showcase") and an FPS readout |
 | `?tier=0`…`3` | Force a quality tier instead of detecting it |
 | `?perf` | Exposes `window.__tt.perf()` (FPS, p95 frame time, long frames) for scripted checks |
 
-**Sensor Array** (`src/experience/sensors/`, `carousel/`, `src/content/sensors.ts`): a pinned section where eight glass cards orbit a procedural four-cylinder crankshaft, one per sensor (acoustic microphone, accelerometer, crank position, coolant, throttle, lambda/fuel trims, current clamp, OBD-II/CAN).
+**Sensor Array** (`src/experience/sensors/`, `carousel/`, `src/content/sensors.ts`): a pinned section built around a procedural inline-four crankshaft, with one glass card per sensor (acoustic microphone, accelerometer, crank position, coolant, throttle, lambda/fuel trims, current clamp, OBD-II/CAN).
 
 - Scroll, a touch swipe, arrow keys and the left index all move one carousel value; each card snaps into place.
 - Each card's ink-cloud artwork shows that sensor's synthetic signal; the title settles with a scramble and colour split.
 - Each sensor is a procedural model mounted around the crank. The active one flies out of its mount to a showcase spot left of centre (about a third of the screen tall). There it turns slowly, tilts toward the cursor and sits on a soft contact shadow, lit by a 3-point rig whose rim light is in the sensor's colour. The others wait on their mounts, each marked by a pulsing ring in its colour. The crank stays dimmed in the background.
 - The active card sits in the right third. The other cards fan out above and below it, smaller and fainter, and never cover the showcased sensor. On phones the sensor takes the top of the screen and the cards run along the bottom.
 - Less on the page, more on click. A card shows only its code, its name and a few words on what it hears. Click the active card (or press Enter) and that same glass card turns to face you and grows in place, a little more opaque so the text reads. It shows one plain sentence, a live trace that follows the engine-state toggles, and what the sensor catches. "Technical details" opens every checked field. On phones the card becomes a sheet along the bottom.
+- Every moving particle means something. The active sensor's flow shows what it hears, in its colour:
+  - acoustic: wavefront shells converging into the microphone;
+  - vibration: a stream crawling up the crank;
+  - crank position: one pulse per tooth, with the 60-2 gap;
+  - coolant: a slow drift warming to orange;
+  - throttle: air streaks through the bore;
+  - lambda: an exhaust plume;
+  - current: a helix through the clamp;
+  - OBD-II/CAN: packets from every sensor converging on the port.
+
+  Thin dashes carry the active sensor's data down its cable to the OBD-II port. Every other sensor keeps a faint trickle, so all eight colours always show. Knock, Misfire and Valve wear each change the flows they affect, and the sensor's tip glows as its flow arrives.
 - All sensor copy lives in `src/content/sensors.ts`, split into those three levels. A hidden list mirrors it for screen readers.
 
 **How it works** (`src/experience/`): framework-agnostic TypeScript classes, mounted by one React `<Experience/>` component and disposed on unmount.
@@ -99,6 +110,7 @@ Vite's dev server and `backend/app.py` (single-port mode) both serve `/dashboard
 - `sim/FluidSim.ts`: low-resolution stable-fluids solver on half-float render targets (advect, pointer splat, vorticity confinement, divergence, Jacobi pressure, gradient subtraction). Mouse and touch both stir it; a faint "ghost" pointer keeps it moving when nobody does.
 - `sim/ParticleSim.ts`: GPGPU particles. Position and velocity live in float textures updated by ping-pong passes; each particle springs toward its section's shape, is dragged by the fluid and pushed by curl noise.
 - `sim/Targets.ts` + `shaders/particles/shapes.glsl`: one procedural target texture per section (no loaded models). Scroll blends between two of them with a per-particle stagger.
+- `sim/Paths.ts` + `sim/Flows.ts`: the Sensor Array's flow paths, baked into one 128 x 16 float texture in rig space. A row is resampled only when its endpoints move, which is the flying or showcased sensor. Flow phases are integrated on the CPU, so speeds that follow RPM or the throttle never jump. Flow particles track their paths directly, with no spring lag and no curl noise.
 - `scenes/` + `Composite.ts`: the backdrop and the particles render to their own targets. One composite pass combines them (and draws the intro wipe), then a single merged post pass applies bloom, chromatic aberration, vignette and film grain.
 - `States.ts`: the four Recognition pills (Healthy, Knock, Misfire, Valve wear) tween shared uniforms that every scene reads.
 - `Quality.ts` + `PerfMonitor.ts`: detect-gpu picks a tier. If the frame rate stays under 50 fps for 2 s, it drops a tier by drawing fewer particles, lowering the pixel ratio, shrinking the fluid grid and, at tier 0, turning bloom off.
@@ -110,7 +122,16 @@ Vite's dev server and `backend/app.py` (single-port mode) both serve `/dashboard
 | 1 (phone max) | 11,468 | 96 | 6 | 1.25 | on |
 | 0 | 6,451 | 64 | 6 | 1 | off |
 
-Shaders are pre-compiled and every texture is uploaded while the preloader counts, so nothing compiles mid-scroll. `prefers-reduced-motion` freezes the fluid, slows the noise and turns morphs into fades. The palette lives once in `src/landing/landing.css` (`--accent` etc.); the shaders read the same CSS variables.
+Sensor Array particle pools per tier (dust / sensor trickles / active flow / data dashes; tiers 0–1 hide half the dashes):
+
+| Tier | Dust | Trickles | Active flow | Data |
+|------|------|----------|-------------|------|
+| 3 | 4,567 | 11,583 | 25,097 | 4,628 |
+| 2 | 2,589 | 6,434 | 14,162 | 2,619 |
+| 1 | 1,141 | 2,833 | 6,313 | 1,181 |
+| 0 | 656 | 1,600 | 3,542 | 653 |
+
+Shaders are pre-compiled and every texture is uploaded while the preloader counts, so nothing compiles mid-scroll. `prefers-reduced-motion` freezes the fluid, slows the noise, turns morphs into fades, runs the flows at a quarter speed and swaps showcased sensors with a fade instead of a flight. The palette lives once in `src/landing/landing.css` (`--accent` etc.); the shaders read the same CSS variables.
 
 ---
 

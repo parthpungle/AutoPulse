@@ -1,4 +1,7 @@
+import type { DataTexture } from 'three';
+import { SENSORS } from '../content/sensors';
 import { CAROUSEL, SHOWCASE } from './carousel/CarouselLayout';
+import { FLOW } from './sim/Flows';
 import type { Experience } from './Experience';
 import type { EngineState } from './States';
 import type { Tier } from './Quality';
@@ -60,7 +63,6 @@ export async function mountDebug(exp: Experience): Promise<() => void> {
   sa.add(CAROUSEL, 'camRadius', 5, 14, 0.05).name('camera radius');
   sa.add(exp.cards.params, 'tilt', 0, 20, 0.5).name('card tilt (deg)');
   sa.add(exp.cards.params, 'refraction', 0, 4, 0.01).name('glass refraction');
-  sa.add(exp.sim.uniforms.uFlowDensity, 'value', 0, 1, 0.01).name('flow density');
 
   const fs = gui.addFolder('Flows & Showcase');
   const W = SHOWCASE.wide;
@@ -73,6 +75,21 @@ export async function mountDebug(exp: Experience): Promise<() => void> {
   fs.add(W.stack, 'y', 0, 0.6, 0.01).name('card stack spacing');
   fs.add(exp.rig.key, 'intensity', 0, 8, 0.05).name('key light');
   fs.add(exp.rig.fill, 'intensity', 0, 4, 0.05).name('fill light');
+  fs.add(exp.rig.lightParams, 'rimIntensity', 0, 60, 0.5).name('rim light');
+  fs.add(exp.rig.lightParams, 'crankDim', 0.2, 1, 0.01).name('crank brightness');
+  fs.add(exp.flows, 'speedScale', 0, 3, 0.01).name('flow speed');
+  fs.add(exp.sim.uniforms.uFlowDensity, 'value', 0, 1, 0.01).name('flow density');
+  for (let i = 0; i < 8; i++) fs.add(FLOW.speed as unknown as Record<string, number>, String(i), 0, 1.5, 0.01).name(`speed: ${SENSORS[i].indexLabel}`);
+  fs.add(FLOW, 'data', 0, 1.5, 0.01).name('speed: data dashes');
+  // read-only: what the flows are doing right now
+  const live = { arrival: 0, rowsRebuilt: 0, pools: poolShares(exp) };
+  fs.add(live, 'arrival', 0, 1).name('tip arrival').listen().disable();
+  fs.add(live, 'rowsRebuilt', 0, 16, 1).name('path rows rebuilt').listen().disable();
+  fs.add(live, 'pools').name('dust / trickle / flow / data').disable();
+  const liveTimer = window.setInterval(() => {
+    live.arrival = exp.flows.arrival;
+    live.rowsRebuilt = exp.paths.rebuilt;
+  }, 100);
 
   const atm = gui.addFolder('Atmosphere');
   const hv = exp.backdrop.hazeViolet;
@@ -94,7 +111,22 @@ export async function mountDebug(exp: Experience): Promise<() => void> {
 
   return () => {
     window.clearInterval(timer);
+    window.clearInterval(liveTimer);
     readout.remove();
     gui.destroy();
   };
+}
+
+/** Particles drawn per Sensor Array pool at the current tier: dust / trickles / active flow / data. */
+export function poolShares(exp: Experience) {
+  const d = (exp.main.material.uniforms.tStreams.value as DataTexture).image.data as unknown as Float32Array;
+  const c = [0, 0, 0, 0];
+  for (let i = 0; i < exp.main.count; i++) {
+    const x = d[i * 4];
+    if (x < 9) c[0]++;
+    else if (x < 19) c[1]++;
+    else if (x < 29) c[2]++;
+    else c[3]++;
+  }
+  return c.map((v) => v.toLocaleString('en-US')).join(' / ');
 }
