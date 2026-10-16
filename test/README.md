@@ -9,7 +9,7 @@ AutoPulse extracts signatures from engine vibration and OBD-II telemetry, recogn
 ```text
   VEHICLE laptop                                        DASHBOARD laptop
   ─────────────────────────────                         ─────────────────────────────
-  Control panel (:5173/vehicle.html)                    Dashboard (:5173)
+  Control panel (:5173/vehicle.html)                    Dashboard (:5173/dashboard)
     car · ignition · drive mode · breakdowns              Overview · Health check · Live drive
           │                                               Signatures · Insights · Evidence
           ▼                                                         ▲
@@ -35,7 +35,9 @@ AutoPulse extracts signatures from engine vibration and OBD-II telemetry, recogn
 
 The launcher installs only what that role needs, and only when it changed: the vehicle skips PyTorch and the models entirely. It then starts the right services and opens:
 
-### → http://localhost:5173/vehicle.html (car) · http://localhost:5173 (dashboard)
+### → http://localhost:5173/vehicle.html (car) · http://localhost:5173/dashboard (dashboard)
+
+The TorqueTwin landing page is at **http://localhost:5173/**; its *Launch dashboard* button opens the dashboard.
 
 The vehicle window prints its **address** and a 4-digit **pairing code**. Both laptops must be on the same network. The first time, Windows asks whether Python may use the network: allow it on **private** networks. **Ctrl+C** stops everything.
 
@@ -54,12 +56,51 @@ npm --prefix frontend run dev            # then open http://localhost:5173/vehic
 
 # Dashboard laptop
 .venv\Scripts\python -m uvicorn backend.app:app --port 8000
-npm --prefix frontend run dev            # then open http://localhost:5173 and pair
+npm --prefix frontend run dev            # then open http://localhost:5173/dashboard and pair
 ```
 
 Vehicle-only installs can use the smaller `requirements-vehicle.txt` (no PyTorch).
 
 </details>
+
+## Landing page
+
+`/` is the TorqueTwin intro to AutoTwin: one fixed WebGL canvas behind the page, where particles tell the story as you scroll (raw signal → three sensor channels → spectrogram → four fault clusters → launch). The dashboard moved to `/dashboard`; `/vehicle.html` is unchanged.
+
+| Route | Page | Entry |
+|-------|------|-------|
+| `/` | Landing (TypeScript, plain three.js engine) | `frontend/index.html` → `src/landing/`, `src/experience/` |
+| `/dashboard` | Dashboard | `frontend/dashboard.html` → `src/main.jsx` |
+| `/vehicle.html` | Vehicle control panel | `frontend/vehicle.html` |
+
+Vite's dev server and `backend/app.py` (single-port mode) both serve `/dashboard` from `dashboard.html`.
+
+**Run:** `npm --prefix frontend run dev`, then open http://localhost:5173/. `npm --prefix frontend run build` type-checks the landing code (`tsc`) before bundling.
+
+| Setting | Effect |
+|---------|--------|
+| `VITE_DASHBOARD_URL` | Where *Launch dashboard* goes (default `/dashboard`), e.g. `VITE_DASHBOARD_URL=https://… npm run build` |
+| `?debug` | lil-gui tuning panel (particles, fluid, post, engine state, quality tier) and an FPS readout |
+| `?tier=0`…`3` | Force a quality tier instead of detecting it |
+| `?perf` | Exposes `window.__tt.perf()` (FPS, p95 frame time, long frames) for scripted checks |
+
+**How it works** (`src/experience/`): framework-agnostic TypeScript classes, mounted by one React `<Experience/>` component and disposed on unmount.
+
+- `sim/FluidSim.ts`: low-resolution stable-fluids solver on half-float render targets (advect, pointer splat, vorticity confinement, divergence, Jacobi pressure, gradient subtraction). Mouse and touch both stir it; a faint "ghost" pointer keeps it moving when nobody does.
+- `sim/ParticleSim.ts`: GPGPU particles. Position and velocity live in float textures updated by ping-pong passes; each particle springs toward its section's shape, is dragged by the fluid and pushed by curl noise.
+- `sim/Targets.ts` + `shaders/particles/shapes.glsl`: one procedural target texture per section (no loaded models). Scroll blends between two of them with a per-particle stagger.
+- `scenes/` + `Composite.ts`: the backdrop and the particles render to their own targets. One composite pass combines them (and draws the intro wipe), then a single merged post pass applies bloom, chromatic aberration, vignette and film grain.
+- `States.ts`: the four Recognition pills (Healthy, Knock, Misfire, Valve wear) tween shared uniforms that every scene reads.
+- `Quality.ts` + `PerfMonitor.ts`: detect-gpu picks a tier. If the frame rate stays under 50 fps for 2 s, it drops a tier by drawing fewer particles, lowering the pixel ratio, shrinking the fluid grid and, at tier 0, turning bloom off.
+
+| Tier | Particles (`PARTICLE_SCALE` = 0.7) | Fluid grid | Jacobi | Pixel ratio cap | Bloom |
+|------|------------------------------------|------------|--------|-----------------|-------|
+| 3 | 45,875 | 128 | 10 | 2 | on |
+| 2 (mobile max) | 25,804 | 128 | 8 | 1.5 | on |
+| 1 | 11,468 | 96 | 6 | 1.25 | on |
+| 0 | 6,451 | 64 | 6 | 1 | off |
+
+Shaders are pre-compiled and every texture is uploaded while the preloader counts, so nothing compiles mid-scroll. `prefers-reduced-motion` freezes the fluid, slows the noise and turns morphs into fades. The palette lives once in `src/landing/landing.css` (`--accent` etc.); the shaders read the same CSS variables.
 
 ---
 
@@ -150,6 +191,31 @@ Same models and data as the single-laptop app. Real-data rows are the numbers th
 ---
 
 ## Credits
+
+### Landing page
+
+The look and engineering bar follow studio WebGL sites such as [Active Theory](https://activetheory.net), which is credited as inspiration only: no code, shaders or assets were copied from activetheory.net or from repositories that mirror it. Every technique below was written for this project from published sources:
+
+| Technique | Source |
+|-----------|--------|
+| Stable-fluids solver | Jos Stam, "Stable Fluids", SIGGRAPH 1999; Mark Harris, "Fast Fluid Dynamics Simulation on the GPU", *GPU Gems* ch. 38 (2004) |
+| Fluid pass layout (curl, vorticity confinement, pressure decay, splats) | Pavel Dobryakov, [WebGL-Fluid-Simulation](https://github.com/PavelDoGreat/WebGL-Fluid-Simulation) (MIT) |
+| GPGPU ping-pong particles | three.js `GPUComputationRenderer` pattern (MIT) |
+| 3-D simplex noise with analytic gradient | Ian McEwan, Stefan Gustavson, Ashima Arts, [webgl-noise](https://github.com/stegu/webgl-noise) (MIT) |
+| Curl noise | Bridson, Hourihan and Nordenstam, "Curl-Noise for Procedural Fluid Flow", SIGGRAPH 2007 |
+| Hash functions | Dave Hoskins, "Hash without Sine" (MIT) |
+
+| Library | Licence |
+|---------|---------|
+| [three.js](https://threejs.org) | MIT |
+| [postprocessing](https://github.com/pmndrs/postprocessing) | Zlib |
+| [GSAP](https://gsap.com) (incl. ScrollTrigger, SplitText) | GSAP Standard "no charge" licence: free for commercial use, but not an OSI open-source licence |
+| [Lenis](https://github.com/darkroomengineering/lenis) | MIT |
+| [detect-gpu](https://github.com/pmndrs/detect-gpu) | MIT (benchmark data is bundled, so tier detection works offline) |
+| [lil-gui](https://lil-gui.georgealways.com) | MIT |
+| Space Grotesk, JetBrains Mono (self-hosted in `frontend/public/fonts/`) | SIL Open Font License 1.1 |
+
+### Car models
 
 Car models (CC BY 4.0, converted to line art by `blender/convert_models.py`; download the originals into `blender/source/` to rebuild):
 

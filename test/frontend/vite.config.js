@@ -2,9 +2,11 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Two pages, one per laptop:
-//   /              dashboard  -> /api  proxied to the dashboard API (backend/app.py, port 8000)
+// Three pages:
+//   /              landing    -> TorqueTwin intro (WebGL), links to the dashboard
+//   /dashboard     dashboard  -> /api  proxied to the dashboard API (backend/app.py, port 8000)
 //   /vehicle.html  vehicle    -> /vapi proxied to the vehicle node   (vehicle/node.py, port 8200)
+// Vite's dev server serves /dashboard from dashboard.html; backend/app.py does the same in single-port mode.
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -17,7 +19,11 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      input: { dashboard: resolve(__dirname, 'index.html'), vehicle: resolve(__dirname, 'vehicle.html') },
+      input: {
+        landing: resolve(__dirname, 'index.html'),
+        dashboard: resolve(__dirname, 'dashboard.html'),
+        vehicle: resolve(__dirname, 'vehicle.html'),
+      },
     },
   },
 });

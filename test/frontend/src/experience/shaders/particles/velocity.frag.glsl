@@ -1,0 +1,70 @@
+// Particle velocity: spring toward the morphing home shape + fluid drag + curl noise + engine state.
+// Written to RGBA: xyz = velocity (world units / s), w = emphasis read by the draw pass.
+uniform sampler2D tPos;
+uniform sampler2D tVel;
+uniform sampler2D tRand;
+uniform sampler2D tA;
+uniform sampler2D tB;
+uniform sampler2D tFluid;
+uniform vec2 uRes;
+uniform float uSecA;
+uniform float uSecB;
+uniform float uMorph;
+uniform float uDt;
+uniform float uSpring;
+uniform float uDamping;
+uniform float uCurlAmp;
+uniform float uCurlFreq;
+uniform float uCurlSpeed;
+uniform float uFluidAmp;
+uniform vec2 uFluidScale;   // fluid texels / s -> world units / s
+uniform float uIntro;       // 0 = held at the spawn point, 1 = free
+uniform float uReduced;
+uniform mat4 uViewProj;
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uRes;
+  vec3 pos = texture2D(tPos, uv).xyz;
+  vec3 vel = texture2D(tVel, uv).xyz;
+  vec4 R = texture2D(tRand, uv);
+
+  // staggered morph: each particle starts and lands a little apart, so shapes travel in waves
+  float m = uReduced > 0.5 ? step(0.5, uMorph) : smoothstep(R.x * 0.4, 0.6 + R.x * 0.4, uMorph);
+  vec4 home = shape(uSecA, texture2D(tA, uv), uTime);
+  if (m > 0.0) home = mix(home, shape(uSecB, texture2D(tB, uv), uTime), m);
+
+  if (uReduced > 0.5) {
+    // no flight: ease straight to home (the draw pass fades through dark between sections)
+    vel = (home.xyz - pos) * min(uDt * 8.0, 1.0) / max(uDt, 1e-4);
+    gl_FragColor = vec4(vel, home.w);
+    return;
+  }
+
+  float trans = sin(PI * m);
+  vec3 acc = (home.xyz - pos) * uSpring * uIntro * (1.0 - 0.55 * trans);
+
+  vec3 cn = curlNoise(pos * uCurlFreq + vec3(0.0, 0.0, uTime * uCurlSpeed));
+  acc += cn * uCurlAmp * uTurb * (1.0 + 2.5 * trans + 2.0 * (1.0 - uIntro));
+
+  // drag along the fluid under the cursor (the solver runs in screen space)
+  vec4 clip = uViewProj * vec4(pos, 1.0);
+  vec2 suv = clip.xy / clip.w * 0.5 + 0.5;
+  float inside = step(0.0, suv.x) * step(suv.x, 1.0) * step(0.0, suv.y) * step(suv.y, 1.0);
+  vec2 fv = texture2D(tFluid, suv).xy * uFluidScale * inside;
+  acc.xy += fv * uFluidAmp;
+  acc.z += length(fv) * uFluidAmp * 0.3 * (R.y - 0.5);
+
+  // knock: a sharp kick at every beat
+  float kp = knockPulse(uTime);
+  vec3 kdir = normalize(vec3((R.z - 0.5) * 0.6, (R.w - 0.5) + sign(R.w - 0.5) * 0.35, (R.x - 0.5) * 0.6));
+  acc += kdir * kp * 110.0;
+  // valve wear: high-frequency jitter
+  acc += (hash33(vec3(gl_FragCoord.xy, floor(uTime * 60.0))) - 0.5) * uValve * 110.0;
+  // misfire: a slice of particles stalls every 4th beat
+  float stall = misfireStall(R.y, uTime);
+  acc *= 1.0 - stall;
+
+  vel += acc * uDt;
+  vel *= exp(-(uDamping + stall * 14.0) * uDt);
+  gl_FragColor = vec4(vel, home.w);
+}

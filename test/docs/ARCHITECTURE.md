@@ -26,7 +26,7 @@ How the split edition works: what each laptop runs, what goes over the wire, wha
 |---------|------|------------|------|
 | Vehicle node | `vehicle/node.py` | `0.0.0.0:8200` (tcp) | Drives the car, streams frames, beacons, takes breakdown commands |
 | Dashboard API | `backend/app.py` | `127.0.0.1:8000`, `0.0.0.0:8201` (udp) | Pairs, diagnoses each frame, pushes results to the screen; serves Insights / Evidence |
-| UI | `frontend/` (Vite) | `localhost:5173` | `index.html` = dashboard, `vehicle.html` = control panel; proxies `/api` → 8000 and `/vapi` → 8200 |
+| UI | `frontend/` (Vite) | `localhost:5173` | `index.html` = TorqueTwin landing page (`/`), `dashboard.html` = dashboard (`/dashboard`), `vehicle.html` = control panel; proxies `/api` → 8000 and `/vapi` → 8200 |
 
 ---
 

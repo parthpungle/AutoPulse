@@ -182,5 +182,9 @@ if DIST.exists():
 
     @app.get("/{path:path}")
     def spa(path: str):
-        f = DIST / path
-        return FileResponse(f if path and f.is_file() else DIST / "index.html")
+        # /            -> index.html     (landing)
+        # /dashboard   -> dashboard.html (same rule as Vite's dev server)
+        f, page = DIST / path, DIST / f"{path.rstrip('/')}.html"
+        if path and f.is_file():
+            return FileResponse(f)
+        return FileResponse(page if path and page.is_file() else DIST / "index.html")

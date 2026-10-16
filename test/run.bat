@@ -226,14 +226,15 @@ goto :done
 :run_dashboard
 echo ================================================
 echo   DASHBOARD  -  this laptop is the screen
-echo     Open      : http://localhost:%UI_PORT%
+echo     Open      : http://localhost:%UI_PORT%/dashboard
+echo     Landing   : http://localhost:%UI_PORT%/
 echo     Then      : Vehicle link -^> pick the car -^> enter the code it shows
 echo     This laptop is %LAN_IP%; the vehicle must be on the same network.
 echo   Press Ctrl+C to stop.
 echo ================================================
 start /b "" "%VENV_PY%" -m uvicorn backend.app:app --port %API_PORT% --no-access-log --log-level warning
 call :wait_port %API_PORT%
-start "" "http://localhost:%UI_PORT%/"
+start "" "http://localhost:%UI_PORT%/dashboard"
 pushd "%UI_DIR%"
 call npm run dev
 popd
@@ -244,7 +245,8 @@ goto :done
 echo ================================================
 echo   BOTH  -  vehicle and dashboard on this laptop, already paired
 echo     Vehicle   : http://localhost:%UI_PORT%/vehicle.html
-echo     Dashboard : http://localhost:%UI_PORT%/
+echo     Dashboard : http://localhost:%UI_PORT%/dashboard
+echo     Landing   : http://localhost:%UI_PORT%/
 echo     Another laptop can also pair: %LAN_IP%, code %AUTOPULSE_CODE%
 echo   Press Ctrl+C to stop.
 echo ================================================
@@ -254,7 +256,7 @@ call :start_ui
 call :wait_port %API_PORT%
 call :wait_port %UI_PORT%
 start "" "http://localhost:%UI_PORT%/vehicle.html"
-start "" "http://localhost:%UI_PORT%/"
+start "" "http://localhost:%UI_PORT%/dashboard"
 "%VENV_PY%" -m uvicorn vehicle.node:app --host 0.0.0.0 --port %VEHICLE_PORT% --no-access-log --log-level warning
 call :stop_port %API_PORT%
 call :stop_port %UI_PORT%

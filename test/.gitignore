@@ -43,3 +43,6 @@ blender/out/*.png
 # Downloaded Sketchfab models (CC-BY, see README credits); converted copies live in frontend/public/models
 blender/source/
 blender/out_real/
+
+# Reference screen recordings (third-party site, for interaction-pattern reference only; never commit)
+to_replicate/

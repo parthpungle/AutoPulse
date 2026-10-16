@@ -1,0 +1,16 @@
+// Fullscreen triangle; also hands the four neighbour coordinates to the fluid passes.
+uniform vec2 uTexel;
+varying vec2 vUv;
+varying vec2 vL;
+varying vec2 vR;
+varying vec2 vT;
+varying vec2 vB;
+
+void main() {
+  vUv = position.xy * 0.5 + 0.5;
+  vL = vUv - vec2(uTexel.x, 0.0);
+  vR = vUv + vec2(uTexel.x, 0.0);
+  vT = vUv + vec2(0.0, uTexel.y);
+  vB = vUv - vec2(0.0, uTexel.y);
+  gl_Position = vec4(position.xy, 0.0, 1.0);
+}

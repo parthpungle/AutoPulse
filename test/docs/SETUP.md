@@ -42,7 +42,7 @@ Skip the prompt by passing the role: `run.bat 1`, `run.bat dashboard`, `run.bat 
 | Role | Starts | Ports | Opens | Installs |
 |------|--------|-------|-------|----------|
 | **1 Vehicle** | Vehicle node (foreground, live console) + UI | 8200 tcp, 8201 udp (out), 5173 | `/vehicle.html` | `requirements-vehicle.txt`: no models, no PyTorch |
-| **2 Dashboard** | Dashboard API (background) + UI (foreground) | 8000, 8201 udp (in), 5173 | `/` | `requirements.txt` incl. PyTorch CPU; trains models if missing |
+| **2 Dashboard** | Dashboard API (background) + UI (foreground) | 8000, 8201 udp (in), 5173 | `/dashboard` | `requirements.txt` incl. PyTorch CPU; trains models if missing |
 | **3 Both** | All of the above, auto-paired over `127.0.0.1` | all | both pages | `requirements.txt` |
 
 Only port **8200** has to be reachable from the other laptop. The UI (5173) and the dashboard API (8000) stay local to each laptop.
@@ -53,7 +53,7 @@ Only port **8200** has to be reachable from the other laptop. The UI (5173) and 
 
 ```text
   1. Vehicle laptop    run.bat → 1      prints   Address 192.168.1.23:8200 · Pairing code 4821
-  2. Dashboard laptop  run.bat → 2      opens    http://localhost:5173  → Vehicle link drawer
+  2. Dashboard laptop  run.bat → 2      opens    http://localhost:5173/dashboard  → Vehicle link drawer
   3. Dashboard         pick the car under "On this network"  (or type 192.168.1.23)
   4. Dashboard         enter 4821 → Pair → pill turns green: "Live · SUV"
 ```
