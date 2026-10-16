@@ -26,7 +26,23 @@ Built from the three exploration reports (design language, dashboard, backend). 
   - Misfire shows one slow firing sector (about −40 rpm), and healthy shows even lobes. No cylinder number appears anywhere.
   - The browser's learned normal is lost on reload, so a tab opened during a fault shows "learning" until it sees about 10 healthy seconds. Persisting `baselines` per car in localStorage would fix this; it is not in the plan.
   - Page order: 01 Verdict, 02 Detectors, 03 Engine cycle, 04 Evidence, 05 Why · where · what next, 06 Timeline, Signals.
-- Phases 5–6: not started
+- Phase 5: done. Notes:
+  - **Operating-point map** (inside 05):
+    - Cells are where `healthy_p ≥ 0.6` in the backend's 15 min history, at 2 s or more per 250 rpm × 5% cell.
+    - Dots are confirmed-fault seconds from the store.
+    - The "ease off" arrow appears when the engine alert's action says so.
+    - There is no knock-prone zone: the simulator doesn't model knock against load, so one would be made up.
+  - **Demo recordings** (`live.jsx`):
+    - The dev-only "Record demo" button in the lab saves raw frames plus the history as JSON.
+    - To play one back, put it in `frontend/public/replays/` (git-ignored) and open `/dashboard?page=signatures&replay=<name>`.
+    - Playback runs once a second in a loop, with clocks shifted per loop.
+    - The link pill reads "Replay · <name> · not live", and pair, unpair and serviced do nothing during a replay.
+    - 30 s is about 4 MB.
+  - **Shell, all tabs:**
+    - Node, trip and frame count moved from the header into a Diagnostics popover.
+    - The active nav item has `aria-current`, and nav tooltips also show on keyboard focus.
+    - ACKNOWLEDGE is the primary button.
+- Phase 6: not started
 
 ---
 

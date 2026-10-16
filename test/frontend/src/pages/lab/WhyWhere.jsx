@@ -3,6 +3,7 @@
 import { ChevronRight } from 'lucide-react';
 import { engineAlert } from './labStore.js';
 import { duration, occurrences, onset, ordinal, plainMessage } from './derive.js';
+import OpMap from './OpMap.jsx';
 
 function focusOn(id) {
   const el = document.getElementById(id);
@@ -15,7 +16,7 @@ function focusOn(id) {
   el.classList.add('lab-focus');
 }
 
-export default function WhyWhere({ latest, frames, ev, where, onInspect }) {
+export default function WhyWhere({ latest, frames, rows, ev, where, onInspect }) {
   const { engine, row, alerts } = latest;
   const fault = engine.fault ?? 'healthy';
   const alert = engineAlert(alerts);
@@ -44,6 +45,7 @@ export default function WhyWhere({ latest, frames, ev, where, onInspect }) {
   return (
     <section className="panel panel-pad lab-why" aria-labelledby="lab-why-title">
       <h2 className="eyebrow lab-eyebrow" id="lab-why-title"><span className="num">05</span> / Why · where · what next</h2>
+      <div className="lab-why__body">
       <dl className="lab-why__list">
         {lines.map((l) => (
           <div key={l.k} className="lab-why__row">
@@ -58,6 +60,8 @@ export default function WhyWhere({ latest, frames, ev, where, onInspect }) {
           </div>
         ))}
       </dl>
+      <OpMap rows={rows} frames={frames} alert={alerts} />
+      </div>
     </section>
   );
 }

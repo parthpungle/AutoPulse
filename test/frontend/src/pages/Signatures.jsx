@@ -13,6 +13,7 @@ import ModelDrawer from './lab/ModelDrawer.jsx';
 import Evidence, { chooseEvidence } from './lab/Evidence.jsx';
 import Cycle from './lab/Cycle.jsx';
 import WhyWhere from './lab/WhyWhere.jsx';
+import Recorder from './lab/Recorder.jsx';
 import { describeCycle, foldCycle } from './lab/cycle.js';
 import Timeline from './lab/Timeline.jsx';
 import './lab/lab.css';
@@ -31,7 +32,7 @@ const WHY = {
 };
 
 export default function Signatures() {
-  const { latest, history, serviced } = useLive();
+  const { latest, history, serviced, replay } = useLive();
   const store = useLabStore();
   const frames = store.frames;
   const [view, setView] = useState('spectrum');
@@ -82,6 +83,7 @@ export default function Signatures() {
           <span>{contextWords(engine.context)}</span>
         </div>
         <div className="spacer" />
+        {import.meta.env.DEV && !replay && <Recorder history={history} vehicle={latest.vehicle} />}
         <button className="btn" onClick={() => setDrawer(true)}>Model details</button>
       </header>
 
@@ -102,7 +104,7 @@ export default function Signatures() {
         <Evidence sig={shownSig} engine={shownEngine} store={store} />
       </div>
 
-      <WhyWhere latest={latest} frames={frames} ev={ev} where={where} onInspect={setInspect} />
+      <WhyWhere latest={latest} frames={frames} rows={history} ev={ev} where={where} onInspect={setInspect} />
 
       <Timeline rows={history} frames={frames} now={latest.row.clock} threshold={engine.threshold}
         onset={engine.fault && engine.fault !== 'healthy' ? fault?.clock : null} inspect={past ? inspect : null} onInspect={setInspect} />

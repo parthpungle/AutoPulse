@@ -46,3 +46,6 @@ blender/out_real/
 
 # Reference screen recordings (third-party site, for interaction-pattern reference only; never commit)
 to_replicate/
+
+# demo recordings made with the Signature lab recorder (large; keep them local)
+frontend/public/replays/*.json

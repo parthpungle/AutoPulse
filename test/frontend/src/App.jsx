@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { AudioWaveform, FlaskConical, Gauge, HeartPulse, LayoutDashboard, Link2, TrendingUp } from 'lucide-react';
 import { LiveProvider, useLive } from './live.jsx';
-import { CAR_INFO, carName } from './cars.js';
+import { carName } from './cars.js';
 import PairDrawer from './components/PairDrawer.jsx';
 import { LinkPill } from './components/LinkPill.jsx';
+import Diagnostics from './components/Diagnostics.jsx';
 import { AlarmShape, PRIORITY, prio } from './components/hmi.jsx';
 import Overview from './pages/Overview.jsx';
 import HealthCheck from './pages/HealthCheck.jsx';
@@ -48,8 +49,6 @@ function NoVehicle({ onPair }) {
   );
 }
 
-const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-
 function Shell() {
   const initial = new URLSearchParams(window.location.search).get('page');
   const [page, setPage] = useState(PAGES.some((p) => p.id === initial) ? initial : 'overview');
@@ -75,7 +74,8 @@ function Shell() {
         <div className="rail-logo"><Logo /></div>
         <nav aria-label="Screens">
           {PAGES.map(({ id, name, icon: Icon }, i) => (
-            <button key={id} className={page === id ? 'on' : ''} onClick={() => setPage(id)} aria-label={name}>
+            <button key={id} className={page === id ? 'on' : ''} onClick={() => setPage(id)} aria-label={name}
+              aria-current={page === id ? 'page' : undefined}>
               <Icon size={21} strokeWidth={1.6} />
               <span className="tip">{name} · {i + 1}</span>
             </button>
@@ -90,14 +90,10 @@ function Shell() {
         <span className="page-title">{P.name}</span>
         <span className="sep" />
         {v ? (
-          <>
-            <span className="kv"><span className="label">Vehicle</span><b>{carName(v.car_type)}</b><span className="muted">unit {v.unit}</span></span>
-            <span className="kv" title={CAR_INFO[v.car_type]?.spec}><span className="label">Node</span><b>{v.name}</b></span>
-            {latest && <span className="kv"><span className="label">Trip</span><b>{latest.row.ignition ? mmss(latest.row.t) : 'engine off'}</b></span>}
-          </>
+          <span className="kv"><span className="label">Vehicle</span><b>{carName(v.car_type)}</b><span className="muted">unit {v.unit}</span></span>
         ) : <span className="label">No vehicle</span>}
         <div className="right">
-          <span className="kv"><span className="label">Frames</span><b>{link.frames ?? 0}</b></span>
+          <Diagnostics />
           <LinkPill onClick={() => setDrawer(true)} />
         </div>
       </header>
@@ -109,7 +105,7 @@ function Shell() {
           <span className="act">{top.actions?.[0]}</span>
           <span className="ack row" style={{ gap: 10 }}>
             <span className="ack-state">{acked.has(top.title) ? 'ACKNOWLEDGED' : 'UNACKNOWLEDGED'}</span>
-            {!acked.has(top.title) && <button className="btn" onClick={() => setAcked((s) => new Set(s).add(top.title))}>Acknowledge</button>}
+            {!acked.has(top.title) && <button className="btn primary" onClick={() => setAcked((s) => new Set(s).add(top.title))}>Acknowledge</button>}
             <button className="btn ghost" onClick={() => setPage('drive')}>Guidance</button>
           </span>
         </div>

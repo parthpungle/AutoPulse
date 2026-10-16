@@ -110,7 +110,8 @@ a { color: var(--accent); text-decoration: none; }
 .rail nav button .tip { position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); white-space: nowrap; z-index: 50;
   background: var(--bg-2); border: 1px solid var(--line-2); padding: 4px 8px; font: 500 12px var(--cond); letter-spacing: .04em; text-transform: uppercase;
   color: var(--text-1); opacity: 0; pointer-events: none; transition: opacity var(--dur-micro); }
-.rail nav button:hover .tip { opacity: 1; }
+.rail nav button:hover .tip, .rail nav button:focus-visible .tip { opacity: 1; }
+.rail nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .rail-foot { margin-top: auto; padding: 10px 0; font: 500 10px var(--mono); color: var(--text-dim); }
 
 .statusbar { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 16px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--bg-1); min-width: 0; }
@@ -431,3 +432,12 @@ button.link-pill:hover { border-color: rgba(255, 255, 255, 0.24); }
 .check:disabled { cursor: default; }
 .check:disabled:hover { background: transparent; }
 
+
+/* diagnostics popover (node, trip, frames: moved out of the header) */
+.diag { position: relative; }
+.diag-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 45; min-width: 300px; padding: 12px 14px; background: var(--bg-2);
+  border: 1px solid var(--line-2); border-radius: var(--r); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35); }
+.diag-pop dl { margin: 0; display: grid; gap: 6px; }
+.diag-pop dl > div { display: grid; grid-template-columns: 110px 1fr; gap: 10px; }
+.diag-pop dt { font: 500 12px var(--cond); letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); }
+.diag-pop dd { margin: 0; font-size: 12.5px; color: var(--text-1); overflow-wrap: anywhere; }
