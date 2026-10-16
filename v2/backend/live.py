@@ -133,6 +133,7 @@ class LiveHub:
         self.link = {"state": "unpaired", "host": None, "port": None, "vehicle": None, "error": None,
                      "since": None, "frames": 0, "latency_ms": None}
         self.discovered = {}                     # (ip, port) -> beacon + last_seen
+        self.manual = False                      # someone paired or unpaired by hand: auto-pairing stops
         self.latest = None
         self.reset()
 

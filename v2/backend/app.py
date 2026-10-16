@@ -91,11 +91,13 @@ def probe_vehicle(host: str, port: int = STREAM_PORT):
 
 @app.post("/api/pair")
 async def pair(p: Pair):
+    hub.manual = True
     return await hub.pair(p.host.strip(), p.port, p.code.strip())
 
 
 @app.post("/api/unpair")
 async def unpair():
+    hub.manual = True
     await hub.unpair()
     return hub.link
 
@@ -186,7 +188,20 @@ async def warm():
     auto = os.environ.get("AUTOPULSE_AUTOPAIR")          # "host:port:code", set by run.bat in the Both role
     if auto:
         host, port, code = auto.rsplit(":", 2)
-        asyncio.create_task(hub.pair(host, int(port), code))
+        asyncio.create_task(_autopair(host, int(port), code))
+
+
+async def _autopair(host, port, code):
+    """Both role: the launcher starts this API before the vehicle node, so keep trying for up to two
+    minutes until the vehicle on this laptop answers. Stops as soon as someone pairs or unpairs by hand."""
+    for _ in range(60):
+        if hub.manual or hub.link["state"] in ("live", "lost"):
+            return
+        link = await hub.pair(host, port, code)
+        if link.get("state") == "live" or hub.manual:
+            return
+        hub.set_link(state="connecting", error=None)       # still starting up: say so, not "couldn't connect"
+        await asyncio.sleep(2)
 
 
 # ------------------------------------------------------------------ built frontend (single-port mode)

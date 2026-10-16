@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AudioWaveform, FlaskConical, Gauge, ChevronRight, HeartPulse, LayoutDashboard, Link2, TrendingUp } from 'lucide-react';
+import { AudioWaveform, ChevronRight, FlaskConical, Gauge, HeartPulse, LayoutDashboard, Link2, Moon, Sun, TrendingUp } from 'lucide-react';
+import { setTheme, useTheme } from './theme.js';
 import { LiveProvider, useLive } from './live.jsx';
 import { CAR_INFO, carName } from './cars.js';
 import PairDrawer from './components/PairDrawer.jsx';
@@ -23,11 +24,24 @@ const PAGES = [
   { id: 'evidence', name: 'Evidence', icon: FlaskConical },
 ];
 
+/** Light for bright rooms and projectors, dark for screens. Remembered in this browser. */
+function ThemeToggle() {
+  const theme = useTheme();
+  const light = theme === 'light';
+  return (
+    <button className="ask-trigger" aria-pressed={light} onClick={() => setTheme(light ? 'dark' : 'light')}
+      title={light ? 'Switch to the dark theme' : 'Switch to the light theme (bright rooms, projectors)'}
+      aria-label={light ? 'Dark theme' : 'Light theme'}>
+      {light ? <Moon size={16} /> : <Sun size={16} />}
+    </button>
+  );
+}
+
 function Logo({ size = 26 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-label="AutoPulse">
-      <circle cx="12" cy="12" r="10.5" fill="none" stroke="#7fd4ff" strokeWidth="1.5" />
-      <path d="M3.5 12h4l2-5 3 10 2.2-7 1.3 2H20.5" fill="none" stroke="#f2f4f6" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="10.5" fill="none" stroke="var(--accent)" strokeWidth="1.5" />
+      <path d="M3.5 12h4l2-5 3 10 2.2-7 1.3 2H20.5" fill="none" stroke="var(--text-max)" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -91,7 +105,8 @@ function Shell() {
         <div className="rail-logo"><Logo /></div>
         <nav aria-label="Screens">
           {PAGES.map(({ id, name, icon: Icon }, i) => (
-            <button key={id} className={page === id ? 'on' : ''} onClick={() => setPage(id)} aria-label={name}>
+            <button key={id} className={page === id ? 'on' : ''} onClick={() => setPage(id)} aria-label={name}
+              aria-current={page === id ? 'page' : undefined}>
               <Icon size={21} strokeWidth={1.6} />
               <span className="tip">{name} · {i + 1}</span>
             </button>
@@ -113,6 +128,7 @@ function Shell() {
         ) : <span className="label">No vehicle</span>}
         <div className="right">
           <Ask page={page} />
+          <ThemeToggle />
           <LinkButton onClick={() => setDrawer(true)} />
         </div>
       </header>
@@ -124,7 +140,7 @@ function Shell() {
           <span className="act">{top.actions?.[0]}</span>
           <span className="ack row" style={{ gap: 10 }}>
             <span className="ack-state">{acked.has(top.title) ? 'ACKNOWLEDGED' : 'UNACKNOWLEDGED'}</span>
-            {!acked.has(top.title) && <button className="btn" onClick={() => setAcked((s) => new Set(s).add(top.title))}>Acknowledge</button>}
+            {!acked.has(top.title) && <button className="btn primary" onClick={() => setAcked((s) => new Set(s).add(top.title))}>Acknowledge</button>}
             <button className="btn ghost" onClick={() => setPage('drive')}>Guidance</button>
           </span>
         </div>

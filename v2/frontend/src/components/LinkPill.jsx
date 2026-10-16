@@ -1,9 +1,10 @@
 // One-glance state of the link to the vehicle: colour + icon + words, never colour alone.
-import { CircleDot, Link2Off, LoaderCircle, OctagonAlert, RadioTower, TriangleAlert } from 'lucide-react';
+import { CircleDot, Link2Off, LoaderCircle, OctagonAlert, Play, RadioTower, TriangleAlert } from 'lucide-react';
 import { useLive } from '../live.jsx';
 import { carName } from '../cars.js';
 
 export function linkView({ link, live, stale, api }) {
+  if (link.replay && link.state === 'live') return { tone: 'warning', Icon: Play, text: `Replay · ${link.replay} · not live` };
   if (api === 'closed') return { tone: 'critical', Icon: OctagonAlert, text: 'Dashboard API offline' };
   if (live) return { tone: 'good', Icon: CircleDot, text: `Live · ${carName(link.vehicle?.car_type)}`, pulse: true };
   if (stale) return { tone: 'warning', Icon: TriangleAlert, text: 'No data from the vehicle' };

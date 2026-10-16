@@ -8,6 +8,7 @@
 // topology), wire_section, wire_glass, interior_lines, detail_lines, tyre_*_wire/_brake and zone_* parts.
 // Health zones (engine, battery, cooling, fuel, tyres) glow and pulse when they are not OK.
 import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { cssVar, useTheme } from '../theme.js';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -16,32 +17,33 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-// ISA-18.2 priority colours (critical ◆1, high ▲2, advisory ●4); healthy stays grey
-export const STATUS_HEX = { ok: '#a5afbc', info: '#b49cff', warning: '#f0a64a', critical: '#f26d6d' };
+// Colours come from the theme tokens in styles.css (--car-*, and the ISA-18.2 priorities --p1/--p2/--p4;
+// healthy stays grey), read when the model is built, so it is rebuilt when the theme changes.
+const palette = () => ({
+  status: { ok: cssVar('--text-2'), info: cssVar('--p4'), warning: cssVar('--p2'), critical: cssVar('--p1') },
+  ink: cssVar('--car-ink'), glass: cssVar('--car-glass'), part: cssVar('--car-part'), zone: cssVar('--car-zone'),
+  interior: cssVar('--car-interior'), dots: cssVar('--car-dots'), fog: cssVar('--car-fog'),
+  lightFront: cssVar('--car-light-front'), lightRear: cssVar('--car-light-rear'),
+});
 const TYPES = ['hatchback', 'sedan', 'suv', 'pickup', 'coupe'];
 TYPES.forEach((t) => useGLTF.preload(`/models/${t}.glb`));
 
-const INK = '#dfe5ec';
-const GLASS = '#7fd4ff';
-const PART = '#a5afbc';
-const ZONE_OK = '#8b96a4';
-const FOG = '#10141a';
 
 // [width px, opacity] passes where the line is in view, and where the body hides it
 // Like a technical illustration: only the outline is bold, and it is recomputed from the view
 // every frame; everything drawn on the surface stays thin.
-const STYLE = {
-  outline: { color: INK, vis: [[5, 0.06], [2.2, 1]], hid: [[1.2, 0.16]] },
-  tyreOutline: { color: INK, vis: [[1.8, 0.92]], hid: [[1, 0.26]] },
-  body: { color: INK, vis: [[1, 0.5]], hid: [[1, 0.08]] },
-  flow: { color: INK, vis: [[0.8, 0.12]], hid: [] },
-  section: { color: INK, vis: [[0.8, 0.16]], hid: [[0.8, 0.04]] },
-  glass: { color: GLASS, vis: [[1, 0.6]], hid: [[1, 0.1]] },
-  interior: { color: '#c9d1db', vis: [[1.1, 0.72]], hid: [[1, 0.24]] },
-  detail: { color: PART, vis: [[1, 0.62]], hid: [[1, 0.16]] },
-  part: { color: PART, vis: [[1.1, 0.8]], hid: [[1, 0.3]] },
-  zone: { color: ZONE_OK, vis: [[1.1, 0.7]], hid: [[1, 0.36]] },
-};
+const styles = (c) => ({
+  outline: { color: c.ink, vis: [[5, 0.06], [2.2, 1]], hid: [[1.2, 0.16]] },
+  tyreOutline: { color: c.ink, vis: [[1.8, 0.92]], hid: [[1, 0.26]] },
+  body: { color: c.ink, vis: [[1, 0.5]], hid: [[1, 0.08]] },
+  flow: { color: c.ink, vis: [[0.8, 0.12]], hid: [] },
+  section: { color: c.ink, vis: [[0.8, 0.16]], hid: [[0.8, 0.04]] },
+  glass: { color: c.glass, vis: [[1, 0.6]], hid: [[1, 0.1]] },
+  interior: { color: c.interior, vis: [[1.1, 0.72]], hid: [[1, 0.24]] },
+  detail: { color: c.part, vis: [[1, 0.62]], hid: [[1, 0.16]] },
+  part: { color: c.part, vis: [[1.1, 0.8]], hid: [[1, 0.3]] },
+  zone: { color: c.zone, vis: [[1.1, 0.7]], hid: [[1, 0.36]] },
+});
 const badStyle = (c) => ({ color: c, vis: [[5, 0.25], [1.7, 1]], hid: [[5, 0.2], [1.5, 0.9]] });
 
 function zoneOf(obj) {
@@ -182,6 +184,8 @@ class Silhouette {
 }
 
 function styled(scene, zones, opts) {
+  const C = palette();
+  const STYLE = styles(C);
   const root = scene.clone(true);
   const pulsing = [];
   const centers = {};
@@ -195,7 +199,7 @@ function styled(scene, zones, opts) {
     const zone = zoneOf(o);
     const status = zone ? zones?.[zone] || 'ok' : null;
     const bad = !!status && status !== 'ok';
-    const sc = STATUS_HEX[status] || STATUS_HEX.ok;
+    const sc = C.status[status] || C.status.ok;
     const style = bad ? badStyle(sc) : STYLE[groupOf(o, zone)];
 
     if (o.isLine) {
@@ -213,12 +217,12 @@ function styled(scene, zones, opts) {
     if (under(o, 'body')) {
       shell.push(o);
       if (mat === 'Glass') {                            // see-through: never hides what is behind it
-        o.material = skin(GLASS, 0.012, 0.16);
+        o.material = skin(C.glass, 0.012, 0.16);
         o.renderOrder = 1;
       } else {                                          // the shell: depth for hidden lines, plus a fresnel skin
         o.material = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
         o.renderOrder = -1;
-        const sk = new THREE.Mesh(o.geometry, skin('#c9d1db', 0.008, 0.13));
+        const sk = new THREE.Mesh(o.geometry, skin(C.interior, 0.008, 0.13));
         sk.renderOrder = 1;
         extra.push([o, sk]);
       }
@@ -236,7 +240,7 @@ function styled(scene, zones, opts) {
         pulsing.push(o.material);
       } else o.visible = false;
     } else if (mat === 'LightFront' || mat === 'LightRear') {
-      const col = mat === 'LightFront' ? '#eef3ff' : '#ff3b2f';
+      const col = mat === 'LightFront' ? C.lightFront : C.lightRear;
       o.material = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.18, depthWrite: false });
       jobs.push([o, positionsOf(new THREE.EdgesGeometry(o.geometry, 30)), { color: col, vis: [[3, 0.25], [1, 0.9]], hid: [[1, 0.2]] }, false]);
     } else {                                            // mirrors, handles, grille, rails, silencer: outlines only
@@ -275,7 +279,8 @@ function styled(scene, zones, opts) {
 function Model({ type, zones, onCenters, hideZones = false }) {
   const { scene } = useGLTF(`/models/${type}.glb`);
   const key = JSON.stringify(zones || {});
-  const built = useMemo(() => styled(scene, zones, { hideZones }), [scene, key, hideZones]); // eslint-disable-line
+  const theme = useTheme();
+  const built = useMemo(() => styled(scene, zones, { hideZones }), [scene, key, hideZones, theme]); // eslint-disable-line
   useEffect(() => { onCenters?.(built.centers); }, [built, onCenters]);
   const camWorld = useMemo(() => new THREE.Vector3(), []);
   useFrame(({ clock, camera }) => {
@@ -293,10 +298,11 @@ function Model({ type, zones, onCenters, hideZones = false }) {
 /** Keeps the depth fade centred on the car whatever the zoom. */
 function DepthFade() {
   const { scene, camera } = useThree();
+  const theme = useTheme();
   useEffect(() => {
-    scene.fog = new THREE.Fog(FOG, 6, 14);
+    scene.fog = new THREE.Fog(cssVar('--car-fog'), 6, 14);
     return () => { scene.fog = null; };
-  }, [scene]);
+  }, [scene, theme]);
   useFrame(() => {
     if (!scene.fog) return;
     const d = camera.position.distanceTo(new THREE.Vector3(0, 0.7, 0));
@@ -336,14 +342,16 @@ function Fit({ distance }) {
  *  plus a very soft contact shadow, so the car sits on something instead of floating. Drawn before
  *  the shell so it shows through the X-ray. */
 function Floor() {
+  const theme = useTheme();
   const { dots, shadow } = useMemo(() => {
+    const ink = new THREE.Color(cssVar('--car-part') || '#a5afbc');     // the dots follow the theme
     const pos = [], col = [], R = 4.6, step = 0.16;
     for (let x = -R; x <= R + 1e-6; x += step) for (let z = -R; z <= R + 1e-6; z += step) {
       const r = Math.hypot(x / 1.25, z) / (R / 1.25);       // slightly oval, like the car's footprint
       if (r >= 1) continue;
       const a = 0.42 * Math.pow(1 - r, 1.7);
       pos.push(x, 0.002, z);
-      col.push(0.62, 0.68, 0.75, a);
+      col.push(ink.r, ink.g, ink.b, a);
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -358,7 +366,7 @@ function Floor() {
     x.fillStyle = grad;
     x.fillRect(0, 0, 128, 128);
     return { dots: g, shadow: new THREE.CanvasTexture(c) };
-  }, []);
+  }, [theme]);
   return (
     <group renderOrder={-2}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} scale={[5.6, 2.9, 1]} renderOrder={-3}>
