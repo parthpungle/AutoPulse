@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavTarget } from '../assistant/nav.js';
 import { useApi } from '../api.js';
 import { Stat, Tabs } from '../components/ui.jsx';
 
@@ -6,10 +7,11 @@ const pct = (v) => `${(v * 100).toFixed(1)}%`;
 
 export default function Evidence() {
   const [tab, setTab] = useState('real');
+  useNavTarget('evidence', 'tab', setTab);
   const { data } = useApi('/results');
   if (!data) return <div className="muted">Loading results…</div>;
   return (
-    <div className="stack">
+    <div className="stack" data-spot="evidence-panel">
       <Tabs items={[['real', 'Real data'], ['matlab', 'MATLAB & Simulink'], ['sim', 'Simulator']]} value={tab} onChange={setTab} />
       {tab === 'real' && <Real r={data.real} />}
       {tab === 'matlab' && <Matlab m={data.matlab} />}

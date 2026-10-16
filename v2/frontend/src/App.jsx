@@ -5,6 +5,8 @@ import { CAR_INFO, carName } from './cars.js';
 import PairDrawer from './components/PairDrawer.jsx';
 import { LinkPill } from './components/LinkPill.jsx';
 import { AlarmShape, PRIORITY, prio } from './components/hmi.jsx';
+import Ask from './assistant/Ask.jsx';
+import { spotlight } from './assistant/nav.js';
 import Overview from './pages/Overview.jsx';
 import HealthCheck from './pages/HealthCheck.jsx';
 import LiveDrive from './pages/LiveDrive.jsx';
@@ -65,6 +67,17 @@ function Shell() {
   const top = latest?.alerts?.find((a) => a.severity !== 'info');
   const topP = top ? prio(top.severity) : null;
 
+  useEffect(() => {                       // Ask AutoPulse: go to the screen that holds the answer, then spotlight it
+    const on = (e) => {
+      const { page: to, spot, action } = e.detail;
+      if (action === 'pair') setDrawer(true);
+      if (to) setPage(to);
+      if (spot) setTimeout(() => spotlight(spot), to && to !== page ? 380 : 60);
+    };
+    window.addEventListener('autopulse:goto', on);
+    return () => window.removeEventListener('autopulse:goto', on);
+  }, [page]);
+
   useEffect(() => {                       // first visit with nothing paired: open the pairing drawer once
     if (ready && link.state === 'unpaired' && !sessionStorage.getItem('ap-paired-once')) {
       sessionStorage.setItem('ap-paired-once', '1');
@@ -100,6 +113,7 @@ function Shell() {
           </>
         ) : <span className="label">No vehicle</span>}
         <div className="right">
+          <Ask />
           <span className="kv opt"><span className="label">Frames</span><b>{link.frames ?? 0}</b></span>
           <LinkPill onClick={() => setDrawer(true)} />
         </div>

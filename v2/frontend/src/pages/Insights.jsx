@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavTarget } from '../assistant/nav.js';
 import { useApi } from '../api.js';
 import LineChart from '../components/charts/LineChart.jsx';
 import { HBars } from '../components/charts/Bars.jsx';
@@ -6,8 +7,9 @@ import { Stat, Tabs } from '../components/ui.jsx';
 
 export default function Insights() {
   const [tab, setTab] = useState('baseline');
+  useNavTarget('insights', 'tab', setTab);
   return (
-    <div className="stack">
+    <div className="stack" data-spot="insights-panel">
       <Tabs items={[['baseline', 'Adaptive baseline'], ['wear', 'Component wear']]} value={tab} onChange={setTab} />
       {tab === 'baseline' ? <Baseline /> : <Wear />}
     </div>

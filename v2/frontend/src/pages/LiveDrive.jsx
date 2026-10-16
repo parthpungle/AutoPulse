@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavTarget } from '../assistant/nav.js';
 import { CircleCheck } from 'lucide-react';
 import LineChart from '../components/charts/LineChart.jsx';
 import { AlertCard, Tabs } from '../components/ui.jsx';
@@ -26,6 +27,7 @@ export default function LiveDrive() {
   const { latest, history } = useLive();
   const [view, setView] = useState('coolant');
   const [win, setWin] = useState('300');
+  useNavTarget('drive', 'tab', setView);
   const { row, alerts } = latest;
   const H = history.slice(-Number(win));
   const x = series(H, 'clock');
@@ -44,7 +46,7 @@ export default function LiveDrive() {
       </div>
 
       <div className="grid2" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start' }}>
-        <div className="panel panel-pad">
+        <div className="panel panel-pad" data-spot="drive-chart">
           <div className="row" style={{ marginBottom: 14, flexWrap: 'wrap' }}>
             <Tabs value={view} onChange={setView} items={Object.entries(VIEWS).map(([k, v]) => [k, v.name])} />
             <div className="spacer" />
@@ -57,7 +59,7 @@ export default function LiveDrive() {
           ) : <div className="muted" style={{ height: 340 }}>Collecting telemetry…</div>}
           <div className="chart-caption">Streamed from the vehicle once a second. Dashed line: the hard limit the safety rules use.</div>
         </div>
-        <div className="stack">
+        <div className="stack" data-spot="drive-alerts">
           <div className="row">
             <div className="eyebrow">Alerts & guidance</div>
             <div className="spacer" />

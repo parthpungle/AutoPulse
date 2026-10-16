@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavTarget } from '../assistant/nav.js';
 import { Play, RotateCcw } from 'lucide-react';
 import Car3D from '../components/Car3D.jsx';
 import { Ring, Status, StatusIcon, scoreStatus } from '../components/ui.jsx';
@@ -34,6 +35,7 @@ export default function HealthCheck() {
     }), 380);
   };
   useEffect(() => { run(); return () => clearInterval(timer.current); }, []);
+  useNavTarget('check', 'select', (id) => { clearInterval(timer.current); setStep(99); setSel(id); });
 
   const { systems: checks, zones: liveZones, score, verdict, vehicle: v } = latest;
   const revealed = step >= checks.length;
@@ -56,7 +58,7 @@ export default function HealthCheck() {
       </div>
 
       <div className="stack" style={{ minHeight: 0 }}>
-        <div className="panel panel-pad" style={{ flex: 'none' }}>
+        <div className="panel panel-pad" style={{ flex: 'none' }} data-spot="health-ring">
           <div className="ring-wrap">
             <Ring value={revealed ? score : 0} status={revealed ? st : 'muted'} />
             <div>
@@ -72,7 +74,7 @@ export default function HealthCheck() {
             {checks.map((c, i) => {
               const status = i < step ? c.status : i === step ? 'checking' : 'pending';
               return (
-                <button key={c.id} className={`check ${sel === c.id ? 'on' : ''}`} onClick={() => setSel(sel === c.id ? null : c.id)}
+                <button key={c.id} data-spot={`check-${c.id}`} className={`check ${sel === c.id ? 'on' : ''}`} onClick={() => setSel(sel === c.id ? null : c.id)}
                   disabled={i >= step}>
                   <StatusIcon status={status} />
                   <div>

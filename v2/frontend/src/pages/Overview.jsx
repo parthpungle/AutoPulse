@@ -30,10 +30,10 @@ function useSize(ref) {
   return s;
 }
 
-function Section({ title, meta, priority, right, children, className = '' }) {
+function Section({ title, meta, priority, right, children, className = '', spot }) {
   const color = prioColor(priority);
   return (
-    <section className={`sect ${className}`}>
+    <section className={`sect ${className}`} data-spot={spot}>
       <header className="sect-head">
         {priority && <AlarmShape priority={priority} size={13} />}
         <span className="label" style={color ? { color } : undefined}>{title}</span>
@@ -45,9 +45,9 @@ function Section({ title, meta, priority, right, children, className = '' }) {
   );
 }
 
-function SensorRow({ label, value, range, values, priority }) {
+function SensorRow({ label, value, range, values, priority, spot }) {
   return (
-    <div className="srow">
+    <div className="srow" data-spot={spot}>
       <LinearGauge label={label} value={value} range={range} priority={priority} />
       <div className="srow-spark"><Sparkline values={values} range={range} priority={priority} height={32} /></div>
     </div>
@@ -80,10 +80,10 @@ export default function Overview() {
       {/* LEFT: the key sensors */}
       <Section className="col-l" title="Sensors" meta="2 min">
         <div className="srows">
-          <SensorRow label="Coolant" value={row.coolant_c} range={RANGES.coolant_c} values={col('coolant_c')} priority={p('cooling')} />
-          <SensorRow label="Oil pressure" value={row.oil_pressure_bar} range={RANGES.oil_pressure_bar} values={col('oil_pressure_bar')} priority={p('oil')} />
-          <SensorRow label="Battery" value={row.battery_v} range={RANGES.battery_v} values={col('battery_v')} priority={p('battery')} />
-          <SensorRow label="Fuel trim" value={row.ltft_pct} range={RANGES.ltft_pct} values={col('ltft_pct')} priority={p('fuel')} />
+          <SensorRow spot="sensor-coolant" label="Coolant" value={row.coolant_c} range={RANGES.coolant_c} values={col('coolant_c')} priority={p('cooling')} />
+          <SensorRow spot="sensor-oil" label="Oil pressure" value={row.oil_pressure_bar} range={RANGES.oil_pressure_bar} values={col('oil_pressure_bar')} priority={p('oil')} />
+          <SensorRow spot="sensor-battery" label="Battery" value={row.battery_v} range={RANGES.battery_v} values={col('battery_v')} priority={p('battery')} />
+          <SensorRow spot="sensor-fuel" label="Fuel trim" value={row.ltft_pct} range={RANGES.ltft_pct} values={col('ltft_pct')} priority={p('fuel')} />
           <SensorRow label={`Tyres · lowest ${lowTyre ? lowTyre.slice(5, 7).toUpperCase() : ''}`} value={lowTyre ? row[lowTyre] : null}
             range={RANGES.tyre} values={minTyres} priority={p('tyres')} />
         </div>
@@ -97,14 +97,14 @@ export default function Overview() {
             <span className="name">{carName(v.car_type)}</span>
             <span className="spec">{CAR_INFO[v.car_type]?.spec} · unit {v.unit}</span>
           </div>
-          <div className="readouts">
+          <div className="readouts" data-spot="readouts">
             <div><span className="label">Speed</span><b className="num">{row.speed_kph?.toFixed(0) ?? '—'}</b><small>km/h</small></div>
             <div><span className="label">Engine</span><b className="num">{row.rpm?.toFixed(0) ?? '—'}</b><small>rpm</small></div>
           </div>
         </div>
-        <div className="stage-car"><Car3D type={v.car_type} zones={zones} distance={0.74} /></div>
+        <div className="stage-car" data-spot="car-stage"><Car3D type={v.car_type} zones={zones} distance={0.74} /></div>
         <div className="stage-bottom">
-          <div className="score">
+          <div className="score" data-spot="health-score">
             <span className="label">Health</span>
             <span className="row" style={{ gap: 8, alignItems: 'baseline' }}>
               <b className="num" style={scoreP ? { color: prioColor(scoreP) } : undefined}>{score}</b>
@@ -126,7 +126,7 @@ export default function Overview() {
       </div>
 
       {/* BELOW THE CAR: the live signature */}
-      <Section className="sig" title="Engine signature" priority={engineP} right={<Tabs value={view} onChange={setView} items={SIG_VIEWS} />}>
+      <Section className="sig" spot="signature" title="Engine signature" priority={engineP} right={<Tabs value={view} onChange={setView} items={SIG_VIEWS} />}>
         <div className="sig-body" ref={sigBody}>
           {sig ? (sigH > 60 && <Plot view={view} d={sig} height={sigH} />)
             : <p className="note muted" style={{ margin: 'auto' }}>Start the engine on the vehicle laptop to see its signature.</p>}
@@ -144,7 +144,7 @@ export default function Overview() {
           </div>
 
           {ranked.length > 0 && (
-            <div className="probs">
+            <div className="probs" data-spot="probs">
               {ranked.map((r, i) => (
                 <div key={r.k} className={`pbar ${i === 0 ? 'top' : ''}`} style={{ '--c': i === 0 && engineP ? prioColor(engineP) : undefined }}>
                   <span className="n">{r.c}</span>
@@ -156,7 +156,7 @@ export default function Overview() {
           )}
 
           {engine.state === 'running' && (
-            <div className="dev">
+            <div className="dev" data-spot="deviation">
               <div className="row"><span className="label">vs this car's normal</span><span className="spacer" />
                 <span className="num" style={{ color: engine.anomaly > engine.threshold ? 'var(--p3)' : 'var(--text-1)' }}>{engine.anomaly.toFixed(1)}</span></div>
               <Sparkline values={col('anomaly')} range={RANGES.anomaly} threshold={engine.threshold} height={34} />
@@ -167,7 +167,7 @@ export default function Overview() {
             </div>
           )}
 
-          <div className="alert-slot">
+          <div className="alert-slot" data-spot="top-alert">
             {topAlert
               ? <AlertCard a={topAlert} compact />
               : <p className="note muted">Nothing needs attention. Every hard limit and model is quiet.</p>}

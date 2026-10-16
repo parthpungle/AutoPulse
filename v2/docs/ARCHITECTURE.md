@@ -167,3 +167,27 @@ download (blender/source/, not committed)
 | **Fresnel skin** | The shell is almost invisible face-on and glows softly at grazing angles, so it reads as a volume |
 
 Lines use `LineSegments2` for real pixel widths, which plain WebGL lines lack. Rebuild: `blender -b --factory-startup --disable-autoexec -P blender/convert_models.py -- blender/out_real`, then copy `blender/out_real/*.glb` to `frontend/public/models/`.
+
+---
+
+## Ask AutoPulse
+
+A command-palette assistant (`frontend/src/assistant/`) that answers in one sentence and takes you to the element that already shows the answer.
+
+```text
+question ─► route()  (frontend/src/assistant/intents.js)
+             ├─ intent  (~25: health, engine, coolant, battery, oil, tyres, fuel, alerts, models, baseline,
+             │           signatures, wear, evidence, link, …) ─► sentence filled from the live frame
+             ├─ glossary (bare "what is X") ─► curated one-liner
+             └─ docs     (anything else)     ─► GET /api/ask/docs  (backend/docsearch.py: TF-IDF over README,
+                                                 PROJECT_PLAN and docs/, returns one quoted sentence + section)
+answer.nav ─► goTo({ page, tab, select, spot })  (assistant/nav.js) ─► App switches screen, the page switches tab,
+             the element with data-spot="…" scrolls into view and pulses
+```
+
+| Choice | Why |
+|--------|-----|
+| **Intents, not a trained or generative model** | Every number comes from the frame the dashboard already has, so answers can't drift from the screen and work offline at a venue |
+| **Navigate + spotlight instead of long text** | The dashboard is the answer; the assistant's job is to find the right chart, not to describe it |
+| **Docs search as the only retrieval** | Definitions and "how does it work" questions live in our docs; a quoted sentence with its source is honest and checkable |
+| **A language model later, only as a router** | If keyword matching feels rigid, a small model can pick the intent from the list and nothing else: grounding stays the same |

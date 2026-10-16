@@ -157,6 +157,13 @@ def results():
             "matlab": load("matlab_crosscheck.json")}
 
 
+@app.get("/api/ask/docs")
+def ask_docs(q: str = ""):
+    """Ask AutoPulse fallback: one sentence quoted from the project's own docs, or null."""
+    from backend.docsearch import search
+    return {"answer": search(q) if q.strip() else None}
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True}

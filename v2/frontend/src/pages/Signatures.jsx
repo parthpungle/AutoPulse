@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavTarget } from '../assistant/nav.js';
 import { Power, Wrench } from 'lucide-react';
 import LineChart from '../components/charts/LineChart.jsx';
 import Heatmap from '../components/charts/Heatmap.jsx';
@@ -22,6 +23,7 @@ const WHY = {
 export default function Signatures() {
   const { latest, history, serviced } = useLive();
   const [view, setView] = useState('spectrum');
+  useNavTarget('signatures', 'tab', setView);
   const { sig, engine } = latest;
 
   if (engine.state === 'off' || !sig) {
@@ -39,7 +41,7 @@ export default function Signatures() {
   return (
     <div className="grid2" style={{ gridTemplateColumns: '1fr 330px', alignItems: 'start' }}>
       <div className="stack">
-        <div className="panel panel-pad">
+        <div className="panel panel-pad" data-spot="sig-plot">
           <div className="row" style={{ marginBottom: 14 }}>
             <Tabs items={VIEWS} value={view} onChange={setView} />
             <div className="spacer" />
@@ -49,7 +51,7 @@ export default function Signatures() {
           <div className="chart-caption">{WHY[view]}</div>
         </div>
 
-        <div className="panel panel-pad">
+        <div className="panel panel-pad" data-spot="sig-deviation">
           <div className="row" style={{ marginBottom: 10 }}>
             <div className="eyebrow">Deviation from this car’s own normal · last 3 min</div>
             <div className="spacer" />
@@ -68,7 +70,7 @@ export default function Signatures() {
       </div>
 
       <div className="stack">
-        <div className="panel panel-pad">
+        <div className="panel panel-pad" data-spot="sig-verdict">
           <div className="eyebrow">Verdict · last 5 s</div>
           <div style={{ fontSize: 20, fontWeight: 600, margin: '6px 0 4px' }}>{engine.label}</div>
           <div className="row" style={{ gap: 10 }}>
@@ -77,7 +79,7 @@ export default function Signatures() {
           </div>
           <div className="note muted" style={{ marginTop: 8 }}>The vehicle never says what was injected. This comes from the vibration alone.</div>
         </div>
-        <div className="panel panel-pad">
+        <div className="panel panel-pad" data-spot="sig-votes">
           <div className="eyebrow" style={{ marginBottom: 12 }}>Ensemble probability</div>
           <HBars items={engine.classes.map((c, k) => ({ label: c.split(' (')[0], value: engine.ensemble[k], emphasis: k === top }))
             .sort((a, b) => b.value - a.value).slice(0, 4)} />
