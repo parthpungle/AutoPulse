@@ -1,4 +1,4 @@
-// All landing-page copy in one place. Numbers come from the AutoTwin pipeline (autopulse/ and the
+// All landing-page copy in one place. Numbers come from the TorqueTwin pipeline (autopulse/ and the
 // README results table); keep them in sync if the pipeline changes.
 
 export const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL || '/dashboard';
@@ -9,9 +9,9 @@ export const GITHUB_URL = 'https://github.com/';
 export const EVENT = 'HackHive 2026';
 
 export const HERO = {
-  eyebrow: 'AutoTwin · engine signature recognition',
+  eyebrow: 'TorqueTwin · engine signature recognition',
   title: ['Engines speak', 'before they fail.'],
-  sub: 'AutoTwin listens to an engine through its sound, its vibration and its OBD-II data, turns each into a frequency signature, and recognises knock, misfire and valve wear before they become breakdowns.',
+  sub: 'TorqueTwin listens to an engine through its sound, its vibration and its OBD-II data, turns each into a frequency signature, and recognises knock, misfire and valve wear before they become breakdowns.',
   primary: 'Launch dashboard',
   secondary: 'How it works',
 };
@@ -47,7 +47,8 @@ export const RECOGNITION = {
     valve: { label: 'Valve wear', text: 'A tick at camshaft rate; the envelope spectrum shows the repetition and the noise floor creeps up.' },
   } satisfies Record<StateKey, { label: string; text: string }>,
   models: 'SVM · Softmax · ANN · CNN vote on every window',
-  stat: { value: '90.3%', label: 'held-out accuracy on 321 real engine recordings' },
+  // placeholder until the team confirms the number for the landing page
+  stat: { value: '{{MODEL_ACCURACY}}', label: 'held-out accuracy' },
 };
 
 export const CTA = {

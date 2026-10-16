@@ -66,7 +66,7 @@ Vehicle-only installs can use the smaller `requirements-vehicle.txt` (no PyTorch
 
 ## Landing page
 
-`/` is the TorqueTwin intro to AutoTwin: one fixed WebGL canvas behind the page, telling the story as you scroll (raw signal → the Sensor Array → spectrogram → four fault clusters → launch). The dashboard moved to `/dashboard`; `/vehicle.html` is unchanged.
+`/` is the TorqueTwin intro: one fixed WebGL canvas behind the page, telling the story as you scroll (raw signal → the Sensor Array → spectrogram → four fault clusters → launch). The dashboard moved to `/dashboard`; `/vehicle.html` is unchanged.
 
 | Route | Page | Entry |
 |-------|------|-------|
