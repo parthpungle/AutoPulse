@@ -1,5 +1,5 @@
 import { BoxGeometry, Color, DirectionalLight, FogExp2, Group, Mesh, MeshBasicMaterial, PMREMGenerator, PointLight, Vector3 } from 'three';
-import type { BufferGeometry, Camera, Material, MeshPhysicalMaterial, Scene, ShaderMaterial, WebGLRenderer, WebGLRenderTarget } from 'three';
+import type { BufferGeometry, Camera, Material, Scene, WebGLRenderer, WebGLRenderTarget } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { SENSORS } from '../../content/sensors';
 import { CAROUSEL, cardPose } from '../carousel/CarouselLayout';
@@ -7,9 +7,10 @@ import type { SyntheticSignals } from '../signals/SyntheticSignals';
 import type { Palette } from '../theme';
 import { buildCrankshaft } from './Crankshaft';
 import type { CrankDims } from './Crankshaft';
-import { disposeSet, makeHighSet, makeLowSet, makePerforated, setDim } from './Materials';
-import type { MaterialSet } from './Materials';
-import { buildSensor } from './SensorModels';
+import { makeMaterial, setDim, setPulse } from './HardwareMaterials';
+import type { MatKey } from './HardwareMaterials';
+import { SLOTS, buildSensor } from './SensorModels';
+import type { Slot } from './SensorModels';
 
 /**
  * three.js RoomEnvironment (a neutral studio box), plus three tinted light panels so the
@@ -39,17 +40,12 @@ function bakeEnvironment(renderer: WebGLRenderer) {
   return target;
 }
 
-type Slot = 'metal' | 'plastic' | 'brass' | 'grille';
-
 interface SensorInst {
   outer: Group;
   inner: Group;
-  meshes: { mesh: Mesh; slot: Slot }[];
+  /** Each mesh with its two tier variants (per-sensor materials sharing programs). */
+  meshes: { mesh: Mesh; high: Material; low: Material }[];
   disc: Mesh | null;
-  /** Per-sensor material clones (shared programs), so each sensor can dim on its own. */
-  high: Record<Slot, Material>;
-  low: Record<Slot, Material>;
-  base: Record<Slot, Color>;
   rest: Vector3;
   tip: Vector3;
   focus: number;
@@ -58,7 +54,7 @@ interface SensorInst {
 }
 
 const SENSOR_SCALE = 1.1;
-const SLOTS: Slot[] = ['metal', 'plastic', 'brass', 'grille'];
+const SLOT_MAT: Record<Slot, MatKey> = { steel: 'steel', darkSteel: 'darkSteel', brass: 'brass', blackPlastic: 'blackPlastic', rubber: 'rubber', ceramic: 'ceramic', grille: 'steel' };
 
 /**
  * Everything solid in the Sensor Array: the crankshaft, the eight sensor models, their lights and
@@ -71,16 +67,16 @@ export class SensorRig {
   /** Rotates with the crank angle (crank, trigger wheel). */
   readonly spin = new Group();
   readonly dims: CrankDims;
-  readonly crank: Mesh;
+  readonly crankBody: Mesh;
+  readonly crankBearings: Mesh;
   readonly fog: FogExp2;
-  readonly high: MaterialSet;
-  readonly low: MaterialSet;
   readonly sensors: SensorInst[] = [];
+  /** Crank materials, [high, low] for the body and the polished bearings. */
+  private readonly crankMats: { body: [Material, Material]; bearings: [Material, Material] };
   readonly rim = new PointLight(0xffffff, 0, 3.5, 2);
   private env: WebGLRenderTarget | null = null;
   private highTier = true;
   private readonly lights: DirectionalLight[] = [];
-  private readonly highGrille: { hex: MeshPhysicalMaterial; slots: MeshPhysicalMaterial };
   private readonly v = new Vector3();
   private readonly w = new Vector3();
   private readonly focusPos = new Vector3();
@@ -89,18 +85,17 @@ export class SensorRig {
   private readonly colors = SENSORS.map((s) => new Color(s.color));
 
   constructor(renderer: WebGLRenderer, palette: Palette, highTier: boolean) {
-    this.high = makeHighSet();
-    this.low = makeLowSet(palette);
     this.highTier = highTier;
-    this.highGrille = {
-      hex: makePerforated(this.high.metal as MeshPhysicalMaterial, 'hex'),
-      slots: makePerforated(this.high.metal as MeshPhysicalMaterial, 'slots'),
-    };
-
     this.env = bakeEnvironment(renderer);
 
-    const built = buildCrankshaft(this.set.metal, highTier ? 'high' : 'low');
-    this.crank = built.mesh;
+    this.crankMats = {
+      body: [makeMaterial('steel', true), makeMaterial('steel', false)],
+      bearings: [makeMaterial('polished', true), makeMaterial('polished', false)],
+    };
+    const t = highTier ? 0 : 1;
+    const built = buildCrankshaft(this.crankMats.body[t], this.crankMats.bearings[t], highTier ? 'high' : 'low');
+    this.crankBody = built.body;
+    this.crankBearings = built.bearings;
     this.dims = built.dims;
     this.spin.add(built.group);
     this.group.add(this.spin);
@@ -125,41 +120,22 @@ export class SensorRig {
     const inner = new Group();
     inner.rotation.x = -Math.PI / 2; // builder space has the tip at -Y; this turns it to +Z
     outer.add(inner);
-    const grille = this.highGrille[i === 5 ? 'slots' : 'hex'];
-    const high: Record<Slot, Material> = {
-      metal: this.high.metal.clone(),
-      plastic: this.high.plastic.clone(),
-      brass: this.high.brass.clone(),
-      grille: grille.clone(),
-    };
-    // keep the perforation hook on the clone (same cache key, so the program is shared)
-    (high.grille as MeshPhysicalMaterial).onBeforeCompile = grille.onBeforeCompile;
-    (high.grille as MeshPhysicalMaterial).customProgramCacheKey = grille.customProgramCacheKey;
-    const low: Record<Slot, Material> = {
-      metal: this.low.metal.clone(),
-      plastic: this.low.plastic.clone(),
-      brass: this.low.brass.clone(),
-      grille: this.low.metal.clone(),
-    };
-    const base = {} as Record<Slot, Color>;
-    for (const slot of SLOTS) base[slot] = (high[slot] as MeshPhysicalMaterial).color.clone();
-
-    const meshes: { mesh: Mesh; slot: Slot }[] = [];
+    const meshes: { mesh: Mesh; high: Material; low: Material }[] = [];
     const geometries: BufferGeometry[] = [];
-    for (const slot of SLOTS) {
-      const g = parts[slot];
-      if (!g) continue;
-      const mesh = new Mesh(g, highTier ? high[slot] : low[slot]);
+    const add = (g: BufferGeometry, key: MatKey, cut: 'none' | 'hex' | 'slots') => {
+      const hi = makeMaterial(key, true, cut);
+      const lo = makeMaterial(key, false);
+      const mesh = new Mesh(g, highTier ? hi : lo);
       inner.add(mesh);
-      meshes.push({ mesh, slot });
+      meshes.push({ mesh, high: hi, low: lo });
       geometries.push(g);
+      return mesh;
+    };
+    for (const slot of SLOTS) {
+      const g = parts.geo[slot];
+      if (g) add(g, SLOT_MAT[slot], slot === 'grille' ? parts.grilleCut : 'none');
     }
-    let disc: Mesh | null = null;
-    if (parts.disc) {
-      disc = new Mesh(parts.disc, highTier ? high.metal : low.metal);
-      inner.add(disc);
-      geometries.push(parts.disc);
-    }
+    const disc = parts.disc ? add(parts.disc, 'steel', 'none') : null;
 
     // rest: ahead of its card on the helix, between the crank and the cards, tip toward the axis.
     // The crank position sensor sits at the 60-2 trigger wheel, tip facing the teeth.
@@ -175,11 +151,7 @@ export class SensorRig {
     outer.scale.setScalar(SENSOR_SCALE);
     outer.lookAt(0, y, 0);
     this.group.add(outer);
-    return { outer, inner, meshes, disc, high, low, base, rest, tip: parts.tip, focus: 0, drift: i === 2 ? 0.3 : 1, geometries };
-  }
-
-  private get set() {
-    return this.highTier ? this.high : this.low;
+    return { outer, inner, meshes, disc, rest, tip: parts.tip, focus: 0, drift: i === 2 ? 0.3 : 1, geometries };
   }
 
   attach(scene: Scene) {
@@ -191,11 +163,10 @@ export class SensorRig {
   /** Swap material variants (both are compiled up front, so this never hitches). */
   setHighTier(high: boolean) {
     this.highTier = high;
-    this.crank.material = this.set.metal;
-    for (const s of this.sensors) {
-      for (const { mesh, slot } of s.meshes) mesh.material = high ? s.high[slot] : s.low[slot];
-      if (s.disc) s.disc.material = high ? s.high.metal : s.low.metal;
-    }
+    const t = high ? 0 : 1;
+    this.crankBody.material = this.crankMats.body[t];
+    this.crankBearings.material = this.crankMats.bearings[t];
+    for (const s of this.sensors) for (const m of s.meshes) m.mesh.material = high ? m.high : m.low;
   }
 
   get isHighTier() {
@@ -258,13 +229,10 @@ export class SensorRig {
       if (s.disc) s.disc.rotation.x = signals.throttle * 1.35;
 
       const dim = 0.4 + 0.6 * f;
-      for (const { mesh, slot } of s.meshes) setDim(mesh.material as Material, s.base[slot], dim);
-      if (!this.highTier) {
-        for (const { mesh } of s.meshes) {
-          const u = (mesh.material as ShaderMaterial).uniforms;
-          (u.uRim.value as Color).copy(this.colors[i]);
-          u.uRimAmt.value = f;
-        }
+      for (const m of s.meshes) {
+        setDim(m.mesh.material as Material, dim);
+        // the cheap path has no lights: fake the coloured rim there
+        if (!this.highTier) setPulse(m.mesh.material as Material, f, this.colors[i]);
       }
     }
 
@@ -283,16 +251,14 @@ export class SensorRig {
   }
 
   dispose() {
-    this.crank.geometry.dispose();
-    disposeSet(this.high);
-    disposeSet(this.low);
-    this.highGrille.hex.dispose();
-    this.highGrille.slots.dispose();
+    this.crankBody.geometry.dispose();
+    this.crankBearings.geometry.dispose();
+    for (const m of [...this.crankMats.body, ...this.crankMats.bearings]) m.dispose();
     for (const s of this.sensors) {
       for (const g of s.geometries) g.dispose();
-      for (const slot of SLOTS) {
-        s.high[slot].dispose();
-        s.low[slot].dispose();
+      for (const m of s.meshes) {
+        m.high.dispose();
+        m.low.dispose();
       }
     }
     this.env?.dispose();

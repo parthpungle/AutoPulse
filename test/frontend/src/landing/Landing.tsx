@@ -89,8 +89,9 @@ export function Landing() {
     let sx = 0;
     let sy = 0;
     let down = false;
+    // touch only: on desktop the wheel and trackpad scroll the page and the cards never grab them
     const onDown = (e: PointerEvent) => {
-      down = nav.current.section === 1 && !nav.current.detail;
+      down = e.pointerType === 'touch' && nav.current.section === 1 && !nav.current.detail;
       sx = e.clientX;
       sy = e.clientY;
     };

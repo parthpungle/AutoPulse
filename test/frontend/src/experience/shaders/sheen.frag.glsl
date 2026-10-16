@@ -8,6 +8,7 @@ uniform vec3 uA;
 uniform vec3 uB;
 uniform vec3 uC;
 uniform float uDim;      // 0..1 brightness (inactive sensors dim)
+uniform float uFilm;     // strength of the fake thin-film edge colour
 uniform vec3 uRim;       // rim light colour (active sensor)
 uniform float uRimAmt;
 
@@ -24,7 +25,7 @@ void main() {
   vec3 film = k < 0.5 ? mix(uA, uB, k * 2.0) : mix(uB, uC, (k - 0.5) * 2.0);
   // a soft key from above so the shape reads
   float key = 0.35 + 0.65 * clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
-  vec3 col = uBase * key + film * (0.18 + 0.9 * fres);
+  vec3 col = uBase * key + film * (0.05 + 0.9 * fres) * uFilm;
   col += uRim * uRimAmt * fres * 1.5;
   gl_FragColor = vec4(col * uDim, 1.0);
   #include <fog_fragment>

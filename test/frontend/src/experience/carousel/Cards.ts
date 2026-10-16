@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, ExtrudeGeometry, FrontSide, Group, HalfFloatType, LinearFilter, Mesh, MeshBasicMaterial, NormalBlending, Raycaster, Shape, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget } from 'three';
+import { AdditiveBlending, Color, ExtrudeGeometry, FrontSide, Group, HalfFloatType, LinearFilter, Mesh, MeshBasicMaterial, NormalBlending, Raycaster, Shape, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget } from 'three';
 import type { Camera, Intersection, Object3D, Texture, WebGLRenderer } from 'three';
 import type { FullscreenQuad } from '../gl/FullscreenQuad';
 import { Text } from 'troika-three-text';
@@ -10,6 +10,8 @@ import type { Shared } from '../Uniforms';
 import { CAROUSEL, cardPose } from './CarouselLayout';
 
 export const CARD_W = 2.56;
+/** Cards never turn further than this from facing the camera. */
+const FACE_LIMIT = (55 * Math.PI) / 180;
 export const CARD_H = 1.6;
 const CARD_R = 0.16;
 const CARD_D = 0.06;
@@ -106,8 +108,9 @@ export class Cards {
   private readonly dist = new Float32Array(8);
   private hovered = -1;
   private octaves = 4;
-  private readonly textBase = new MeshBasicMaterial({ transparent: true, side: DoubleSide, depthWrite: false });
-  private readonly glitchBase = new MeshBasicMaterial({ transparent: true, side: DoubleSide, depthWrite: false, blending: AdditiveBlending });
+  // front side only: text is never seen from behind (no mirrored titles)
+  private readonly textBase = new MeshBasicMaterial({ transparent: true, side: FrontSide, depthWrite: false });
+  private readonly glitchBase = new MeshBasicMaterial({ transparent: true, side: FrontSide, depthWrite: false, blending: AdditiveBlending });
   private readonly artMat: ShaderMaterial;
   private glitchIndex = -1;
   private glitchT = 0;
@@ -319,7 +322,13 @@ export class Cards {
       const card = this.cards[i];
       const u = card.mat.uniforms;
       const d = Math.abs(i - c);
-      const rotY = cardPose(reduced ? 0 : i, reduced ? 0 : c, wide, card.mesh.position);
+      const helixY = cardPose(reduced ? 0 : i, reduced ? 0 : c, wide, card.mesh.position);
+      // cards always show their front: keep the helix angle, but never more than 55 degrees away
+      // from facing the camera
+      const toCam = Math.atan2(camera.position.x - card.mesh.position.x, camera.position.z - card.mesh.position.z);
+      let rel = helixY - toCam;
+      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+      const rotY = toCam + Math.max(-FACE_LIMIT, Math.min(FACE_LIMIT, rel));
       const hoverTarget = this.hovered === i ? 1 : 0;
       card.hover += (hoverTarget - card.hover) * k;
       const tx = card.hover * -py * tiltMax;

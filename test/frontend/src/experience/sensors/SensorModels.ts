@@ -9,12 +9,13 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
  * (#121418), brass for threaded parts, plus optional perforated metal (mic grille, lambda shield)
  * and a separate throttle butterfly disc that animates.
  */
+/** Material slots (see Materials.ts); `grille` is perforated steel, cut in the shader. */
+export type Slot = 'steel' | 'darkSteel' | 'brass' | 'blackPlastic' | 'rubber' | 'ceramic' | 'grille';
+export const SLOTS: Slot[] = ['steel', 'darkSteel', 'brass', 'blackPlastic', 'rubber', 'ceramic', 'grille'];
+
 export interface SensorParts {
-  metal: BufferGeometry | null;
-  plastic: BufferGeometry | null;
-  brass: BufferGeometry | null;
-  /** Perforated metal (hex grille or slotted shield); the pattern is cut in the shader. */
-  grille: BufferGeometry | null;
+  geo: Partial<Record<Slot, BufferGeometry | null>>;
+  grilleCut: 'hex' | 'slots';
   /** Throttle butterfly (rotates about X with the throttle signal). */
   disc: BufferGeometry | null;
   /** Where the signal stream leaves the sensor, in builder space. */
@@ -86,10 +87,8 @@ function mic(s: Seg): SensorParts {
     return t;
   });
   return {
-    metal: merge(rings),
-    plastic: merge([body, cable([[0, 0.32, 0], [0, 0.5, 0.04], [0.06, 0.68, -0.08], [0.12, 0.84, -0.3]], 0.018, s)]),
-    brass: null,
-    grille: merge([dome]),
+    geo: { steel: merge(rings), blackPlastic: merge([body]), rubber: merge([cable([[0, 0.32, 0], [0, 0.5, 0.04], [0.06, 0.68, -0.08], [0.12, 0.84, -0.3]], 0.018, s)]), grille: merge([dome]) },
+    grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.28, 0),
   };
@@ -103,10 +102,8 @@ function accelerometer(s: Seg): SensorParts {
   const plug = cyl(0.03, 0.05, 10, 0.01, 0.29, 0);
   plug.rotateZ(Math.PI / 2);
   return {
-    metal: merge([hex]),
-    plastic: merge([cap, conn, cable([[0.27, 0.01, 0], [0.42, 0.04, 0], [0.58, 0.18, 0.05], [0.7, 0.42, 0.1]], 0.016, s)]),
-    brass: merge([stud]),
-    grille: null,
+    geo: { darkSteel: merge([hex]), blackPlastic: merge([cap, conn]), rubber: merge([cable([[0.27, 0.01, 0], [0.42, 0.04, 0], [0.58, 0.18, 0.05], [0.7, 0.42, 0.1]], 0.016, s)]), brass: merge([stud]) },
+    grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.32, 0),
   };
@@ -119,10 +116,8 @@ function crankSensor(s: Seg): SensorParts {
   const bolt = cyl(0.028, 0.06, 12, 0.08, 0.17, 0);
   const conn = box(0.11, 0.11, 0.09, 0, 0.29, 0);
   return {
-    metal: merge([tipCap]),
-    plastic: merge([body, tab, conn, cable([[0, 0.34, 0], [0, 0.5, 0.06], [0.1, 0.66, 0.18], [0.24, 0.78, 0.36]], 0.016, s)]),
-    brass: merge([bolt]),
-    grille: null,
+    geo: { steel: merge([tipCap]), blackPlastic: merge([body, tab, conn]), rubber: merge([cable([[0, 0.34, 0], [0, 0.5, 0.06], [0.1, 0.66, 0.18], [0.24, 0.78, 0.36]], 0.016, s)]), brass: merge([bolt]) },
+    grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.24, 0),
   };
@@ -136,10 +131,8 @@ function coolant(s: Seg): SensorParts {
   const pins = [cyl(0.01, 0.06, 8, 0.25, -0.022), cyl(0.01, 0.06, 8, 0.25, 0.022)];
   const shroud = lathe([[0.06, 0.22], [0.074, 0.22], [0.074, 0.3], [0.06, 0.3], [0.06, 0.22]], s.radial);
   return {
-    metal: merge(pins),
-    plastic: merge([housing, shroud, cable([[0, 0.3, 0], [0.02, 0.46, 0.05], [0.12, 0.6, 0.15], [0.26, 0.7, 0.32]], 0.016, s)]),
-    brass: merge([probe, thread, nut]),
-    grille: null,
+    geo: { steel: merge(pins), blackPlastic: merge([housing, shroud]), rubber: merge([cable([[0, 0.3, 0], [0.02, 0.46, 0.05], [0.12, 0.6, 0.15], [0.26, 0.7, 0.32]], 0.016, s)]), brass: merge([probe, thread, nut]) },
+    grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.32, 0),
   };
@@ -160,10 +153,8 @@ function throttle(s: Seg): SensorParts {
   const conn = box(0.07, 0.07, 0.06, 0.32, 0.12, 0);
   const disc = cyl(0.196, 0.012, s.radial, 0);
   return {
-    metal: merge([bore, ...flanges, shaft]),
-    plastic: merge([housing, conn, cable([[0.32, 0.16, 0], [0.38, 0.32, 0.05], [0.5, 0.44, 0.12], [0.66, 0.5, 0.2]], 0.015, s)]),
-    brass: null,
-    grille: null,
+    geo: { steel: merge([bore, ...flanges]), darkSteel: merge([shaft]), blackPlastic: merge([housing, conn]), rubber: merge([cable([[0.32, 0.16, 0], [0.38, 0.32, 0.05], [0.5, 0.44, 0.12], [0.66, 0.5, 0.2]], 0.015, s)]) },
+    grilleCut: 'hex',
     disc,
     tip: new Vector3(0.32, -0.08, 0),
   };
@@ -177,10 +168,8 @@ function lambda(s: Seg): SensorParts {
   const body = cyl(0.05, 0.22, s.radial, 0.1);
   const boot = lathe([[0.05, 0.2], [0.04, 0.32], [0.022, 0.36], [0, 0.36]], s.radial);
   return {
-    metal: merge([thimble, hex, body]),
-    plastic: merge([boot, cable([[0, 0.36, 0], [0.02, 0.52, 0.06], [0.14, 0.66, 0.16], [0.3, 0.74, 0.34]], 0.016, s)]),
-    brass: merge([thread]),
-    grille: merge([shield]),
+    geo: { ceramic: merge([thimble]), steel: merge([body]), darkSteel: merge([hex]), blackPlastic: merge([boot]), rubber: merge([cable([[0, 0.36, 0], [0.02, 0.52, 0.06], [0.14, 0.66, 0.16], [0.3, 0.74, 0.34]], 0.016, s)]), brass: merge([thread]), grille: merge([shield]) },
+    grilleCut: 'slots',
     disc: null,
     tip: new Vector3(0, -0.36, 0),
   };
@@ -201,10 +190,8 @@ function currentClamp(s: Seg): SensorParts {
   handle.rotateY(0);
   const hinge = cyl(0.025, 0.1, 12, 0, -0.2, 0);
   return {
-    metal: merge([capA, capB]),
-    plastic: merge([jaw, handle, cable([[0, -0.6, 0], [0, -0.2, 0], [0, 0.2, 0], [0.05, 0.6, 0.05]], 0.03, s)]),
-    brass: merge([hinge]),
-    grille: null,
+    geo: { steel: merge([capA, capB]), blackPlastic: merge([jaw, handle]), rubber: merge([cable([[0, -0.6, 0], [0, -0.2, 0], [0, 0.2, 0], [0.05, 0.6, 0.05]], 0.03, s)]), brass: merge([hinge]) },
+    grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.3, 0),
   };
@@ -230,10 +217,8 @@ function obd(s: Seg): SensorParts {
   }
   const strain = box(0.16, 0.08, 0.08, 0, 0.04, 0);
   return {
-    metal: merge(sockets),
-    plastic: merge([body, strain, cable([[0, 0.08, 0], [0.02, 0.3, 0.05], [0.12, 0.5, 0.16], [0.3, 0.6, 0.3]], 0.026, s)]),
-    brass: null,
-    grille: null,
+    geo: { brass: merge(sockets), blackPlastic: merge([body, strain]), rubber: merge([cable([[0, 0.08, 0], [0.02, 0.3, 0.05], [0.12, 0.5, 0.16], [0.3, 0.6, 0.3]], 0.026, s)]) },
+    grilleCut: 'hex',
     disc: null,
     tip: new Vector3(0, -0.17, 0),
   };

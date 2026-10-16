@@ -32,8 +32,10 @@ void main() {
   float side = 1.0 - abs(vObjNormal.z);
   // the painted artwork (mirrored automatically when the card is seen from behind)
   vec4 A = texture2D(tArt, vCard);
-  vec3 art = A.rgb;
-  float k = A.a * 2.0 - 1.0;
+  // the back of a card is plain frosted glass: never show its front content mirrored
+  float front = step(-0.5, vObjNormal.z);
+  vec3 art = A.rgb * front;
+  float k = (A.a * 2.0 - 1.0) * front;
 
   // frosted glass: refracted, blurred view of what is behind the card
   vec2 suv = vClip.xy / vClip.w * 0.5 + 0.5;
