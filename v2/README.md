@@ -85,6 +85,10 @@ Vehicle-only installs can use the smaller `requirements-vehicle.txt` (no PyTorch
 | **Live dashboard** | Health score, see-through wireframe car with glowing fault zones, rolling telemetry, the engine's spectrum, spectrogram, envelope, orders and crank speed every second |
 | **Control-room cockpit** | ISA-101 design after TorqueTwin: grey while healthy, colour only for alarms with a priority shape, normal-band gauges and trends, acknowledgeable alarm banner. The car stays in the middle on a radar ring (NavPort) with sensors left, recognition right and the live signature below |
 | **Ask AutoPulse** | Ctrl/⌘ K in the status bar. One-sentence answers from the live data ("Why is the score low?", "Is the battery charging?", "What is knock?"), and the app jumps to the screen that shows the answer and spotlights it. Deterministic intents plus a small search over these docs: no language model, nothing made up, works offline |
+| **Signature lab** | The verdict once, two detectors against their own thresholds, a 720° engine-cycle dial, fault-specific evidence, why / where / what next, a scrubbable 3-minute timeline. **Real clip** mode classifies an uploaded or recorded engine with models trained on real recordings only |
+| **Live audio** | The laptop microphone, analysed every second by an SVM trained on 321 real engine recordings; voice, music, fans and silence are withheld instead of labelled |
+| **Health report** | Printer icon: one printable sheet (or PDF) with the score, engine vote, subsystem scan, every telemetry channel against its normal band, safety events, wear and what to do |
+| **Light and dark** | Sun / moon icon in the status bar; light is tuned for projectors (contrast 4.5:1 and up); remembered per browser |
 | **Car dropdown** | Pick the car from a menu; its wireframe preview appears only while the menu is open |
 | **Technical-illustration cars** | Real car models drawn like a CAD X-ray: a bold outline recomputed from every view, thin panel gaps and surface flow, interior and mechanicals faint through the body |
 
