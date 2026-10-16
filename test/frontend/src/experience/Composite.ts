@@ -68,6 +68,9 @@ export class Composite {
   private readonly grain: GrainEffect;
   private readonly bloomUpdate: BloomEffect['update'];
   private bloomOn = true;
+  /** 0..1 multiplier on bloom (eased down while a card is expanded: halos from the bright scene
+   *  next to the card would otherwise spill over its text). */
+  bloomScale = 1;
   private readonly caOffset = new Vector2();
 
   constructor(renderer: WebGLRenderer, camera: Camera, backdrop: Texture, main: Texture, shared: Shared, palette: Palette) {
@@ -129,7 +132,7 @@ export class Composite {
     this.ca.offset.copy(this.caOffset);
     this.grain.amount = p.grain + 0.035 * valve;
     this.vignette.darkness = p.vignette;
-    this.bloom.intensity = this.bloomOn ? p.bloomIntensity : 0;
+    this.bloom.intensity = this.bloomOn ? p.bloomIntensity * this.bloomScale : 0;
     this.bloom.luminanceMaterial.threshold = p.bloomThreshold;
     this.bloom.mipmapBlurPass.radius = p.bloomRadius;
     this.material.uniforms.uTrans.value = transition;

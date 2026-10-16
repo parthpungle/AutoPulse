@@ -185,6 +185,7 @@ export class Cards {
         uRefract: { value: 1 },
         uColor: { value: new Color() },
         uExpand: { value: 0 },
+        uScrim: { value: new Color('#0A0B18') },
         uGrow: { value: new Vector2() },
         tArt: { value: null },
       },

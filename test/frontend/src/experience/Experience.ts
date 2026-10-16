@@ -399,6 +399,7 @@ export class Experience {
     this.rig.renderShadow(r, this.quad, this.main.scene);
     this.main.renderLayers(r, this.quad);
     this.sceneCalls = r.info.render.calls - before;
+    this.composite.bloomScale = 1 - 0.8 * this.cards.expansion.value;
     this.composite.update(this.reduced ? 0 : p.speed, this.reduced ? 0 : Math.sin(Math.PI * sc.morph), s.uValve.value);
     this.composite.render(dt);
     this.calls = r.info.render.calls;

@@ -340,31 +340,36 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
 .tt-cardx__panel[data-settled] .tt-cardx__body > :nth-child(n + 5) { animation-delay: 0.16s; }
 @keyframes tt-cardx-in { from { opacity: 0; transform: translateY(10px); } }
 .tt-cardx__head { position: relative; padding-right: 56px; }
-.tt-cardx__code { margin: 0 0 12px; font: 500 11px/1 var(--font-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--c); }
-.tt-cardx__title { margin: 0; font-weight: 500; font-size: clamp(26px, 2.5vw, 40px); line-height: 1.02; letter-spacing: -0.03em; text-transform: uppercase; text-wrap: balance; }
+/* sensor-coloured text is lifted toward white so even the dark blues keep 3:1 on the glass */
+.tt-cardx__code { margin: 0 0 12px; font: 500 11px/1 var(--font-mono); letter-spacing: 0.16em; text-transform: uppercase; color: color-mix(in srgb, var(--c) 65%, #fff); }
+.tt-cardx__title { margin: 0; color: #F4F6F8; font-weight: 500; font-size: clamp(26px, 2.5vw, 40px); line-height: 1.02; letter-spacing: -0.03em; text-transform: uppercase; text-wrap: balance; }
 .tt-cardx__close {
   position: absolute; top: -8px; right: -8px; width: 40px; height: 40px; border-radius: 50%;
   border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-size: 13px; cursor: pointer;
   transition: border-color 0.3s, background 0.3s;
 }
 .tt-cardx__close:hover, .tt-cardx__close:focus-visible { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
-.tt-cardx__plain { margin: clamp(14px, 2.2vh, 20px) 0 0; font-size: clamp(15px, 1.1vw, 17px); line-height: 1.5; color: color-mix(in srgb, var(--text) 88%, transparent); }
+.tt-cardx__plain { margin: clamp(14px, 2.2vh, 20px) 0 0; font-size: clamp(15px, 1.1vw, 17px); line-height: 1.5; color: rgba(233, 236, 239, 0.92); }
 .tt-cardx__trace { margin: clamp(16px, 3vh, 28px) 0 0; flex: 1 1 auto; display: flex; flex-direction: column; min-height: calc(76px + 18px); max-height: calc(240px + 18px); }
 /* the trace takes whatever height the card has spare (and gives it back to the technical details) */
 .tt-cardx__trace canvas {
   display: block; width: 100%; flex: 1 1 auto; min-height: 76px; border-radius: 12px;
-  background: linear-gradient(color-mix(in srgb, var(--c) 7%, transparent), transparent), color-mix(in srgb, var(--bg-0) 35%, transparent);
+  background: rgba(5, 6, 12, 0.55);
   border: 1px solid var(--line);
 }
-.tt-cardx__trace figcaption { display: flex; justify-content: space-between; margin-top: 8px; font: 500 10px/1 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.tt-cardx__trace figcaption { display: flex; justify-content: space-between; margin-top: 8px; font: 500 10px/1 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: #AEB5C6; }
 .tt-cardx__states { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .tt-pill--sm { height: 30px; padding: 0 11px; font-size: 10px; gap: 7px; }
 .tt-cardx__catches { margin-top: clamp(16px, 2.8vh, 26px); }
-.tt-cardx__label { margin: 0 0 10px; font: 500 10.5px/1 var(--font-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.tt-cardx__label { margin: 0 0 10px; font: 500 10.5px/1 var(--font-mono); letter-spacing: 0.16em; text-transform: uppercase; color: #AEB5C6; }
+/* pills on the expanded card: readable on the glass without a blur behind them */
+.tt-cardx .tt-pill { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.tt-cardx .tt-pill:not([aria-pressed='true']) { color: #C9CED9; background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.18); }
+.tt-cardx .tt-pill:not([aria-pressed='true']):hover { color: #F4F6F8; border-color: rgba(255, 255, 255, 0.4); }
 .tt-cardx__foot { flex: none; margin-top: auto; padding-top: clamp(16px, 2.6vh, 24px); }
 .tt-cardx__more {
   display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 0 0; border: 0; border-top: 1px solid var(--line);
-  background: none; cursor: pointer; font: 500 10.5px/1 var(--font-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--text);
+  background: none; cursor: pointer; font: 500 10.5px/1 var(--font-mono); letter-spacing: 0.16em; text-transform: uppercase; color: #AEB5C6;
 }
 .tt-cardx__more span { font-size: 12px; color: var(--c); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 .tt-cardx__more[aria-expanded='true'] span { transform: rotate(180deg); }
@@ -374,14 +379,15 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
 .tt-cardx__tech:not([hidden]) { animation: tt-cardx-in 0.45s 0.28s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .tt-cardx__tech > div { display: grid; grid-template-columns: 124px 1fr; gap: 14px; padding: 9px 0; border-top: 1px solid var(--line); }
 .tt-cardx__tech > div:first-child { border-top: 0; }
-.tt-cardx__tech dt { font: 500 10px/1.6 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
-.tt-cardx__tech dd { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--text); }
+.tt-cardx__tech dt { font: 500 10px/1.6 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: #AEB5C6; }
+.tt-cardx__tech dd { margin: 0; font-size: 13.5px; line-height: 1.45; color: rgba(233, 236, 239, 0.92); }
 .tt-mono-val { font-family: var(--font-mono); font-size: 12.5px; color: var(--c); }
 .tt-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .tt-chips li {
   padding: 6px 11px; border-radius: 999px; font: 500 10px/1.2 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); background: color-mix(in srgb, var(--c) 10%, transparent);
 }
+.tt-cardx .tt-chips li { color: color-mix(in srgb, var(--c) 65%, #fff); }
 /* the header's right side would sit on the taller card */
 .tt-header__right { transition: opacity 0.3s; }
 .tt-header.is-detail .tt-header__right { opacity: 0; }

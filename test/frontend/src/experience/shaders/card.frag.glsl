@@ -6,7 +6,11 @@
 //     card's own small art texture, see cardArt.frag.glsl)
 //  4. grain and a faint scanline
 // Expanded (uExpand -> 1, the detail view) the same glass turns a little more opaque and more
-// frosted, so the HTML content on it reads clearly: wider blur, darker tint, art faded to ~20%.
+// frosted, so the HTML content on it reads clearly: wider blur, bright spots behind it clamped,
+// refraction 40% weaker, art down to 10% (25% in the band behind the title).
+// Reading scrim: every card face is tinted toward uScrim (#0A0B18) under the art, rim and grain:
+// 0.35 on the compact cards (titles read even with the crank behind), 0.60 -> 0.72 down the
+// expanded card (darkest behind the trace, pills and details).
 // Output is premultiplied (the main layer composites as bd * (1 - a) + rgb).
 uniform float uTime;
 uniform sampler2D tGlass;
@@ -20,6 +24,7 @@ uniform float uOpacity;
 uniform float uRefract;
 uniform vec3 uColor;
 uniform float uExpand;   // 0..1
+uniform vec3 uScrim;     // reading scrim colour
 uniform sampler2D tArt;  // this card's artwork (rgb) and ink field (a), painted by cardArt.frag
 
 varying vec2 vCard;
@@ -42,7 +47,7 @@ void main() {
 
   // frosted glass: refracted, blurred view of what is behind the card
   vec2 suv = vClip.xy / vClip.w * 0.5 + 0.5;
-  vec2 off = (vObjNormal.xy * 0.03 + (vCard - 0.5) * 0.02 + k * 0.012) * uRefract;
+  vec2 off = (vObjNormal.xy * 0.03 + (vCard - 0.5) * 0.02 + k * 0.012) * uRefract * mix(1.0, 0.6, uExpand);
   float r = mix(mix(1.5, 5.0, uLod), 9.0, uExpand);
   vec2 dx = uGlassTexel * r;
   vec3 g = texture2D(tGlass, suv + off).rgb * 0.36;
@@ -59,11 +64,25 @@ void main() {
     g2 += texture2D(tGlass, suv + off + vec2(0.0, -dy.y)).rgb;
     g = mix(g, g * 0.6 + g2 * 0.1, uExpand);
   }
-  float through = mix(mix(0.62, 0.42, uActive), 0.3, uExpand);
-  vec3 tint = mix(vec3(0.010, 0.010, 0.018), vec3(0.022, 0.024, 0.036) + vec3(0.012, 0.013, 0.02) * (1.0 - vCard.y), uExpand);
-  vec3 col = g * through + tint + uColor * mix(0.012, 0.022, uExpand);
-  // the art fades early in the expansion, so it is never seen stretched at full strength
-  col += art * mix(0.45, 1.0, uActive) * (1.0 - 0.45 * uLod) * mix(1.0, 0.2, smoothstep(0.0, 0.45, uExpand));
+  // expanded: a bright spot behind the glass (a sensor tip, a dense flow) can't punch through the
+  // scrim; its luminance is soft-clamped first
+  float gLum = dot(g, vec3(0.2126, 0.7152, 0.0722));
+  g *= mix(1.0, min(1.0, 0.3 / max(gLum, 0.3)), uExpand);
+  vec3 col = g * mix(0.62, 0.42, uActive) + vec3(0.010, 0.010, 0.018) + uColor * mix(0.012, 0.022, uExpand);
+
+  // reading scrim (inside the card's shape; the rim and grain go on top)
+  float scrim = mix(0.35, mix(0.60, 0.72, smoothstep(0.55, 0.45, vCard.y)), uExpand);
+  col = mix(col, uScrim, scrim * front);
+
+  // art over the scrim; it fades early in the expansion, so it is never seen stretched at full
+  // strength, and settles at 10% behind the text, 25% in the band behind the title
+  float titleBand = smoothstep(0.76, 0.84, vCard.y);
+  float ex = smoothstep(0.0, 0.45, uExpand);
+  float artK = mix(1.0, mix(0.10, 0.25, titleBand), ex);
+  // the art is painted in HDR (glowing strokes well above 1): compress it on the expanded card so
+  // 10% stays 10% of a soft image, not of a bright line
+  vec3 artC = art / (1.0 + dot(art, vec3(0.2126, 0.7152, 0.0722)) * ex);
+  col += artC * mix(0.45, 1.0, uActive) * (1.0 - 0.45 * uLod) * artK;
 
   // rim: the rounded-rect border, with a slight RGB split, plus fresnel
   vec2 q = abs(vCard - 0.5) * uSize - (uSize * 0.5 - 0.16);
@@ -81,6 +100,8 @@ void main() {
   col += (hash12(gl_FragCoord.xy + fract(uTime * 7.0) * 113.0) - 0.5) * 0.02;
   col *= 0.97 + 0.03 * sin(vCard.y * uSize.y * 240.0);
 
-  float a = clamp(mix(0.9, 0.97, uExpand) + side * 0.1, 0.0, 1.0) * uOpacity;
+  // expanded, the card is fully opaque: its glass is the blurred, clamped copy above, and even 3%
+  // of the HDR scene behind (additive particles, the lit crank) would show through the text
+  float a = clamp(mix(0.9, 1.0, uExpand) + side * 0.1, 0.0, 1.0) * uOpacity;
   gl_FragColor = vec4(max(col, 0.0) * a, a);
 }
