@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
 import { SENSORS } from '../content/sensors';
+import { SensorDetail } from './sensors/SensorDetail';
 import { SensorIndex } from './sensors/SensorIndex';
 import { gsap } from 'gsap';
 import type { Experience as Engine } from '../experience/Experience';
@@ -37,8 +38,9 @@ export function Landing() {
   const [section, setSection] = useState(0);
   const [active, setActive] = useState<StateKey | null>(null);
   const [card, setCard] = useState(0);
-  const nav = useRef({ section: 0, card: 0 });
-  nav.current = { section, card };
+  const [detail, setDetail] = useState(false);
+  const nav = useRef({ section: 0, card: 0, detail: false });
+  nav.current = { section, card, detail };
   const root = useRef<HTMLDivElement>(null);
   const pre = useRef<Preloader | null>(null);
   const picked = useRef(false);
@@ -49,7 +51,17 @@ export function Landing() {
   const onProgress = useCallback((p: number) => pre.current?.setEngine(p), []);
   const onSection = useCallback((i: number) => setSection(i), []);
   const onCard = useCallback((i: number) => setCard(i), []);
-  const onOpenCard = useCallback(() => undefined, []);
+  const onOpenCard = useCallback(() => setDetail(true), []);
+  const closeDetail = useCallback(() => setDetail(false), []);
+
+  // the engine locks scroll and pushes the camera in while the panel is open
+  useEffect(() => {
+    engine?.setDetail(detail);
+  }, [engine, detail]);
+  // leaving the section closes it
+  useEffect(() => {
+    if (section !== 1) setDetail(false);
+  }, [section]);
 
   // Sensor Array: arrow keys step through the cards (and hand back to the page at either end),
   // a horizontal swipe or drag does the same
@@ -57,9 +69,15 @@ export function Landing() {
     if (!engine) return;
     const last = SENSORS.length - 1;
     const onKey = (e: KeyboardEvent) => {
-      if (nav.current.section !== 1 || e.altKey || e.metaKey || e.ctrlKey) return;
+      if (nav.current.section !== 1 || nav.current.detail || e.altKey || e.metaKey || e.ctrlKey) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      // Enter on the page (not on a focused control) opens the active card's details
+      if (e.key === 'Enter' && tag !== 'BUTTON' && tag !== 'A') {
+        e.preventDefault();
+        setDetail(true);
+        return;
+      }
       const c = nav.current.card;
       const next = e.key === 'ArrowRight' || e.key === 'ArrowDown';
       const prev = e.key === 'ArrowLeft' || e.key === 'ArrowUp';
@@ -72,7 +90,7 @@ export function Landing() {
     let sy = 0;
     let down = false;
     const onDown = (e: PointerEvent) => {
-      down = nav.current.section === 1;
+      down = nav.current.section === 1 && !nav.current.detail;
       sx = e.clientX;
       sy = e.clientY;
     };
@@ -188,7 +206,7 @@ export function Landing() {
     <div ref={root} style={active === 'healthy' ? { ['--state' as string]: 'var(--cool)' } : undefined}>
       <Experience onCreate={setEngine} onProgress={onProgress} onSection={onSection} onCard={onCard} onOpenCard={onOpenCard} />
 
-      <header className="tt-header">
+      <header className="tt-header" inert={detail}>
         <a className="tt-wordmark" href="#top" onClick={(e) => goTo(e, '#top')} aria-label="TorqueTwin, back to top">
           <Wordmark />
         </a>
@@ -232,7 +250,7 @@ export function Landing() {
         ))}
       </div>
 
-      <main className="tt-main">
+      <main className="tt-main" inert={detail}>
         <section className="tt-sec tt-sec--hero" data-section="0" id="top" aria-label="Introduction">
           <div className="tt-sec__inner">
             <div className="tt-hero">
@@ -266,7 +284,7 @@ export function Landing() {
         </section>
 
         <section className="tt-sec tt-sec--sensors" data-section="1" data-pin id="sensors" aria-labelledby="sensors-title">
-          <div className="tt-sec__inner tt-sensors">
+          <div className={`tt-sec__inner tt-sensors${detail ? ' is-detail' : ''}`}>
             <div className={`tt-sensors__intro${card > 0 ? ' is-away' : ''}`}>
               <p className="tt-eyebrow" data-reveal="chars">
                 {SENSOR_ARRAY.eyebrow}
@@ -377,6 +395,15 @@ export function Landing() {
           </div>
         </section>
       </main>
+
+      <SensorDetail
+        engine={engine}
+        index={card}
+        open={detail}
+        onClose={closeDetail}
+        state={active}
+        onState={(k) => choose(k, true)}
+      />
     </div>
   );
 }

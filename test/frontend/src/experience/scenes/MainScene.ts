@@ -46,6 +46,12 @@ export class MainScene extends FXScene {
   private readonly pB = new Vector3();
   private readonly tA = new Vector3();
   private readonly tB = new Vector3();
+  /** 0..1 push-in toward `pushTarget` (detail panel open). */
+  push = 0;
+  readonly pushTarget = new Vector3();
+  private readonly right = new Vector3();
+  private readonly pushPos = new Vector3();
+  private readonly pushLook = new Vector3();
   private drawCount: number;
   private readonly fullCount: number;
 
@@ -166,6 +172,17 @@ export class MainScene extends FXScene {
     this.pose(i + 1, this.pB, this.tB);
     this.camera.position.lerpVectors(this.pA, this.pB, f);
     this.look.lerpVectors(this.tA, this.tB, f);
+    if (this.push > 0.001) {
+      // move in on the sensor and aim past it, so it sits beside the panel (above it on portrait)
+      this.right.subVectors(this.look, this.camera.position).cross(this.camera.up).normalize();
+      this.pushLook.copy(this.pushTarget);
+      if (this.wide) this.pushLook.addScaledVector(this.right, 0.95);
+      else this.pushLook.y -= 0.75;
+      this.pushPos.subVectors(this.camera.position, this.pushTarget).setLength(4.6).add(this.pushTarget);
+      if (this.wide) this.pushPos.addScaledVector(this.right, 0.95);
+      this.camera.position.lerp(this.pushPos, this.push * 0.45);
+      this.look.lerp(this.pushLook, this.push * 0.8);
+    }
     this.camera.position.x += px * 0.45;
     this.camera.position.y += py * 0.28;
     this.camera.lookAt(this.look);

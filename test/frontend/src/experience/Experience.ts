@@ -114,6 +114,7 @@ export class Experience {
   readonly streams = new StreamCurves();
   cards!: Cards;
   private activeCard = -1;
+  private detail = false;
   private hoverDirty = false;
   private hoverCard = -1;
 
@@ -338,6 +339,9 @@ export class Experience {
     this.carousel.update(dt);
     this.main.carousel = this.reduced ? 0 : this.carousel.value;
     this.rig.update(dt, this.signals, sf, this.main.carousel, this.layout.wide === 1, this.main.camera);
+    const pushGoal = this.detail ? 1 : 0;
+    this.main.push += (pushGoal - this.main.push) * (1 - Math.exp(-dt * (this.reduced ? 30 : 4)));
+    if (this.main.push > 0.001) this.rig.sensors[this.carousel.active].outer.getWorldPosition(this.main.pushTarget);
     if (this.rig.group.visible) {
       this.streams.update(this.rig);
       const su = this.sim.uniforms;
@@ -425,6 +429,18 @@ export class Experience {
     if (hit === this.carousel.active) this.options.onOpenCard?.(hit);
     else this.carousel.goToCard(hit);
   };
+
+  /**
+   * Detail panel open/closed: locks the page scroll and card snapping, and pushes the camera in
+   * on the active sensor.
+   */
+  setDetail(open: boolean) {
+    if (open === this.detail || this.failed) return;
+    this.detail = open;
+    this.carousel.snapEnabled = !open;
+    if (open) this.scroll.lenis.stop();
+    else this.scroll.lenis.start();
+  }
 
   /** Bring sensor card i to the front (scrolls the page to it). */
   goToCard(i: number) {

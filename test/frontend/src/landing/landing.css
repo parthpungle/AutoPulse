@@ -33,7 +33,8 @@ button { font: inherit; color: inherit; }
 /* Lenis */
 html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
-.lenis.lenis-stopped { overflow: clip; }
+/* no overflow: clip while Lenis is stopped (detail panel): it would re-resolve the sticky panels;
+   a stopped Lenis already swallows wheel scrolling, and html.is-loading covers the preloader */
 html.is-loading { overflow: hidden; }
 
 /* ---------------------------------------------------------------- layers */
@@ -277,7 +278,8 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
 .tt-sensors__intro .tt-eyebrow { margin-bottom: 14px; }
 .tt-h3 { margin: 0; font-weight: 500; font-size: clamp(26px, 2.4vw, 38px); line-height: 1.02; letter-spacing: -0.035em; }
 
-.tt-index { position: absolute; left: var(--gutter); bottom: clamp(28px, 6vh, 64px); font-family: var(--font-mono); }
+.tt-index { position: absolute; left: var(--gutter); bottom: clamp(28px, 6vh, 64px); font-family: var(--font-mono); transition: opacity 0.4s; }
+.tt-sensors.is-detail .tt-index, .tt-sensors.is-detail .tt-sensors__intro { opacity: 0; pointer-events: none; }
 .tt-index__head { margin: 0; font-size: 10.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text); }
 .tt-index__head span { color: var(--muted); }
 .tt-index__list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 1px; }
@@ -304,3 +306,61 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
 .tt-progress--sensors .tt-progress__bar i { position: absolute; inset: 0; background: var(--c); transform-origin: 0 50%; transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.1, 1), background 0.5s; box-shadow: 0 0 8px var(--c); }
 
 .tt-visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* ---------------------------------------------------------------- sensor detail dialog */
+.tt-detail { position: fixed; inset: 0; z-index: 6; pointer-events: none; }
+.tt-detail.is-open { pointer-events: auto; }
+.tt-detail__scrim { position: absolute; inset: 0; background: linear-gradient(90deg, transparent 40%, color-mix(in srgb, var(--bg-0) 55%, transparent)); opacity: 0; transition: opacity 0.4s ease-out; cursor: pointer; }
+.tt-detail.is-open .tt-detail__scrim { opacity: 1; }
+.tt-detail__panel {
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(40vw, 620px); min-width: 380px;
+  padding: calc(var(--header-h) + 24px) clamp(24px, 3vw, 44px) 40px; overflow-y: auto; overscroll-behavior: contain;
+  background: color-mix(in srgb, var(--bg-1) 62%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3);
+  border-left: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
+  box-shadow: -30px 0 80px color-mix(in srgb, var(--bg-0) 60%, transparent), inset 1px 0 0 color-mix(in srgb, var(--text) 6%, transparent);
+  transform: translateX(104%); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tt-detail.is-open .tt-detail__panel { transform: none; }
+.tt-detail__close {
+  position: absolute; top: calc(var(--header-h) + 12px); right: clamp(18px, 2.4vw, 32px); width: 38px; height: 38px; border-radius: 50%;
+  border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-size: 13px; cursor: pointer;
+  transition: border-color 0.3s, background 0.3s;
+}
+.tt-detail__close:hover, .tt-detail__close:focus-visible { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.tt-detail__code { margin: 0 0 12px; font: 500 11px/1 var(--font-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--c); }
+.tt-detail__title { margin: 0 56px 0 0; font-weight: 500; font-size: clamp(30px, 2.8vw, 46px); line-height: 1; letter-spacing: -0.035em; text-transform: uppercase; }
+.tt-detail__trace { margin: 28px 0 0; }
+.tt-detail__trace canvas {
+  display: block; width: 100%; height: 140px; border-radius: 10px;
+  background: linear-gradient(color-mix(in srgb, var(--c) 6%, transparent), transparent), color-mix(in srgb, var(--bg-0) 55%, transparent);
+  border: 1px solid var(--line);
+}
+.tt-detail__trace figcaption { display: flex; justify-content: space-between; margin-top: 8px; font: 500 10px/1 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.tt-detail__states { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.tt-pill--sm { height: 30px; padding: 0 11px; font-size: 10px; gap: 7px; }
+.tt-detail__fields { margin: 26px 0 0; display: grid; gap: 0; }
+.tt-detail__fields > div { display: grid; grid-template-columns: 112px 1fr; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); }
+.tt-detail__fields dt { font: 500 10.5px/1.5 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.tt-detail__fields dd { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--text); }
+.tt-detail__fields dd p { margin: 8px 0 0; color: color-mix(in srgb, var(--text) 82%, transparent); }
+.tt-mono-val { font-family: var(--font-mono); font-size: 13px; color: var(--c); }
+.tt-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.tt-chips li {
+  padding: 5px 10px; border-radius: 999px; font: 500 10px/1.2 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); background: color-mix(in srgb, var(--c) 10%, transparent);
+}
+
+@media (max-width: 760px) {
+  .tt-detail__scrim { background: color-mix(in srgb, var(--bg-0) 45%, transparent); }
+  .tt-detail__panel {
+    top: auto; left: 0; right: 0; width: auto; min-width: 0; max-height: 72vh; padding: 28px 20px max(28px, env(safe-area-inset-bottom));
+    border-left: 0; border-top: 1px solid color-mix(in srgb, var(--c) 35%, transparent); border-radius: 18px 18px 0 0;
+    transform: translateY(104%);
+  }
+  .tt-detail__close { top: 16px; right: 16px; }
+  .tt-detail__fields > div { grid-template-columns: 1fr; gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-detail__panel, .tt-detail__scrim { transition: none; }
+}
