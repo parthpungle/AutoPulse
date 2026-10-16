@@ -9,9 +9,8 @@ interface Props {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** Bottom-left index of the Sensor Array: one button per sensor plus a live readout. */
+/** Bottom-left index of the Sensor Array: one button per sensor. */
 export function SensorIndex({ active, onSelect }: Props) {
-  const s = SENSORS[active];
   const list = useRef<HTMLOListElement>(null);
   // on phones the list is a horizontal chip scroller: keep the active chip in view (sideways only)
   useEffect(() => {
@@ -41,10 +40,6 @@ export function SensorIndex({ active, onSelect }: Props) {
           </li>
         ))}
       </ol>
-      <p className="tt-index__readout" style={{ '--c': s.color } as CSSProperties} aria-live="polite">
-        <i aria-hidden="true" />
-        {s.readout}
-      </p>
     </nav>
   );
 }

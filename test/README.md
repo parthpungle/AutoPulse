@@ -1,6 +1,7 @@
 # AutoPulse · test edition
 
-> **UI test bed.** A copy of `split/` with the control-room cockpit redesign (ISA-101 theme, graphite-and-ice palette, car-centred main page). `split/` keeps the previous UI. Run this one with `testun.bat`; it uses the same ports, so close any other AutoPulse window first.
+> **UI test bed.** A copy of `split/` with the control-room cockpit redesign (ISA-101 theme, graphite-and-ice palette, car-centred main page). `split/` keeps the previous UI. Run this one with `test
+un.bat`; it uses the same ports, so close any other AutoPulse window first.
 
 **Two laptops, one car.** One laptop *is* the car: its sensors stream out and you break things on purpose. The other is the dashboard: it pairs over Wi-Fi and diagnoses everything live, from the sensor data alone.
 
@@ -86,11 +87,11 @@ Vite's dev server and `backend/app.py` (single-port mode) both serve `/dashboard
 
 **Sensor Array** (`src/experience/sensors/`, `carousel/`, `src/content/sensors.ts`): a pinned section where eight glass cards orbit a procedural four-cylinder crankshaft, one per sensor (acoustic microphone, accelerometer, crank position, coolant, throttle, lambda/fuel trims, current clamp, OBD-II/CAN).
 
-- Scroll, drag/swipe, arrow keys and the left index all move one carousel value; each card snaps into place.
+- Scroll, a touch swipe, arrow keys and the left index all move one carousel value; each card snaps into place.
 - Each card's ink-cloud artwork shows that sensor's synthetic signal; the title settles with a scramble and colour split.
 - Each sensor is a procedural model mounted around the crank. The active one moves forward with a rim light, and particle streams flow from every sensor into the crank and up the spine, in the sensor's colour.
-- Click the active card (or press Enter) for a detail panel with every field and a live trace that follows the engine-state toggles.
-- All sensor copy lives in `src/content/sensors.ts`. A hidden list mirrors it for screen readers.
+- Less on the page, more on click. A card shows only its code, its name and a few words on what it hears. Click the active card (or press Enter) and that same glass card turns to face you and grows in place, a little more opaque so the text reads. It shows one plain sentence, a live trace that follows the engine-state toggles, and what the sensor catches. "Technical details" opens every checked field. On phones the card becomes a sheet along the bottom.
+- All sensor copy lives in `src/content/sensors.ts`, split into those three levels. A hidden list mirrors it for screen readers.
 
 **How it works** (`src/experience/`): framework-agnostic TypeScript classes, mounted by one React `<Experience/>` component and disposed on unmount.
 

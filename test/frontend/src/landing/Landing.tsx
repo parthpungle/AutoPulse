@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
 import { SENSORS } from '../content/sensors';
-import { SensorDetail } from './sensors/SensorDetail';
+import { SensorCardDetail } from './sensors/SensorCardDetail';
 import { SensorIndex } from './sensors/SensorIndex';
 import { gsap } from 'gsap';
 import type { Experience as Engine } from '../experience/Experience';
@@ -54,7 +54,7 @@ export function Landing() {
   const onOpenCard = useCallback(() => setDetail(true), []);
   const closeDetail = useCallback(() => setDetail(false), []);
 
-  // the engine locks scroll and pushes the camera in while the panel is open
+  // the engine expands the card, locks scroll and pushes the camera in while the detail is open
   useEffect(() => {
     engine?.setDetail(detail);
   }, [engine, detail]);
@@ -207,7 +207,7 @@ export function Landing() {
     <div ref={root} style={active === 'healthy' ? { ['--state' as string]: 'var(--cool)' } : undefined}>
       <Experience onCreate={setEngine} onProgress={onProgress} onSection={onSection} onCard={onCard} onOpenCard={onOpenCard} />
 
-      <header className="tt-header" inert={detail}>
+      <header className={`tt-header${detail ? ' is-detail' : ''}`} inert={detail}>
         <a className="tt-wordmark" href="#top" onClick={(e) => goTo(e, '#top')} aria-label="TorqueTwin, back to top">
           <Wordmark />
         </a>
@@ -295,27 +295,23 @@ export function Landing() {
               </h2>
             </div>
             <SensorIndex active={card} onSelect={(i) => engine?.goToCard(i)} />
-            {/* the same content as the 3-D cards, for screen readers and search */}
+            {/* the same content as the 3-D cards and their expanded view, for screen readers and search */}
             <ol className="tt-visually-hidden">
               {SENSORS.map((x) => (
                 <li key={x.key}>
                   <h3>
                     {x.code}: {x.title}
                   </h3>
-                  <p>{x.oneLine}</p>
+                  <p>{x.hearsShort}</p>
+                  <p>{x.plainSentence}</p>
+                  {x.catches.length > 0 && <p>Catches: {x.catches.join(', ')}.</p>}
                   <dl>
-                    {x.fields.map((f) => (
+                    {x.technical.map((f) => (
                       <div key={f.label}>
                         <dt>{f.label}</dt>
                         <dd>{f.text}</dd>
                       </div>
                     ))}
-                    {x.reveals.lines.length > 0 && (
-                      <div>
-                        <dt>Reveals</dt>
-                        <dd>{x.reveals.lines.join(' ')}</dd>
-                      </div>
-                    )}
                   </dl>
                 </li>
               ))}
@@ -422,7 +418,7 @@ export function Landing() {
         </section>
       </main>
 
-      <SensorDetail
+      <SensorCardDetail
         engine={engine}
         index={card}
         open={detail}

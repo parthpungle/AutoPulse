@@ -1,5 +1,5 @@
-import { AdditiveBlending, Color, ExtrudeGeometry, FrontSide, Group, HalfFloatType, LinearFilter, Mesh, MeshBasicMaterial, NormalBlending, Raycaster, Shape, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget } from 'three';
-import type { Camera, Intersection, Object3D, Texture, WebGLRenderer } from 'three';
+import { AdditiveBlending, Color, Euler, ExtrudeGeometry, FrontSide, Group, HalfFloatType, LinearFilter, MathUtils, Mesh, MeshBasicMaterial, NormalBlending, Quaternion, Raycaster, Shape, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget } from 'three';
+import type { Camera, Intersection, Object3D, PerspectiveCamera, Texture, WebGLRenderer } from 'three';
 import type { FullscreenQuad } from '../gl/FullscreenQuad';
 import { Text } from 'troika-three-text';
 import { SENSORS } from '../../content/sensors';
@@ -15,6 +15,12 @@ const FACE_LIMIT = (55 * Math.PI) / 180;
 export const CARD_H = 1.6;
 const CARD_R = 0.16;
 const CARD_D = 0.06;
+/** Front face of the slab, in front of the mesh centre (half depth plus the bevel). */
+const CARD_FRONT = CARD_D / 2 + 0.012;
+/** Distance from the camera to the expanded card's front face (sets its on-screen corner radius). */
+const EXPAND_DIST = 6;
+/** Neighbours fade to this while a card is expanded. */
+const EXPAND_DIM = 0.15;
 export const FONT_DISPLAY = '/fonts/space-grotesk-latin-500-normal.woff';
 export const FONT_MONO = '/fonts/jetbrains-mono-latin-500-normal.woff';
 /** Glyphs the title scramble may substitute (all inside the Latin subset of the fonts). */
@@ -36,6 +42,14 @@ interface Card {
   hover: number;
   tiltX: number;
   tiltY: number;
+}
+
+/** A rectangle in CSS pixels, relative to the canvas. */
+export interface ScreenRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 function roundedRect(w: number, h: number, r: number) {
@@ -90,8 +104,14 @@ const ART_H = 320;
 
 /**
  * The eight glass sensor cards: a thin rounded slab each (one draw call, one shared program,
- * per-card uniforms), plus troika-three-text for the code, the title and the one-line "hears".
+ * per-card uniforms), plus troika-three-text for the code, the title and the short "hears" line.
  * Each visible card's artwork is painted into its own small texture every frame (renderArt).
+ *
+ * Expansion (the detail view): the active card turns square to the camera and grows, in place,
+ * onto a screen rectangle given by the DOM (`setExpandRect`, the detail panel's box), so the
+ * HTML content sits exactly on the glass. The slab is resized in the vertex shader (each corner
+ * moves out with its quadrant, so the rounded corners keep their radius) and its glass turns a
+ * little more opaque and frosted; its 3-D texts fade out and the other cards fade to 15%.
  */
 export class Cards {
   readonly group = new Group();
@@ -115,6 +135,15 @@ export class Cards {
   private glitchIndex = -1;
   private glitchT = 0;
   private glitchTick = 0;
+  /** 0..1 expansion of card `expandIndex` (tweened by the experience). */
+  readonly expansion = { value: 0 };
+  private expandIndex = -1;
+  private readonly expandRect: ScreenRect = { x: 0, y: 0, w: 1, h: 1 };
+  private readonly view = new Vector2(1, 1);
+  private readonly ePos = new Vector3();
+  private readonly eQuat = new Quaternion();
+  private readonly cQuat = new Quaternion();
+  private readonly euler = new Euler();
 
   constructor(glass: Texture, shared: Shared) {
     this.geometry = new ExtrudeGeometry(roundedRect(CARD_W, CARD_H, CARD_R), {
@@ -155,6 +184,8 @@ export class Cards {
         uOpacity: { value: 1 },
         uRefract: { value: 1 },
         uColor: { value: new Color() },
+        uExpand: { value: 0 },
+        uGrow: { value: new Vector2() },
         tArt: { value: null },
       },
     });
@@ -211,8 +242,8 @@ export class Cards {
       }
       const code = makeText(this.textBase, FONT_MONO, 0.058, sensor.color, { text: sensor.code, letterSpacing: 0.14 });
       code.position.set(0, 0.42, front);
-      const line = makeText(this.textBase, FONT_DISPLAY, 0.068, '#A9AFC2', { text: sensor.oneLine, maxWidth: CARD_W * 0.7, lineHeight: 1.25 });
-      line.position.set(0, -0.48, front);
+      const line = makeText(this.textBase, FONT_DISPLAY, 0.074, '#A9AFC2', { text: sensor.hearsShort, maxWidth: CARD_W * 0.7, lineHeight: 1.25 });
+      line.position.set(0, -0.44, front);
       mesh.add(titleR, titleB, title, code, line);
 
       this.group.add(mesh);
@@ -235,7 +266,8 @@ export class Cards {
 
   /** Index of the card under the pointer (ndc -1..1), or -1. */
   pick(nx: number, ny: number, camera: Camera): number {
-    if (!this.group.visible) return -1;
+    // the expanded card is resized on the GPU, so the raycast would miss it: no picking then
+    if (!this.group.visible || this.expansion.value > 0) return -1;
     this.ndc.set(nx, ny);
     this.raycaster.setFromCamera(this.ndc, camera);
     this.hits.length = 0;
@@ -314,6 +346,44 @@ export class Cards {
     }
   }
 
+  /** Which card expands (-1: none). Call before tweening `expansion` up. */
+  setExpanded(i: number) {
+    this.expandIndex = i;
+  }
+
+  get expanded() {
+    return this.expandIndex;
+  }
+
+  /** Where the expanded card goes: a rectangle in CSS px within a `vw` x `vh` canvas. */
+  setExpandRect(r: ScreenRect, vw: number, vh: number) {
+    Object.assign(this.expandRect, r);
+    this.view.set(vw, vh);
+  }
+
+  /** Bottom centre of the card face (local), where the "details" hint sits. */
+  hintPoint(i: number, out: Vector3) {
+    out.set(0, -CARD_H / 2 + 0.17, CARD_FRONT);
+    return this.cards[i].mesh.localToWorld(out);
+  }
+
+  /**
+   * The expanded pose: square to the camera, `EXPAND_DIST` in front of it, centred on the target
+   * rectangle; returns the card size (world units) that covers the rectangle exactly.
+   */
+  private expandedPose(camera: PerspectiveCamera, size: Vector2) {
+    const r = this.expandRect;
+    const halfH = EXPAND_DIST * Math.tan(MathUtils.degToRad(camera.fov) / 2);
+    const halfW = halfH * camera.aspect;
+    const nx = ((r.x + r.w / 2) / this.view.x) * 2 - 1;
+    const ny = 1 - ((r.y + r.h / 2) / this.view.y) * 2;
+    this.ePos.set(nx * halfW, ny * halfH, -(EXPAND_DIST + CARD_FRONT)).applyMatrix4(camera.matrixWorld);
+    this.eQuat.copy(camera.quaternion);
+    size.set((r.w / this.view.x) * 2 * halfW, (r.h / this.view.y) * 2 * halfH);
+  }
+
+  private readonly eSize = new Vector2();
+
   update(dt: number, c: number, wide: boolean, reduced: boolean, camera: Camera, px: number, py: number) {
     this.updateGlitch(dt);
     const k = 1 - Math.exp(-dt * 8);
@@ -339,7 +409,31 @@ export class Cards {
       card.mesh.scale.setScalar(wide ? 1 : CAROUSEL.rowScale);
 
       const active = d < 1 ? 1 - d : 0;
-      const opacity = reduced ? Math.max(0, 1 - d * 1.6) : d < 2.2 ? 1 : Math.max(0, 1 - (d - 2.2) / 0.9);
+      let opacity = reduced ? Math.max(0, 1 - d * 1.6) : d < 2.2 ? 1 : Math.max(0, 1 - (d - 2.2) / 0.9);
+      // expansion: this card turns square to the camera and grows onto the panel; the rest fade
+      const e = i === this.expandIndex ? this.expansion.value : 0;
+      const grow = u.uGrow.value as Vector2;
+      let textDim = 1;
+      if (e > 0) {
+        this.expandedPose(camera as PerspectiveCamera, this.eSize);
+        card.mesh.position.lerp(this.ePos, e);
+        this.cQuat.setFromEuler(this.euler.copy(card.mesh.rotation));
+        card.mesh.quaternion.copy(this.cQuat).slerp(this.eQuat, e);
+        card.mesh.scale.setScalar(MathUtils.lerp(card.mesh.scale.x, 1, e));
+        grow.set((this.eSize.x - CARD_W) * e, (this.eSize.y - CARD_H) * e);
+        opacity = Math.max(opacity, e);
+      } else {
+        grow.set(0, 0);
+        if (this.expandIndex >= 0) {
+          // on the dark scene even faint titles read, so the texts fade further than the glass
+          textDim = MathUtils.lerp(1, EXPAND_DIM, this.expansion.value);
+          opacity *= textDim;
+        }
+      }
+      (u.uSize.value as Vector2).set(CARD_W + grow.x, CARD_H + grow.y);
+      u.uExpand.value = e;
+      // over everything while expanded: it is a panel now, not a card in the scene
+      card.mat.depthTest = e <= 0;
       card.mesh.visible = opacity > 0.01;
       u.uActive.value = active;
       u.uLod.value = d > 1 ? 1 : d;
@@ -350,11 +444,13 @@ export class Cards {
       // text: full on the active card, dimmer on neighbours; dimmer still when seen from behind
       this.tmp.copy(camera.position).sub(card.mesh.position);
       const facing = Math.sin(rotY) * this.tmp.x + Math.cos(rotY) * this.tmp.z > 0 ? 1 : 0.35;
-      const textA = opacity * (0.45 + 0.55 * active) * facing;
+      // the expanded card's own texts make way for the HTML content
+      const textA = opacity * textDim * (0.45 + 0.55 * active) * facing * (1 - MathUtils.smoothstep(e, 0, 0.3));
       card.title.fillOpacity = textA;
       card.code.fillOpacity = textA;
       card.line.fillOpacity = textA * active;
-      this.dist[i] = camera.position.distanceToSquared(card.mesh.position);
+      // the expanded card always draws last (on top)
+      this.dist[i] = e > 0 ? -1 : camera.position.distanceToSquared(card.mesh.position);
     }
     // draw far cards first; each card's texts right after it
     for (let i = 0; i < 8; i++) this.order[i] = i;

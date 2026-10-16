@@ -34,6 +34,9 @@ export class SyntheticSignals {
   trimLong = 2; // %
   current = 0; // normalised
   time = 0;
+  /** Firing events per second (4-stroke inline four: RPM / 60 x 2) and their running count. */
+  fireRate = 26;
+  firePhase = 0;
 
   private knock = 0;
   private misfire = 0;
@@ -58,6 +61,8 @@ export class SyntheticSignals {
     this.throttle = a + (b - a) * ramp * ramp * (3 - 2 * ramp);
 
     this.rpm = 800 + this.throttle * 2600 + 40 * vnoise(t * 0.7) * this.turb;
+    this.fireRate = (this.rpm / 60) * 2;
+    this.firePhase += this.fireRate * dt;
     this.coolant = 86 + 3 * Math.sin(t * 0.05) + 0.4 * vnoise(t * 0.3);
     this.trimShort = 4 * Math.sin(t * 2.1) * (0.6 + 0.4 * vnoise(t)) + 6 * this.misfire * Math.sin(t * 0.9);
     this.trimLong = 2 + 3 * this.misfire;
@@ -87,15 +92,19 @@ export class SyntheticSignals {
   }
 
   /**
-   * One sample of a sensor's trace at time `t` (seconds), roughly -1..1, for the 2-D mini traces.
-   * Uses the latest engine-state values, so selecting Knock changes the mic and vibration traces.
+   * One sample of a sensor's trace at time `t` (seconds, at most a window behind `time`),
+   * roughly -1..1, for the 2-D mini traces. Uses the latest engine-state values, so selecting
+   * Knock changes the mic and vibration traces. Every trace keeps a steady periodic baseline
+   * (at least ~35% of full scale) in the healthy states; faults change its shape on top.
    */
   trace(sensor: number, t: number): number {
     const k = this.knock;
     const m = this.misfire;
     const v = this.valve;
-    const fire = (t * 6) % 1; // firing events
-    const cyl = Math.floor(t * 6) % 4;
+    // firing events at the current rate, counted back from now (no phase jumps as RPM moves)
+    const fc = this.firePhase - (this.time - t) * this.fireRate;
+    const fire = fc - Math.floor(fc);
+    const cyl = ((Math.floor(fc) % 4) + 4) % 4;
     const dropped = m > 0.01 && cyl === 3 ? 1 - 0.85 * m : 1;
     switch (sensor) {
       case 0: {
@@ -118,7 +127,8 @@ export class SyntheticSignals {
         return (tooth % 1) < 0.5 ? 0.8 : -0.8;
       }
       case 3:
-        return (this.coolant - 86) / 4 + 0.05 * vnoise(t * 2);
+        // thermostat / fan cycling around the warm set point, plus the slow drift
+        return 0.42 * Math.sin((t * 2 * Math.PI) / 9) + (this.coolant - 86) / 8 + 0.05 * vnoise(t * 2);
       case 4: {
         const seg = Math.floor(t / 1.6);
         const f = (t / 1.6) % 1;

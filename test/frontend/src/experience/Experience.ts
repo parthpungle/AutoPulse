@@ -117,6 +117,15 @@ export class Experience {
   private detail = false;
   private hoverDirty = false;
   private hoverCard = -1;
+  /** The HTML detail panel: the expanded card follows its box. */
+  private detailEl: HTMLElement | null = null;
+  /** The "details" hint pinned under the active card, and its last written position. */
+  private hintEl: HTMLElement | null = null;
+  private hintOn = false;
+  private hintX = NaN;
+  private hintY = NaN;
+  private settleT = 0;
+  private readonly hintPos = new Vector3();
 
   private constructor(container: HTMLElement, options: ExperienceOptions) {
     this.options = options;
@@ -405,7 +414,14 @@ export class Experience {
       }
     }
     const c = this.carousel;
+    if (this.cards.expansion.value > 0 && this.detailEl) {
+      // the expanded card covers the panel's box exactly (read every frame: it can transition)
+      const r = this.detailEl.getBoundingClientRect();
+      const cr = this.canvas.getBoundingClientRect();
+      this.cards.setExpandRect({ x: r.left - cr.left, y: r.top - cr.top, w: r.width, h: r.height }, cr.width, cr.height);
+    }
     this.cards.update(dt, c.value, this.layout.wide === 1, this.reduced, this.main.camera, p.nx, p.ny);
+    this.updateHint(dt, sf);
     this.cards.renderArt(this.renderer, this.quad, this.signals, (this.signals.rpm - 800) / 2600);
     if (c.active !== this.activeCard) {
       this.activeCard = c.active;
@@ -413,6 +429,39 @@ export class Experience {
       this.backdrop.tint.copy(SENSOR_COLORS[c.active]);
       this.options.onCard?.(c.active);
     }
+  }
+
+  /** "Tap for details": shown on the active card a second after it settles, pinned to its face. */
+  private updateHint(dt: number, sf: number) {
+    const el = this.hintEl;
+    if (!el) return;
+    const c = this.carousel;
+    const settled = !this.detail && this.cards.expansion.value === 0 && Math.abs(sf - 1) < 0.05 && Math.abs(c.value - c.active) < 0.02;
+    this.settleT = settled ? this.settleT + dt : 0;
+    const on = this.settleT > 1;
+    if (on) {
+      const v = this.cards.hintPoint(c.active, this.hintPos).project(this.main.camera);
+      const x = Math.round((v.x * 0.5 + 0.5) * this.sizes.width);
+      const y = Math.round((0.5 - v.y * 0.5) * this.sizes.height);
+      if (x !== this.hintX || y !== this.hintY) {
+        this.hintX = x;
+        this.hintY = y;
+        el.style.setProperty('--hx', `${x}px`);
+        el.style.setProperty('--hy', `${y}px`);
+      }
+    }
+    if (on !== this.hintOn) {
+      this.hintOn = on;
+      el.classList.toggle('is-on', on);
+    }
+  }
+
+  /** The DOM pieces the engine positions: the detail panel and the card hint. */
+  bindCardUI(panel: HTMLElement | null, hint: HTMLElement | null) {
+    this.detailEl = panel;
+    this.hintEl = hint;
+    this.hintOn = false;
+    hint?.classList.remove('is-on');
   }
 
   private onPointerMove = () => {
@@ -431,15 +480,32 @@ export class Experience {
   };
 
   /**
-   * Detail panel open/closed: locks the page scroll and card snapping, and pushes the camera in
-   * on the active sensor.
+   * Detail open/closed: the active card expands in place onto the panel (500 ms), page scroll
+   * and card snapping lock, and the camera pushes in on the active sensor. The panel gets
+   * `data-settled` once the card has finished growing, which fades its content in.
    */
   setDetail(open: boolean) {
-    if (open === this.detail || this.failed) return;
+    if (open === this.detail || this.failed || !this.cards) return;
     this.detail = open;
     this.carousel.snapEnabled = !open;
     if (open) this.scroll.lenis.stop();
     else this.scroll.lenis.start();
+    const cards = this.cards;
+    const ex = cards.expansion;
+    const panel = this.detailEl;
+    gsap.killTweensOf(ex);
+    panel?.removeAttribute('data-settled');
+    if (open) {
+      cards.setExpanded(this.carousel.active);
+      gsap.to(ex, {
+        value: 1,
+        duration: this.reduced ? 0.25 : 0.5,
+        ease: this.reduced ? 'power1.out' : 'power3.out',
+        onComplete: () => panel?.setAttribute('data-settled', ''),
+      });
+    } else {
+      gsap.to(ex, { value: 0, duration: this.reduced ? 0.2 : 0.45, ease: 'power3.inOut', onComplete: () => cards.setExpanded(-1) });
+    }
   }
 
   /** Bring sensor card i to the front (scrolls the page to it). */
