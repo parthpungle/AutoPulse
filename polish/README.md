@@ -1,6 +1,6 @@
-# AutoPulse · test edition
+# AutoPulse · polish edition
 
-> **UI test bed.** A copy of `split/` with the control-room cockpit redesign (ISA-101 theme, graphite-and-ice palette, car-centred main page). `split/` keeps the previous UI. Run this one with `test
+> **UI polish pass, for brainstorming.** A copy of `test/` with fewer boxes (open sections divided by hairlines, underline tabs, alerts as a coloured rule), a main page and Health check that fit the window without scrolling, labels kept off the car, and overlap guards checked at 1280×720, 1440×900 and 1920×1080. `split/` and `test/` are unchanged. Run with `polishun.bat` (same ports as the others: close them first).
 un.bat`; it uses the same ports, so close any other AutoPulse window first.
 
 **Two laptops, one car.** One laptop *is* the car: its sensors stream out and you break things on purpose. The other is the dashboard: it pairs over Wi-Fi and diagnoses everything live, from the sensor data alone.
