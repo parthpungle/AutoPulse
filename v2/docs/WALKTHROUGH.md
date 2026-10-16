@@ -199,16 +199,6 @@ The vehicle never sends what was injected, so every diagnosis is blind. Full det
 
 **Measured on the live pipeline:** no engine warnings in 30 minutes of healthy simulated driving across three car types. Every engine fault was named within 3 s of injection, and puncture, alternator, coolant, oil and fuel faults were caught in 4–75 s. Processing takes ~20 ms per frame.
 
-### Demo step: where it breaks (30 s)
-
-Show the limits on purpose, from the vehicle panel's **Stress test** row (engine running, Misfire injected). The dashboard's Live drive and Health check pages show an **Unsure** banner with the reason it found.
-
-1. **Noise ×10:** the misfire verdict turns into *Unsure*, giving "low signal-to-noise (~1.8 dB)" and the models' split. Measured in two runs: Unsure in 14 of 18 and 23 of 24 seconds (the rest Misfire or "sounds different"). (At ×5 the misfire is still named every second.)
-2. **Engine speed 6500 rpm** (healthy engine): *Unsure* every second, "rpm … outside the training range 750-4000". At 5500 rpm the fusion model still names the misfire, but that is extrapolation, not a promise.
-3. **Fault strength early 0.1–0.3:** the honest failure. The dashboard says **Healthy**, not Unsure: an early misfire is missed silently (18 of 18 seconds). The robustness heatmap on the Evidence page shows the same thing offline (severity 0.1–0.3: macro F1 ≈ 0.3).
-
-Say it plainly: noise and unfamiliar engine speeds are caught as "unsure"; very early faults are not caught at all yet. Reset with Noise ×1, Driver, Slider.
-
 **The car models:** `blender/build_cars.py` builds each car procedurally in Blender (lofted body from real cross-sections, glass, lights, mirrors, spoked wheels). It draws the wireframe as **feature lines**: sills and wheel arches, shoulder, roof edges, door cuts and shut lines, a few faint sections at the axles and pillars, and spoked tyres. Named parts (engine, battery, radiator, fuel tank, four tyres) light up by health status. Rebuild with `blender -b -P blender/build_cars.py -- blender/out` and copy the `.glb` files to `frontend/public/models/`.
 
 ---

@@ -18,16 +18,6 @@ async function call(path, body) {
   return p;
 }
 
-/** POST one audio file to the real-audio models. Throws an Error carrying the server's message (413/415/503). */
-export async function classifyAudio(blob, name = 'clip.wav') {
-  const form = new FormData();
-  form.append('file', blob, name);
-  const r = await fetch('/api/classify-audio', { method: 'POST', body: form });
-  const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(body.detail || `classify-audio: HTTP ${r.status}`), { status: r.status });
-  return body;
-}
-
 /** useApi('/startup', scenario) -> { data, loading, error }. Keeps the previous data while
  *  refetching, so charts dim instead of flashing empty. */
 export function useApi(path, body) {
@@ -44,18 +34,4 @@ export function useApi(path, body) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, key]);
   return state;
-}
-
-/** Multipart upload for /api/vibration/analyze. Resolves to the JSON body; rejects with Error(message, {code}). */
-export async function analyzeVibration(form) {
-  let r;
-  try { r = await fetch('/api/vibration/analyze', { method: 'POST', body: form }); }
-  catch { throw new Error('Could not reach the AutoPulse API. Is the backend running?'); }
-  const body = await r.json().catch(() => null);
-  if (!r.ok) {
-    const e = new Error(body?.message || (typeof body?.detail === 'string' ? body.detail : `Analysis failed (HTTP ${r.status})`));
-    e.code = body?.code;
-    throw e;
-  }
-  return body;
 }

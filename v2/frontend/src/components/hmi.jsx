@@ -3,10 +3,10 @@
 // Grey while healthy; colour appears only with an alarm, and always with its shape and number.
 
 export const PRIORITY = {
-  1: { name: 'Critical', color: 'var(--p1)', shape: 'diamond' },
-  2: { name: 'High', color: 'var(--p2)', shape: 'triangle' },
-  3: { name: 'Medium', color: 'var(--p3)', shape: 'square' },
-  4: { name: 'Advisory', color: 'var(--p4)', shape: 'circle' },
+  1: { name: 'Critical', color: 'var(--p1)', hex: '#f26d6d', shape: 'diamond' },
+  2: { name: 'High', color: 'var(--p2)', hex: '#f0a64a', shape: 'triangle' },
+  3: { name: 'Medium', color: 'var(--p3)', hex: '#e9cf6a', shape: 'square' },
+  4: { name: 'Advisory', color: 'var(--p4)', hex: '#b49cff', shape: 'circle' },
 };
 /** AutoPulse statuses onto ISA-18.2 priorities. */
 export const prio = (status) => ({ critical: 1, warning: 2, info: 4 })[status] ?? null;
@@ -26,9 +26,9 @@ export function AlarmShape({ priority, size = 16, flash = false }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" role="img" aria-label={`Priority ${priority} ${p.name}`}
       className={flash ? 'flash' : undefined} style={{ flex: 'none' }}>
-      <path d={PATHS[p.shape]} fill={p.color} />
+      <path d={PATHS[p.shape]} fill={p.hex} />
       <text x="12" y={p.shape === 'triangle' ? 18 : 16.2} textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontWeight="600"
-        fontSize={p.shape === 'triangle' ? 10 : 11} fill="var(--on-alarm)">{priority}</text>
+        fontSize={p.shape === 'triangle' ? 10 : 11} fill="#0b0e12">{priority}</text>
     </svg>
   );
 }
@@ -88,7 +88,7 @@ export function Sparkline({ values, range, priority = null, height = 40, thresho
       {range.normal[1] < hi && <line x1="0" x2={W} y1={y(range.normal[1])} y2={y(range.normal[1])} stroke="var(--band-edge)" vectorEffect="non-scaling-stroke" />}
       {range.normal[0] > lo && <line x1="0" x2={W} y1={y(range.normal[0])} y2={y(range.normal[0])} stroke="var(--band-edge)" vectorEffect="non-scaling-stroke" />}
       {threshold !== undefined && <line x1="0" x2={W} y1={y(threshold)} y2={y(threshold)} stroke="var(--text-dim)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />}
-      {v.length > 1 && <polyline points={pts} fill="none" stroke={priority ? PRIORITY[priority].color : 'var(--trace)'} strokeWidth="1.25"
+      {v.length > 1 && <polyline points={pts} fill="none" stroke={priority ? PRIORITY[priority].hex : 'var(--trace)'} strokeWidth="1.25"
         vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
     </svg>
   );

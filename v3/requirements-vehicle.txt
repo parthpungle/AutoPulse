@@ -1,0 +1,8 @@
+# Vehicle laptop only (split\run.bat role 1): the car simulator and its network node.
+# No models, no PyTorch. The dashboard laptop installs the full requirements.txt.
+numpy==2.4.6
+pandas==3.0.6
+scipy==1.17.1
+fastapi==0.143.2
+uvicorn==0.54.0
+websockets==17.2

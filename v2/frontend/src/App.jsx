@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
-import { AudioWaveform, ChevronRight, FlaskConical, Gauge, HeartPulse, LayoutDashboard, Link2, Mic, Moon, Printer, Sun, TrendingUp } from 'lucide-react';
-import { setTheme, useTheme } from './theme.js';
+import { AudioWaveform, FlaskConical, Gauge, ChevronRight, HeartPulse, LayoutDashboard, Link2, TrendingUp } from 'lucide-react';
 import { LiveProvider, useLive } from './live.jsx';
 import { CAR_INFO, carName } from './cars.js';
 import PairDrawer from './components/PairDrawer.jsx';
-import Report from './components/Report.jsx';
 import { LinkButton } from './components/LinkPill.jsx';
 import { AlarmShape, PRIORITY, prio } from './components/hmi.jsx';
 import Ask from './assistant/Ask.jsx';
@@ -15,36 +13,21 @@ import LiveDrive from './pages/LiveDrive.jsx';
 import Signatures from './pages/Signatures.jsx';
 import Insights from './pages/Insights.jsx';
 import Evidence from './pages/Evidence.jsx';
-import LiveAudio from './pages/LiveAudio.jsx';
 
 const PAGES = [
   { id: 'overview', name: 'Cockpit', icon: LayoutDashboard, live: true },
   { id: 'check', name: 'Health check', icon: HeartPulse, live: true },
   { id: 'drive', name: 'Live drive', icon: Gauge, live: true },
   { id: 'signatures', name: 'Signature lab', icon: AudioWaveform, live: true },
-  { id: 'liveaudio', name: 'Live audio', icon: Mic },
   { id: 'insights', name: 'Insights', icon: TrendingUp },
   { id: 'evidence', name: 'Evidence', icon: FlaskConical },
 ];
 
-/** Light for bright rooms and projectors, dark for screens. Remembered in this browser. */
-function ThemeToggle() {
-  const theme = useTheme();
-  const light = theme === 'light';
-  return (
-    <button className="ask-trigger" aria-pressed={light} onClick={() => setTheme(light ? 'dark' : 'light')}
-      title={light ? 'Switch to the dark theme' : 'Switch to the light theme (bright rooms, projectors)'}
-      aria-label={light ? 'Dark theme' : 'Light theme'}>
-      {light ? <Moon size={16} /> : <Sun size={16} />}
-    </button>
-  );
-}
-
 function Logo({ size = 26 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-label="AutoPulse">
-      <circle cx="12" cy="12" r="10.5" fill="none" stroke="var(--accent)" strokeWidth="1.5" />
-      <path d="M3.5 12h4l2-5 3 10 2.2-7 1.3 2H20.5" fill="none" stroke="var(--text-max)" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="10.5" fill="none" stroke="#7fd4ff" strokeWidth="1.5" />
+      <path d="M3.5 12h4l2-5 3 10 2.2-7 1.3 2H20.5" fill="none" stroke="#f2f4f6" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -76,7 +59,6 @@ function Shell() {
   const initial = new URLSearchParams(window.location.search).get('page');
   const [page, setPage] = useState(PAGES.some((p) => p.id === initial) ? initial : 'overview');
   const [drawer, setDrawer] = useState(false);
-  const [report, setReport] = useState(() => new URLSearchParams(window.location.search).has('report'));
   const [acked, setAcked] = useState(() => new Set());
   const live = useLive();
   const { link, latest, ready } = live;
@@ -109,8 +91,7 @@ function Shell() {
         <div className="rail-logo"><Logo /></div>
         <nav aria-label="Screens">
           {PAGES.map(({ id, name, icon: Icon }, i) => (
-            <button key={id} className={page === id ? 'on' : ''} onClick={() => setPage(id)} aria-label={name}
-              aria-current={page === id ? 'page' : undefined}>
+            <button key={id} className={page === id ? 'on' : ''} onClick={() => setPage(id)} aria-label={name}>
               <Icon size={21} strokeWidth={1.6} />
               <span className="tip">{name} · {i + 1}</span>
             </button>
@@ -132,10 +113,6 @@ function Shell() {
         ) : <span className="label">No vehicle</span>}
         <div className="right">
           <Ask page={page} />
-          <ThemeToggle />
-          <button className="ask-trigger" onClick={() => setReport(true)} aria-label="Health report" title="Printable health report for this car">
-            <Printer size={16} />
-          </button>
           <LinkButton onClick={() => setDrawer(true)} />
         </div>
       </header>
@@ -147,7 +124,7 @@ function Shell() {
           <span className="act">{top.actions?.[0]}</span>
           <span className="ack row" style={{ gap: 10 }}>
             <span className="ack-state">{acked.has(top.title) ? 'ACKNOWLEDGED' : 'UNACKNOWLEDGED'}</span>
-            {!acked.has(top.title) && <button className="btn primary" onClick={() => setAcked((s) => new Set(s).add(top.title))}>Acknowledge</button>}
+            {!acked.has(top.title) && <button className="btn" onClick={() => setAcked((s) => new Set(s).add(top.title))}>Acknowledge</button>}
             <button className="btn ghost" onClick={() => setPage('drive')}>Guidance</button>
           </span>
         </div>
@@ -156,13 +133,12 @@ function Shell() {
       <main className="main">
         <div className={`content ${FIT.has(page) ? 'fit' : ''}`} key={page}>
           <div className="fade-in" style={FIT.has(page) ? { height: '100%' } : undefined}>
-            {P.live && !latest && page !== 'signatures' ? <NoVehicle onPair={() => setDrawer(true)} /> : (
+            {P.live && !latest ? <NoVehicle onPair={() => setDrawer(true)} /> : (
               <>
                 {page === 'overview' && <Overview go={setPage} />}
                 {page === 'check' && <HealthCheck />}
                 {page === 'drive' && <LiveDrive />}
                 {page === 'signatures' && <Signatures />}
-                {page === 'liveaudio' && <LiveAudio />}
                 {page === 'insights' && <Insights />}
                 {page === 'evidence' && <Evidence />}
               </>
@@ -171,7 +147,6 @@ function Shell() {
         </div>
       </main>
       {drawer && <PairDrawer onClose={() => setDrawer(false)} />}
-      {report && <Report onClose={() => setReport(false)} />}
     </div>
   );
 }

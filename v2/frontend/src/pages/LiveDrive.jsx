@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavTarget } from '../assistant/nav.js';
 import { CircleCheck } from 'lucide-react';
 import LineChart from '../components/charts/LineChart.jsx';
-import { AlertCard, Tabs, UnsureBanner } from '../components/ui.jsx';
+import { AlertCard, Tabs } from '../components/ui.jsx';
 import { series, useLive } from '../live.jsx';
 
 const KPIS = [
@@ -28,7 +28,7 @@ export default function LiveDrive() {
   const [view, setView] = useState('coolant');
   const [win, setWin] = useState('300');
   useNavTarget('drive', 'tab', setView);
-  const { row, alerts, engine } = latest;
+  const { row, alerts } = latest;
   const H = history.slice(-Number(win));
   const x = series(H, 'clock');
   const end = row.clock;
@@ -36,7 +36,6 @@ export default function LiveDrive() {
 
   return (
     <div className="stack">
-      <UnsureBanner engine={engine} />
       <div className="grid3" style={{ gridTemplateColumns: 'repeat(6, 1fr)' }}>
         {KPIS.map(([k, name, unit, d]) => (
           <div key={k} className="panel panel-pad" style={{ padding: '12px 14px' }}>

@@ -6,18 +6,18 @@ AutoPulse extracts signatures from engine vibration and OBD-II telemetry, recogn
 
 ---
 
-## Two versions
+## Three versions
 
-| | **[v1](v1/)** · single laptop | **[v2](v2/)** · two laptops |
-|---|---|---|
-| **What it is** | The round-1 project: the full research pipeline and a dashboard with simulated scenarios | One laptop is the car (sensors stream out, you inject breakdowns); the other is a live dashboard that diagnoses blind |
-| **Run** | `v1\run.bat` | `v2\run.bat` → 1 Vehicle · 2 Dashboard · 3 Both · macOS: `v2/run.command` |
-| **Screens** | Garage, Health check, Live drive, Signatures, Insights, Evidence | Cockpit, Health check, Live drive, Signature lab, Insights, Evidence + vehicle control panel |
-| **Cars** | Procedural Blender wireframes | Real car models drawn as technical illustrations (credited in [v2/README](v2/README.md#credits)) |
-| **Also inside** | Real-data evaluation, MATLAB / Simulink cross-checks, round-1 report (PDF) | Everything in v1, plus the vehicle node, live pipeline and car converter |
-| **Git tag** | `v1.0` | `v2.0` |
+| | **[v1](v1/)** · single laptop | **[v2](v2/)** · two laptops | **[v3](v3/)** · two laptops, team build |
+|---|---|---|---|
+| **What it is** | The round-1 project: the full research pipeline and a dashboard with simulated scenarios | One laptop is the car (sensors stream out, you inject breakdowns); the other is a live dashboard that diagnoses blind | v2 plus the team's branches: light / dark theme, the new Signature lab, engine audio (clips and the live microphone) on real-data models, mic + vibration + OBD fusion, robustness tests, printable health report |
+| **Run** | `v1\run.bat` | `v2\run.bat` → 1 Vehicle · 2 Dashboard · 3 Both · macOS: `v2/run.command` | `v3\run.bat` (same roles; 3 connects by itself) · macOS: `v3/run.command` |
+| **Screens** | Garage, Health check, Live drive, Signatures, Insights, Evidence | Cockpit, Health check, Live drive, Signature lab, Insights, Evidence + vehicle control panel | The same screens, with Engine audio in the Signature lab, Vibration analysis in Insights, and the report |
+| **Cars** | Procedural Blender wireframes | Real car models drawn as technical illustrations (credited in [v2/README](v2/README.md#credits)) | Same as v2 |
+| **Also inside** | Real-data evaluation, MATLAB / Simulink cross-checks, round-1 report (PDF) | Everything in v1, plus the vehicle node, live pipeline and car converter | Everything in v2, plus real-audio and fusion training, pytest and node test suites |
+| **Git tag** | `v1.0` | `v2.0`, `v2.1` | — |
 
-Both run on their own; they use the same ports, so run one at a time.
+Each runs on its own; they use the same ports, so run one at a time.
 
 ---
 
@@ -25,7 +25,8 @@ Both run on their own; they use the same ports, so run one at a time.
 
 | Document | Use it for |
 |----------|------------|
-| **[v2/README.md](v2/README.md)** | The current version: how to run it on one or two laptops, what you get, demo script |
+| **[v3/README.md](v3/README.md)** | The newest version, with the whole team's features: how to run it, what you get |
+| **[v2/README.md](v2/README.md)** | The two-laptop version before the team merge: how to run it, what you get, demo script |
 | **[v2/docs/SETUP.md](v2/docs/SETUP.md)** | Requirements, roles, pairing, firewall, troubleshooting (Windows and macOS) |
 | **[v2/docs/ARCHITECTURE.md](v2/docs/ARCHITECTURE.md)** | The wire format, the live pipeline, the line-art cars |
 | [v1/README.md](v1/README.md) | The round-1 project and its results |

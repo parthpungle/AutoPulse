@@ -95,9 +95,9 @@ export const INTENTS = [
   {
     id: 'models', words: ['model', 'models', 'svm', 'cnn', 'ann', 'softmax', 'confidence', 'vote', 'votes', 'classifier', 'ai', 'ml', 'neural'],
     answer: (L) => {
-      if (isOff(L) || !L.engine.votes) return { text: 'Four models vote on every second of engine vibration once the engine runs.', status: 'ok', nav: { page: 'signatures', spot: 'sig-verdict' } };
+      if (isOff(L) || !L.engine.votes) return { text: 'Four models vote on every second of engine vibration once the engine runs.', status: 'ok', nav: { page: 'signatures', spot: 'sig-votes' } };
       const picks = Object.entries(L.engine.votes).map(([m, p]) => `${m} ${L.engine.classes[p.indexOf(Math.max(...p))].split(' (')[0].toLowerCase()}`);
-      return { text: `${picks.join(', ')}.`, status: L.engine.status, nav: { page: 'signatures', spot: 'sig-verdict' } };
+      return { text: `${picks.join(', ')}.`, status: L.engine.status, nav: { page: 'signatures', spot: 'sig-votes' } };
     },
   },
   {

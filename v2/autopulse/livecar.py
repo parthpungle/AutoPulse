@@ -5,35 +5,11 @@ would put on the wire: one OBD-II style row (1 Hz) and, while the engine runs, o
 1-second engine-block vibration window (24 kHz) with per-firing crank speeds.
 Breakdowns are switched on and off while it drives; each one starts acting from the
 moment it is injected, exactly like a real failure would.
-
-Engine sound source: "sim" (synth_window, the default) or "replay": consecutive 1 s windows of a real
-recording, looping, prepared exactly as for the real-audio models. OBD stays simulated either way.
 """
-from pathlib import Path
-
 import numpy as np
-from scipy.io import wavfile
 
-from . import real_audio
 from .generator import CAR_TYPES, ENGINE_FAULTS, FAULT_LABELS, make_car, synth_window
 from .telemetry import GEAR_RATIO, OBD_FAULTS, TANK_L
-
-ROOT = Path(__file__).resolve().parents[1]
-RECORDING_DIRS = [ROOT / "frontend" / "public" / "samples", ROOT / "data" / "raw" / "engine_audio"]
-AUDIO_LABEL = {"healthy": "healthy", "misfire": "misfire", "tappet_issue": "valve_tick", "belt_issue": "belt_squeal"}
-
-
-def recordings():
-    """Real engine recordings this laptop can replay: the bundled samples, then the full dataset if downloaded."""
-    out, seen = [], set()
-    for d in RECORDING_DIRS:
-        for f in sorted(d.glob("*.wav")) if d.exists() else []:
-            label = AUDIO_LABEL.get(f.stem.rsplit("_", 1)[0])
-            if label and f.stem not in seen:
-                seen.add(f.stem)
-                out.append({"id": f.stem, "label": FAULT_LABELS[label], "fault": label, "path": f,
-                            "sample": d == RECORDING_DIRS[0]})
-    return out
 
 MODES = {   # target speeds (km/h) the virtual driver picks from, and how long each segment lasts (s)
     "idle": {"label": "Parked, idling", "speeds": [0], "p": [1.0], "seg": (30, 60)},
@@ -48,37 +24,10 @@ class LiveCar:
         self.ambient = 24.0
         self.mode = "city"
         self.engine_fault, self.severity = "healthy", 0.8
-        # stress modifiers for "where it breaks" demos: background noise x1/x5/x10 on both sensors, fault strength
-        # drawn per second from a band ("normal" 0.4-1.0 as in training, "early" 0.1-0.3) instead of the slider,
-        # and a fixed engine speed (e.g. 5500 rpm, above the 750-4000 rpm the models were trained on)
-        self.noise_mult, self.severity_band, self.rpm_override = 1.0, None, None
         self.obd_faults = {}            # fault id -> vehicle clock (s) when it was injected
         self.clock = 0                  # seconds since the node started, keeps running with the engine off
         self.fuel = 42.0
-        self.source, self.recording, self._rec, self._rec_i, self._rec_tag = "sim", None, None, 0, None
         self.set_car(car_type, unit)
-
-    def set_source(self, source, recording=None):
-        """Engine sound: "sim" or "replay" of a real recording (id from recordings())."""
-        if source == "sim":
-            self.source = "sim"
-            return
-        if source != "replay":
-            raise ValueError(f"unknown engine sound source {source}")
-        recs = recordings()
-        ids = [r["id"] for r in recs]
-        rec = recording if recording in ids else (self.recording if self.recording in ids else None)
-        if rec is None:
-            if not recs:
-                raise ValueError("no real recordings on this laptop (frontend/public/samples or data/raw/engine_audio)")
-            rec = ids[0]
-        if rec != self.recording or self._rec is None:
-            fs, x = wavfile.read(recs[ids.index(rec)]["path"])
-            y = real_audio.resample(real_audio.to_mono(x), fs)
-            self._rec = real_audio.clip_windows(y)[0]            # z-scored 1 s windows, 0.5 s hop: as in training
-            self._rec_i = 0
-            self._rec_tag = f"rec-{ids.index(rec):02d}"           # what goes on the wire: not the file name (= label)
-        self.source, self.recording = "replay", rec
 
     # ------------------------------------------------------------------ controls
     def set_car(self, car_type, unit):
@@ -134,12 +83,8 @@ class LiveCar:
 
     def truth(self):
         """What is actually broken. Only the vehicle's own control panel shows this; it is never transmitted."""
-        rec = next((r for r in recordings() if r["id"] == self.recording), None) if self.source == "replay" else None
-        return {"engine_fault": rec["fault"] if rec else self.engine_fault,
-                "engine_label": rec["label"] if rec else FAULT_LABELS[self.engine_fault],
-                "severity": self.severity, "source": self.source, "recording": self.recording,
-                "stress": {"noise_mult": self.noise_mult, "severity_band": self.severity_band,
-                           "rpm_override": self.rpm_override},
+        return {"engine_fault": self.engine_fault, "engine_label": FAULT_LABELS[self.engine_fault],
+                "severity": self.severity,
                 "obd_faults": [{"id": f, "label": OBD_FAULTS[f], "since_s": self.since(f)} for f in self.obd_faults]}
 
     # ------------------------------------------------------------------ one second of driving
@@ -167,8 +112,6 @@ class LiveCar:
             gear = int(np.clip(1 + speed // 18, 1, 5))
             idle = 800 + (300 if self.coolant < 45 else 0)              # cold engines idle higher
             rpm = max(idle, speed * GEAR_RATIO[gear]) + rng.normal(0, 15)
-            if self.rpm_override:
-                rpm = self.rpm_override + rng.normal(0, 15)
             throttle = float(np.clip(8 + 0.36 * speed + 25 * max(accel, 0), 5, 100))
             load = float(np.clip(throttle / 100 * 0.8 + 0.15, 0, 1))
         else:
@@ -221,20 +164,8 @@ class LiveCar:
                "tyre_rl_psi": float(tyres[2]), "tyre_rr_psi": float(tyres[3])}
 
         vib = None
-        if on and with_vibration and self.source == "replay":
-            x = self._rec[self._rec_i % len(self._rec)]
-            self._rec_i += 1
-            vib = {"signal": x, "fs": real_audio.FS, "rpm": float(rpm), "crank_speed": [],
-                   "source": "replay", "clip": self._rec_tag}
-        elif on and with_vibration:
-            sev = {"normal": (0.4, 1.0), "early": (0.1, 0.3)}.get(self.severity_band)
-            w = synth_window(self.engine_fault, rpm=float(rpm), car=self.car,
-                             severity=rng.uniform(*sev) if sev else self.severity, coolant_c=float(self.coolant),
-                             misfire_cyl=1, rng=rng, noise_scale=self.noise_mult)
-            vib = {"signal": w["accel"], "mic": w["mic"], "fs": w["fs"], "rpm": float(rpm), "crank_speed": w["crank_speed"]}
-            # the ECU's fuel trims and MAP for this second come from the engine model (they react to a misfire);
-            # breakdowns injected over OBD (e.g. a vacuum leak) still add on top of the trim
-            e = w["obd"]
-            obd.update(stft_pct=e["stft_pct"], stft_std=e["stft_std"], map_kpa=e["map_kpa"],
-                       ltft_pct=obd["ltft_pct"] + e["ltft_pct"])
+        if on and with_vibration:
+            w = synth_window(self.engine_fault, rpm=float(rpm), car=self.car, severity=self.severity,
+                             coolant_c=float(self.coolant), misfire_cyl=1, rng=rng)
+            vib = {"signal": w["signal"], "fs": w["fs"], "rpm": float(rpm), "crank_speed": w["crank_speed"]}
         return obd, vib

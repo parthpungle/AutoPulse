@@ -12,26 +12,21 @@ import threading
 import time
 import urllib.request
 from collections import deque
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.signal import welch
 
-from autopulse import fusion, real_audio
 from autopulse.baseline import AdaptiveBaseline
-from autopulse.generator import ENGINE_FAULTS, FAULT_LABELS, TRAIN_RPM_RANGE
+from autopulse.generator import ENGINE_FAULTS, FAULT_LABELS
 from autopulse.models import cnn_proba
-from autopulse.realdata import estimate_rpm
 from autopulse.rules import CRITICAL, INFO, WARNING, Alert, evaluate
 from autopulse.signatures import ORDERS, envelope_spectrum, features, order_amplitudes, spectrum, stft_image
 from autopulse.wire import BEACON_PORT, STREAM_PORT, decode_vibration
 
-MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
 HISTORY = 900          # seconds of telemetry kept for the charts (15 min)
 SMOOTH = 5             # engine verdict = mean of the last 5 one-second windows
-UNSURE = "unsure"     # the models disagree: below the ensemble confidence threshold, so no verdict either way
-RANK = {"ok": 0, INFO: 1, UNSURE: 1, WARNING: 2, CRITICAL: 3}
+RANK = {"ok": 0, INFO: 1, WARNING: 2, CRITICAL: 3}
 ZONES = ("engine", "battery", "cooling", "fuel", "tyre_fl", "tyre_fr", "tyre_rl", "tyre_rr")
 TYRES = [("tyre_fl", "front-left"), ("tyre_fr", "front-right"), ("tyre_rl", "rear-left"), ("tyre_rr", "rear-right")]
 
@@ -129,12 +124,6 @@ def probe(host, port, timeout=3.0, heard=None):
         return {"ok": False, "error": explain(reason if isinstance(reason, BaseException) else e, host, port, heard)}
 
 
-def _put_latest(q, w):
-    if q.full():
-        q.get_nowait()                                           # a paused session must not grow memory: drop the oldest
-    q.put_nowait(w)
-
-
 class LiveHub:
     def __init__(self, models):
         self.models = models                     # () -> (feature models, cnn or None, (prior mean, prior std))
@@ -144,9 +133,7 @@ class LiveHub:
         self.link = {"state": "unpaired", "host": None, "port": None, "vehicle": None, "error": None,
                      "since": None, "frames": 0, "latency_ms": None}
         self.discovered = {}                     # (ip, port) -> beacon + last_seen
-        self.manual = False                      # someone paired or unpaired by hand: auto-pairing stops
         self.latest = None
-        self.vib_queues = set()                  # Vibration analysis sessions listening to the vehicle
         self.reset()
 
     # ------------------------------------------------------------------ state
@@ -154,11 +141,9 @@ class LiveHub:
         self.history = deque(maxlen=HISTORY)
         self.rule_rows = deque(maxlen=150)
         self.probs = deque(maxlen=SMOOTH)
-        self.snr = deque(maxlen=SMOOTH)            # estimated signal-to-noise of the last windows (dB)
         self.streak = 0
         self.baseline = None                     # built on the first engine frame (models load in the background)
         self.car_key = None
-        self.source = "sim"                      # engine sound: "sim" (synthetic) or "replay" (a real recording)
 
     def _baseline(self):
         if self.baseline is None:
@@ -308,13 +293,6 @@ class LiveHub:
         except Exception:                                       # noqa: BLE001
             self.ui.discard(ws)
 
-    def offer_window(self, w):
-        """Hand each decoded 1 s vehicle window (24 kHz, no gaps) to the open Vibration analysis sessions."""
-        if self.loop is None:
-            return
-        for q in list(self.vib_queues):
-            self.loop.call_soon_threadsafe(_put_latest, q, w)
-
     def hello(self):
         return {"type": "hello", "link": self.link, "history": list(self.history), "latest": self.latest}
 
@@ -341,8 +319,8 @@ class LiveHub:
         for s in systems:
             for z in s["zones"]:
                 if RANK[s["status"]] > RANK[zones[z]]:
-                    zones[z] = INFO if s["status"] == UNSURE else s["status"]
-        penalty = {CRITICAL: 35, WARNING: 12, INFO: 4, UNSURE: 4, "ok": 0}
+                    zones[z] = s["status"]
+        penalty = {CRITICAL: 35, WARNING: 12, INFO: 4, "ok": 0}
         score = max(0, 100 - sum(penalty[s["status"]] for s in systems))
         verdict = "Good to go" if score >= 85 else "Drive, but book a service" if score >= 60 else "Stop safely"
 
@@ -362,102 +340,55 @@ class LiveHub:
     def engine(self, vib, obd):
         if vib is None:
             self.probs.clear()
-            self.snr.clear()
             return {"state": "off", "status": "ok", "label": "Engine off"}, None
+        feat, cnn, _ = self.models()
         w = decode_vibration(vib)
-        source = w.get("source", "sim")
-        if source != self.source:                                # simulated <-> real recording: different models
-            self.probs.clear()
-            self.snr.clear()
-            self.streak, self.source = 0, source
-        if source == "replay":
-            return self.engine_real(w, obd)
-        self.offer_window(w)                                     # accelerometer windows only: a replay is engine sound
         x, fs, rpm = w["signal"], w["fs"], w["rpm"]
+        f = features(x, fs, rpm, w["crank_speed"])
+        votes = {name: m.predict_proba(f[None])[0] for name, m in feat.items()}
         fS, tS, S = stft_image(x, fs)
-        fz = fusion.load_fusion() if w.get("mic") is not None else None
-        if fz is not None:
-            # multivariable: mic + accelerometer + OBD context -> the fused models; each modality's own model says
-            # how strongly it alone supports the fused verdict (modality_contrib)
-            v = fusion.fused_features(w["mic"], x, fs, fusion_obd(obd, rpm), w["crank_speed"])
-            f = v[fusion.MODALITIES["accel"]]                     # the accelerometer part feeds the baseline as before
-            votes = {name: m.predict_proba(v[None])[0] for name, m in fz["models"].items()}
-        else:
-            feat, cnn, _ = self.models()
-            f = features(x, fs, rpm, w["crank_speed"])
-            votes = {name: m.predict_proba(f[None])[0] for name, m in feat.items()}
-            if cnn is not None:
-                votes["CNN"] = cnn_proba(cnn, [S])[0]
-        score, anomaly = self._baseline().observe(f, context_key(rpm, obd["coolant_c"]))
-        engine = self.verdict(votes, ENGINE_FAULTS, rpm, obd, score, anomaly, tau=sim_threshold())
-        engine.update(source="simulated", clip=None, models="fusion (mic + accel + OBD)" if fz else "accelerometer only")
-        self.snr.append(snr_db(x, fs))
-        engine["checks"] = {"snr_db": r(float(np.median(self.snr)), 1), "rpm": r(rpm, 0),
-                            "rpm_in_training_range": TRAIN_RPM_RANGE[0] <= rpm <= TRAIN_RPM_RANGE[1]}
-        if engine["status"] == UNSURE:
-            engine["why_unsure"] = why_unsure(engine, rpm, float(np.median(self.snr)))
-        sig = build_sig(x, fs, rpm, w["crank_speed"], (fS, tS, S))
-        if fz is not None:
-            k = ENGINE_FAULTS.index(engine["fault"]) if engine["fault"] in ENGINE_FAULTS else int(np.argmax(engine["ensemble"]))
-            engine["modality_contrib"] = {"class": FAULT_LABELS[ENGINE_FAULTS[k]],
-                                          **{m: r(p, 3) for m, p in fusion.modality_contrib(v, fz["per_modality"], k).items()}}
-            sig["mic"] = build_sig(w["mic"], fs, rpm, w["crank_speed"])
-        return engine, sig
-
-    def engine_real(self, w, obd):
-        """A real recording replayed by the vehicle: the real-audio models classify it. The adaptive baseline is
-        skipped: its population prior comes from the simulator, so real sound would always look abnormal to it."""
-        x, fs = w["signal"], w["fs"]
-        rpm = estimate_rpm(x, fs)                                # from the sound itself; the OBD rpm is simulated
-        fS, tS, S = stft_image(x, fs)
-        models = real_audio.load_real_models()
-        if models is None:
-            self.probs.clear()
-            self.snr.clear()
-            engine = {"state": "running", "status": INFO, "label": "Real recording · real-audio models not trained",
-                      "fault": "healthy", "confidence": 0.0, "healthy_p": 0.0, "anomaly": None, "threshold": None,
-                      "learned": 0, "context": context_key(rpm, obd["coolant_c"]), "classes": [], "ensemble": [],
-                      "votes": {}, "advice": None, "source": "real recording", "clip": w.get("clip")}
-            return engine, build_sig(x, fs, rpm, None, (fS, tS, S))
-        f = features(x, fs, rpm)
-        votes = {SHORT[n]: (cnn_proba(m, [S])[0] if n == real_audio.CNN_NAME else m.predict_proba(f[None])[0])
-                 for n, m in models.items()}
-        engine = self.verdict(votes, real_audio.CLASSES, rpm, obd, None, tau=real_audio.threshold() or 0.5)
-        engine.update(source="real recording", clip=w.get("clip"))
-        if engine["status"] == UNSURE:
-            engine["why_unsure"] = why_unsure(engine, None, None)
-        return engine, build_sig(x, fs, rpm, None, (fS, tS, S))
-
-    def verdict(self, votes, classes, rpm, obd, score, anomaly=False, tau=0.5):
-        """Smoothed ensemble -> status, label and advice. A fault must hold for 2 frames at >= tau; below tau the
-        models are unsure, which is its own status (not "Healthy")."""
+        if cnn is not None:
+            votes["CNN"] = cnn_proba(cnn, [S])[0]
         ens = np.mean(list(votes.values()), axis=0)
         self.probs.append(ens)
         smooth = np.mean(self.probs, axis=0)
         k = int(smooth.argmax())
-        fault = classes[k]
-        sure = k != 0 and smooth[k] >= tau and len(self.probs) >= 3
+        score, anomaly = self._baseline().observe(f, context_key(rpm, obd["coolant_c"]))
+        fault = ENGINE_FAULTS[k]
+        sure = k != 0 and smooth[k] >= 0.5 and len(self.probs) >= 3
         self.streak = self.streak + 1 if sure else 0
         advice = ENGINE_ADVICE[fault] if self.streak >= 2 else None
-        unsure = not advice and smooth[k] < tau
         if advice:
             status, label = advice[0], FAULT_LABELS[fault]
-        elif unsure:
-            status, label = UNSURE, "Unsure · the models disagree"
         elif anomaly:
             status, label = INFO, "Sounds different from this car's normal"
         else:
             status, label = "ok", "Healthy"
-        base = self._baseline()
-        learned = sum(s["n"] for s in base.state.values())
-        return {"state": "running", "status": status, "label": label,
-                "fault": fault if advice else UNSURE if unsure else "healthy", "unsure_below": tau,
-                "confidence": float(smooth[k]), "healthy_p": float(smooth[0]),
-                "anomaly": None if score is None else float(score), "threshold": base.threshold, "learned": learned,
-                "context": context_key(rpm, obd["coolant_c"]), "classes": [FAULT_LABELS[c] for c in classes],
-                "ensemble": [r(p, 4) for p in smooth], "votes": {m: [r(p, 4) for p in pv] for m, pv in votes.items()},
-                "advice": advice}
+        learned = sum(s["n"] for s in self.baseline.state.values())
+        engine = {"state": "running", "status": status, "label": label, "fault": fault if advice else "healthy",
+                  "confidence": float(smooth[k]), "healthy_p": float(smooth[0]), "anomaly": float(score),
+                  "threshold": self.baseline.threshold, "learned": learned, "context": context_key(rpm, obd["coolant_c"]),
+                  "classes": [FAULT_LABELS[c] for c in ENGINE_FAULTS], "ensemble": [r(p, 4) for p in smooth],
+                  "votes": {m: [r(p, 4) for p in pv] for m, pv in votes.items()}, "advice": advice}
 
+        fw, P = welch(x, fs, nperseg=1024)
+        keep = fw <= 10000
+        n = int(0.2 * fs)
+        step = max(1, n // 800)
+        fe, E = envelope_spectrum(x, fs)
+        sel = fe < 400
+        fa, X = spectrum(x, fs)
+        cs = w["crank_speed"]
+        sig = {"rpm": r(rpm, 0),
+               "time": {"t_ms": [r(v, 2) for v in np.arange(0, n, step) / fs * 1000], "y": [r(v, 3) for v in x[:n:step]]},
+               "spectrum": {"f": [r(v, 1) for v in fw[keep]], "db": [r(v, 2) for v in 10 * np.log10(P[keep] + 1e-12)]},
+               "marks": {"0.5x (misfire / cam)": rpm / 120, "1x crank": rpm / 60, "2x firing (I4)": rpm / 30},
+               "spectrogram": {"f": [r(v, 0) for v in fS], "t": [r(v, 3) for v in tS], "z": np.round(S, 1).tolist()},
+               "envelope": {"f": [r(v, 2) for v in fe[sel]], "y": [r(v, 4) for v in E[sel] / (E[sel].max() + 1e-12)],
+                            "orders": [o * rpm / 60 for o in (0.5, 1, 1.5, 2)]},
+               "orders": {"labels": [f"{o}×" for o in ORDERS], "amp": [r(v, 5) for v in order_amplitudes(fa, X, rpm)]},
+               "crank": {"dev": [r(v, 2) for v in cs - np.median(cs)]}}
+        return engine, sig
 
     @staticmethod
     def systems(obd, engine, alerts):
@@ -488,8 +419,7 @@ class LiveHub:
         else:
             add("engine", "Engine sound & vibration", ["engine"], eng["status"],
                 f"{eng['label']} · {eng['confidence']:.0%}" if eng["status"] != "ok" else
-                f"Normal · {eng['healthy_p']:.0%} healthy, deviation {eng['anomaly']:.1f}" if eng["anomaly"] is not None
-                else f"Normal · {eng['healthy_p']:.0%} healthy · {eng.get('source', '')}")
+                f"Normal · {eng['healthy_p']:.0%} healthy, deviation {eng['anomaly']:.1f}")
 
         c = max(sev_of("overheat"), sev_of("running hot"), sev_of("belt likely broken"), sev_of("temperature"))
         add("cooling", "Cooling system", ["cooling"], back[c] if c else "ok", f"Coolant {obd['coolant_c']:.0f} °C"
@@ -515,77 +445,3 @@ class LiveHub:
         add("tyres", "Tyres", tz, back[worst] if worst else "ok", detail)
         add("brakes", "Brakes", [], "ok", "Pads ~68% · fluid OK")
         return out
-
-
-def fusion_obd(obd, rpm):
-    """The vehicle's OBD row in the fusion model's terms (autopulse.fusion.OBD_NAMES)."""
-    return {"rpm": rpm, "coolant_c": obd["coolant_c"], "load_pct": obd["engine_load"], "throttle_pct": obd["throttle_pct"],
-            "stft_std": obd.get("stft_std", 2.0), "ltft_pct": obd["ltft_pct"]}
-
-
-SNR_LOW_DB = 3.0   # median frame-energy SNR of the last 5 windows. Simulator test cars: noise x1 rarely below it,
-                   # x5 about half the time (median 3.0 dB), x10 nearly always (median 1.6 dB)
-
-
-def snr_db(x, fs, frame_s=0.005):
-    """Rough signal-to-noise: mean frame energy over the quietest 10% of 5 ms frames. Engine impulses rise well
-    above the floor between them; broadband noise fills the gaps and pulls this toward 0 dB."""
-    n = int(frame_s * fs)
-    m = len(x) // n
-    e = (np.asarray(x[:m * n], dtype=float).reshape(m, n) ** 2).mean(1)
-    return float(10 * np.log10(e.mean() / (np.percentile(e, 10) + 1e-12)))
-
-
-def why_unsure(engine, rpm, snr):
-    """Plain-language reasons for an unsure verdict, from simple checks (rpm, SNR, how split the models are)."""
-    why = []
-    in_range = rpm is None or TRAIN_RPM_RANGE[0] <= rpm <= TRAIN_RPM_RANGE[1]
-    if not in_range:
-        why.append(f"rpm {rpm:.0f} outside the training range {TRAIN_RPM_RANGE[0]}-{TRAIN_RPM_RANGE[1]}")
-    # the SNR estimate was calibrated inside the training rpm range; at high rpm firings overlap and it reads low
-    if in_range and snr is not None and snr < SNR_LOW_DB:
-        why.append(f"low signal-to-noise (~{snr:.1f} dB)")
-    ens = engine.get("ensemble") or []
-    if ens:
-        order = np.argsort(ens)[::-1]
-        top, second = engine["classes"][order[0]].split(" (")[0], engine["classes"][order[1]].split(" (")[0]
-        why.append(f"fault signature weak: models split between {top} {ens[order[0]]:.0%} and {second} "
-                   f"{ens[order[1]]:.0%} (a verdict needs {engine['unsure_below']:.0%})")
-    return "; ".join(why)
-
-
-SIM_UNSURE_BELOW = 0.5   # simulator models: the 0.5 the fault rule always used, unless train.py stores another
-
-
-def sim_threshold():
-    """Confidence threshold for the simulator models: models/metrics.json "abstain_threshold" if present, else 0.5."""
-    try:
-        return float(json.loads((MODELS_DIR / "metrics.json").read_text()).get("abstain_threshold", SIM_UNSURE_BELOW))
-    except (OSError, ValueError):
-        return SIM_UNSURE_BELOW
-
-
-SHORT = {"SVM (RBF)": "SVM", "Softmax regression": "Softmax", "ANN (MLP + softmax)": "ANN", "CNN (spectrogram)": "CNN"}
-
-
-def build_sig(x, fs, rpm, crank_speed=None, stft=None):
-    """The Signatures page's views of one window: waveform, spectrum, spectrogram, envelope, orders, crank speed.
-    Shared by the live stream (LiveHub.engine) and uploaded clips (/api/classify-audio)."""
-    fS, tS, S = stft if stft is not None else stft_image(x, fs)
-    fw, P = welch(x, fs, nperseg=1024)
-    keep = fw <= 10000
-    n = int(0.2 * fs)
-    step = max(1, n // 800)
-    fe, E = envelope_spectrum(x, fs)
-    sel = fe < 400
-    fa, X = spectrum(x, fs)
-    cs = np.asarray(crank_speed if crank_speed is not None else [], dtype=float)
-    return {"rpm": r(rpm, 0),
-            "time": {"t_ms": [r(v, 2) for v in np.arange(0, n, step) / fs * 1000], "y": [r(v, 3) for v in x[:n:step]]},
-            "spectrum": {"f": [r(v, 1) for v in fw[keep]], "db": [r(v, 2) for v in 10 * np.log10(P[keep] + 1e-12)]},
-            "marks": {"0.5x (misfire / cam)": rpm / 120, "1x crank": rpm / 60, "2x firing (I4)": rpm / 30},
-            "spectrogram": {"f": [r(v, 0) for v in fS], "t": [r(v, 3) for v in tS], "z": np.round(S, 1).tolist()},
-            "envelope": {"f": [r(v, 2) for v in fe[sel]], "y": [r(v, 4) for v in E[sel] / (E[sel].max() + 1e-12)],
-                         "orders": [o * rpm / 60 for o in (0.5, 1, 1.5, 2)]},
-            "orders": {"labels": [f"{o}×" for o in ORDERS], "amp": [r(v, 5) for v in order_amplitudes(fa, X, rpm)]},
-            "crank": {"dev": [r(v, 2) for v in cs - np.median(cs)] if len(cs) else []}}

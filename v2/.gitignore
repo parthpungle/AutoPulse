@@ -43,6 +43,3 @@ blender/out/*.png
 # Downloaded Sketchfab models (CC-BY, see README credits); converted copies live in frontend/public/models
 blender/source/
 blender/out_real/
-
-# --quick smoke runs (train*.py, evaluate_real.py, scripts/robustness.py)
-models/quick/

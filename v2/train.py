@@ -4,7 +4,6 @@ Train/test split is by CAR (cars 0-7 train, cars 8-9 test), so models are scored
 engines they have never heard, not on overlapping windows of the same recording.
 """
 import json
-import sys
 import time
 from pathlib import Path
 
@@ -12,14 +11,13 @@ import joblib
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 
-from autopulse.generator import ENGINE_FAULTS, TRAIN_RPM_RANGE, make_car, synth_window
+from autopulse.generator import ENGINE_FAULTS, make_car, synth_window
 from autopulse.models import HAS_TORCH, cnn_proba, feature_models, train_cnn
 from autopulse.signatures import FEATURE_NAMES, features, stft_image
 
-QUICK = "--quick" in sys.argv   # smoke run: 6 windows per class per car, CNN 3 epochs, written to models/quick/
-OUT = Path(__file__).parent / "models" / ("quick" if QUICK else "")
+OUT = Path(__file__).parent / "models"
 TRAIN_CARS, TEST_CARS = range(0, 8), range(8, 10)
-PER_CLASS_PER_CAR = 6 if QUICK else 30
+PER_CLASS_PER_CAR = 30
 
 
 def build(cars, seed):
@@ -30,7 +28,7 @@ def build(cars, seed):
         for label, fault in enumerate(ENGINE_FAULTS):
             for _ in range(PER_CLASS_PER_CAR):
                 w = synth_window(
-                    fault, rpm=rng.uniform(*TRAIN_RPM_RANGE), car=car,
+                    fault, rpm=rng.uniform(750, 4000), car=car,
                     severity=rng.uniform(0.4, 1.0),
                     coolant_c=rng.choice([rng.uniform(10, 45), rng.uniform(80, 95)], p=[0.25, 0.75]),
                     age=rng.uniform(0, 1), misfire_cyl=int(rng.integers(0, 4)), rng=rng)
@@ -41,7 +39,7 @@ def build(cars, seed):
 
 
 def main():
-    OUT.mkdir(parents=True, exist_ok=True)
+    OUT.mkdir(exist_ok=True)
     t0 = time.time()
     Xtr, Str, ytr = build(TRAIN_CARS, seed=1)
     Xte, Ste, yte = build(TEST_CARS, seed=2)
@@ -61,7 +59,7 @@ def main():
 
     if HAS_TORCH:
         import torch
-        cnn = train_cnn(Str, ytr, len(ENGINE_FAULTS), **({"epochs": 3} if QUICK else {}))
+        cnn = train_cnn(Str, ytr, len(ENGINE_FAULTS))
         pred = cnn_proba(cnn, Ste).argmax(1)
         metrics["models"]["CNN (spectrogram)"] = _score(yte, pred)
         torch.save(cnn.state_dict(), OUT / "cnn.pt")
