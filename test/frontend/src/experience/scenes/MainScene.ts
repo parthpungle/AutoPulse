@@ -13,7 +13,7 @@ import { FXScene } from './FXScene';
 const KEYS = [
   { p: [0, 0, 12], t: [0, 0.3, 0] },
   { p: [0, 0, 12], t: [0, 0, 0] }, // unused: Sensor Array uses orbitPose()
-  { p: [0.6, 2.2, 11.4], t: [0.6, -0.5, -1.2] },
+  { p: [0, 0, 11.6], t: [0, 0, 0] }, // face-on: the pipeline is a flat diagram
   { p: [0, 0, 11.6], t: [0, 0, 0] },
   { p: [0, 0, 11.6], t: [0, 0, 0] },
 ] as const;
@@ -96,6 +96,7 @@ export class MainScene extends FXScene {
         uColor: { value: palette.text },
         tStreams: { value: null },
         tClusters: { value: null },
+        tSignals: { value: null },
         uClusterColors: { value: CLUSTERS.map((c) => new Color(c.color)) },
         uClusterSel: shared.uClusterSel,
         uAnySel: shared.uAnySel,

@@ -37,6 +37,7 @@ export function Landing() {
   const [active, setActive] = useState<StateKey | null>(null);
   const [card, setCard] = useState(0);
   const [detail, setDetail] = useState(false);
+  const [stage, setStage] = useState(0);
   const nav = useRef({ section: 0, card: 0, detail: false });
   nav.current = { section, card, detail };
   const root = useRef<HTMLDivElement>(null);
@@ -48,6 +49,7 @@ export function Landing() {
   const onProgress = useCallback((p: number) => pre.current?.setEngine(p), []);
   const onSection = useCallback((i: number) => setSection(i), []);
   const onCard = useCallback((i: number) => setCard(i), []);
+  const onStage = useCallback((i: number) => setStage(i), []);
   const onOpenCard = useCallback(() => setDetail(true), []);
   const closeDetail = useCallback(() => setDetail(false), []);
 
@@ -185,7 +187,7 @@ export function Landing() {
 
   return (
     <div ref={root} style={active === 'healthy' ? { ['--state' as string]: 'var(--cool)' } : undefined}>
-      <Experience onCreate={setEngine} onProgress={onProgress} onSection={onSection} onCard={onCard} onOpenCard={onOpenCard} />
+      <Experience onCreate={setEngine} onProgress={onProgress} onSection={onSection} onCard={onCard} onStage={onStage} onOpenCard={onOpenCard} />
 
       <header className={`tt-header${detail ? ' is-detail' : ''}`} inert={detail}>
         <a className="tt-wordmark" href="#top" onClick={(e) => goTo(e, '#top')} aria-label="TorqueTwin, back to top">
@@ -304,7 +306,7 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="tt-sec" data-section="2" id="signatures" aria-labelledby="signatures-title">
+        <section className="tt-sec tt-sec--signatures" data-section="2" data-pin id="signatures" aria-labelledby="signatures-title">
           <div className="tt-sec__inner">
             <div className="tt-copy">
               <p className="tt-eyebrow" data-reveal="chars">
@@ -316,16 +318,23 @@ export function Landing() {
               <p className="tt-lede" data-reveal="fade">
                 {SIGNATURES.body}
               </p>
-              <dl className="tt-stats" data-reveal="stagger">
-                {SIGNATURES.stats.map((s) => (
-                  <div key={s.label} className="tt-stat">
-                    <dt className="tt-stat__label">{s.label}</dt>
-                    <dd className="tt-stat__value" style={{ margin: 0 }}>
-                      {s.value}
-                    </dd>
-                  </div>
+              <ol className="tt-stages" aria-label="The four stages" data-reveal="fade">
+                {SIGNATURES.stages.map((s, i) => (
+                  <li key={s.key}>
+                    <button type="button" className={i === stage ? 'on' : ''} aria-current={i === stage ? 'step' : undefined} onClick={() => engine?.goToStage(i)}>
+                      <span className="tt-stages__num">{String(i + 1).padStart(2, '0')}</span>
+                      <span className="tt-stages__label">{s.label}</span>
+                    </button>
+                  </li>
                 ))}
-              </dl>
+              </ol>
+              <div className="tt-stage" aria-live="polite">
+                <p className="tt-stage__line">{SIGNATURES.stages[stage].line}</p>
+                <p className="tt-stat">
+                  <span className="tt-stat__value">{SIGNATURES.stages[stage].stat.value}</span>
+                  <span className="tt-stat__label">{SIGNATURES.stages[stage].stat.label}</span>
+                </p>
+              </div>
             </div>
           </div>
         </section>

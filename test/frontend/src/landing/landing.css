@@ -274,6 +274,8 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
 
 /* ---------------------------------------------------------------- sensor array (pinned) */
 .tt-sec--sensors { height: calc(100vh + 7 * 60vh); }
+/* Signatures: the four stages of the pipeline, about 55vh of scroll each */
+.tt-sec--signatures { height: calc(100vh + 3 * 55vh); }
 .tt-sensors { pointer-events: none; justify-content: flex-start; }
 .tt-sensors > * { pointer-events: auto; }
 .tt-sensors__intro { max-width: 320px; transition: opacity 0.6s, transform 0.6s cubic-bezier(0.2, 0.7, 0.1, 1); }
@@ -446,4 +448,26 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
   }
   .tt-index__list button.on { opacity: 1; border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
   .tt-index__list button.on .tt-index__label::after { display: none; }
+}
+
+/* ---------------------------------------------------------------- signal pipeline stepper */
+.tt-stages { list-style: none; margin: 30px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 4px; }
+.tt-stages button {
+  display: inline-flex; align-items: baseline; gap: 8px; padding: 8px 12px 8px 0; border: 0; background: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+  transition: color 0.3s;
+}
+.tt-stages button:hover, .tt-stages button:focus-visible { color: var(--text); }
+.tt-stages__label { position: relative; padding-bottom: 6px; }
+.tt-stages__label::after { content: ''; position: absolute; left: 0; bottom: 0; height: 1px; width: 0; background: var(--accent); transition: width 0.4s cubic-bezier(0.2, 0.7, 0.1, 1); }
+.tt-stages button.on { color: var(--text); }
+.tt-stages button.on .tt-stages__num { color: var(--accent); }
+.tt-stages button.on .tt-stages__label::after { width: 100%; }
+.tt-stage { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+.tt-stage__line { margin: 0; min-height: 4.5em; color: color-mix(in srgb, var(--text) 86%, transparent); font-size: clamp(14.5px, 1.1vw, 16.5px); line-height: 1.5; }
+.tt-stage .tt-stat { margin: 14px 0 0; padding: 0; border: 0; }
+@media (max-width: 640px) {
+  .tt-stages { margin-top: 18px; flex-wrap: nowrap; gap: 0 2px; }
+  .tt-stages button { padding-right: 9px; font-size: 9px; letter-spacing: 0.06em; gap: 5px; }
+  .tt-stage__line { min-height: 0; }
 }

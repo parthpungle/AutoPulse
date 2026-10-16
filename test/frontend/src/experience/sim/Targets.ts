@@ -45,6 +45,9 @@ function texture(data: Float32Array<ArrayBuffer>, side: number) {
   return t;
 }
 
+const FAST_LANES = [0, 1, 2, 6];
+const SLOW_LANES = [3, 4, 5, 7];
+
 type Fill = (out: Float32Array, i: number, rand: () => number, gauss: (clip?: number) => number) => void;
 
 const FILLS: Fill[] = [
@@ -68,11 +71,14 @@ const FILLS: Fill[] = [
     o[i + 2] = o[i] === 8 ? Math.pow(r(), 0.7) : r();
     o[i + 3] = r();
   },
-  // 2 spectrogram: column, height fraction, time row (more particles in the front rows), jitter
+  // 2 signal pipeline (see shapes.glsl): sensor lane 0-7, position along the lane, vertical
+  //   random, random. The four fast lanes (acoustic, vibration, crank, current) carry twice the
+  //   particles of the four slow ones (coolant, throttle, lambda, CAN)
   (o, i, r) => {
-    o[i] = r();
-    o[i + 1] = Math.pow(r(), 0.85);
-    o[i + 2] = Math.pow(r(), 1.7);
+    const pick = r() * 12;
+    o[i] = pick < 8 ? FAST_LANES[Math.floor(pick / 2)] : SLOW_LANES[Math.floor(pick - 8)];
+    o[i + 1] = r();
+    o[i + 2] = r();
     o[i + 3] = r();
   },
   // 3 clusters: plot x, plot y, depth, cluster id (4 = outlier between clusters)

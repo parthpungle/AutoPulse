@@ -24,12 +24,13 @@ export const SENSOR_ARRAY = {
 export const SIGNATURES = {
   eyebrow: '02 / Signatures',
   title: 'Raw signal in. Fingerprint out.',
-  body: 'A short-time Fourier transform cuts every one-second window into overlapping frames and maps where the energy sits in frequency and time. Faults leave marks there that the raw waveform hides: a ringing band, a missing harmonic, a comb of ticks.',
-  stats: [
-    { value: '24 kHz', label: 'Sample rate' },
-    { value: '512 · 50%', label: 'STFT frame · overlap' },
-    { value: '28', label: 'Features per window' },
-    { value: '5.5–8 kHz', label: 'Knock band' },
+  body: 'Faults leave marks in frequency that the raw waveform hides. Four steps turn eight channels into one fingerprint.',
+  /** The four stages of the pipeline, in order: a label for the stepper, one line and one stat. */
+  stages: [
+    { key: 'ingest', label: 'Ingest', line: 'Eight channels come in and are lined up in time, using the CAN timestamps.', stat: { value: '8 channels', label: 'time-aligned · 24 kHz audio' } },
+    { key: 'window', label: 'Window', line: 'Each second is cut into 512-sample frames, every one overlapping the last by half.', stat: { value: '512 · 50%', label: 'frame · overlap' } },
+    { key: 'transform', label: 'Transform', line: 'A short-time Fourier transform shows where the energy sits in frequency and time. Knock lights up one band.', stat: { value: '5.5–8 kHz', label: 'knock band' } },
+    { key: 'fingerprint', label: 'Fingerprint', line: 'Each window is boiled down to one list of features, the fingerprint the models read.', stat: { value: '28', label: 'features per window' } },
   ],
 };
 

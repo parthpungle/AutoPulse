@@ -33,7 +33,8 @@ void main() {
   vec4 home = shape(uSecA, texture2D(tA, uv), uTime);
   if (m > 0.0) home = mix(home, shape(uSecB, texture2D(tB, uv), uTime), m);
   // how much of this particle's home is a Sensor Array flow (see shapes.glsl)
-  float flow = gFlow * ((abs(uSecA - 1.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 1.0) < 0.5 ? m : 0.0));
+  float flow = gFlow * ((abs(uSecA - 1.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 1.0) < 0.5 ? m : 0.0)
+                      + (abs(uSecA - 2.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 2.0) < 0.5 ? m : 0.0));
   // and how much is a Recognition cluster: clusters keep their own motion, the global engine state
   // (knock kicks, valve jitter, misfire stalls) never touches them
   float w3 = (abs(uSecA - 3.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 3.0) < 0.5 ? m : 0.0);

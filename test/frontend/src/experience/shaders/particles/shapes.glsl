@@ -4,7 +4,6 @@
 //   xyz = home position, w = emphasis (1 normal, >1 brighter and warmer, <1 dimmer)
 
 uniform vec4 uL0;   // hero      : half width, amplitude, thickness, y offset
-uniform vec4 uL2;   // spectrum  : centre x, width, height, base y
 uniform vec4 uL3;   // clusters  : centre x, centre y, half width, half height
 uniform vec4 uL4;   // ring      : centre x, centre y, radius, thickness
 uniform vec2 uClusterC[4];
@@ -225,19 +224,118 @@ float fakeSpectrum(float f, float t) {
   return clamp(s, 0.03, 1.15);
 }
 
-vec4 shapeSpectrum(vec4 d, float t) {
-  const float COLS = 40.0;
-  const float ROWS = 6.0;
-  float col = min(floor(d.x * COLS), COLS - 1.0);
-  float row = min(floor(d.z * ROWS), ROWS - 1.0);
-  float f = (col + 0.5) / COLS;
-  float h = fakeSpectrum(f, t - row * 0.22);
-  float colW = uL2.y / COLS;
-  float x = uL2.x - uL2.y * 0.5 + (col + 0.5) * colW + (d.w - 0.5) * colW * 0.26;
-  float y = uL2.w + d.y * h * uL2.z;
-  float z = 1.4 - row * 0.75;
-  float e = (0.45 + 0.9 * d.y * h) * (1.0 - row / ROWS * 0.85);
-  return vec4(x, y, z, e);
+// ---------------------------------------------------------------------------------------------
+// Signatures: "Raw signal in. Fingerprint out." as a four-stage pipeline (see common/pipeline.glsl).
+// Every particle belongs to one of the eight sensor lanes (colour comes from the lane, in the draw
+// pass); d = (lane 0-7, position along the lane, vertical random, random). uStage (0..3, scroll)
+// morphs between the stages with a per-particle stagger:
+//   0 INGEST       the eight channels enter as lanes; a clock line sweeps across and the lanes snap
+//                  into time alignment behind it
+//   1 WINDOW       the fast lanes are chopped into overlapping packets; a window slides along
+//   2 TRANSFORM    packets cross the prism and fan out into a spectrogram wall coloured by source;
+//                  the 5.5-8 kHz band lights up on Knock; slow lanes bypass along the bottom
+//   3 FINGERPRINT  the wall compresses into 28 bars; the slow lanes become the last four
+uniform float uStage;
+
+bool laneFast(float j) { return j < 2.5 || abs(j - 6.0) < 0.5; }
+
+// What each lane carries, -1..1: the fast lanes have their own waveform character, the slow ones step.
+float laneWave(float j, float x, float t) {
+  float ph = x - t * (laneFast(j) ? 0.16 : 0.04);
+  if (j < 0.5) return exp(-fract(ph * 3.0) * 6.0) * sin(ph * 170.0) * 0.9 + 0.25 * sin(ph * 61.0);
+  if (j < 1.5) return exp(-fract(ph * 4.0) * 4.0) * sin(ph * 230.0) * 0.8 + 0.12 * sin(ph * 310.0);
+  if (j < 2.5) return (step(0.5, fract(ph * 48.0)) * 2.0 - 1.0) * step(fract(ph * 2.0), 0.95) * 0.7;
+  if (abs(j - 6.0) < 0.5) {
+    float p = fract(ph * 4.0);
+    return p > 0.45 ? -0.6 : -0.6 + min(1.0, p / 0.06) + exp(-pow((p - 0.12) / 0.03, 2.0)) * 0.3 - (p > 0.14 ? 0.3 : 0.0);
+  }
+  return (hash11(floor(ph * (5.0 + j)) + j * 11.0) * 2.0 - 1.0) * 0.8;
+}
+
+float slowRank(float j) { return j < 3.5 ? 0.0 : j < 4.5 ? 1.0 : j < 5.5 ? 2.0 : 3.0; }
+
+vec4 sigStage(int stage, vec4 d, float t) {
+  float j = d.x;
+  float u = d.y;
+  float v = d.z;
+  float r = d.w;
+  bool fast = laneFast(j);
+  float spacing = 0.105 * uL2.z;
+  float amp = spacing * (fast ? 0.46 : 0.2);
+  float thick = spacing * (fast ? 0.30 : 0.05);
+  float lf = 0.14 + 0.84 * (1.0 - (j + 0.5) / 8.0);
+
+  if (stage <= 1) {
+    float cx = pipeClock(t);
+    // behind the clock line the lanes are in sync; ahead of it each is skewed in time
+    float skew = stage == 0 ? (j - 3.5) * 0.07 * smoothstep(cx - 0.02, cx + 0.02, u) : 0.0;
+    float xs = u;
+    float e = fast ? 1.0 : 0.75;
+    if (stage == 1 && fast) {
+      // overlapping packets: each is squeezed toward its centre, leaving gaps; the one in the
+      // sliding window lights up
+      float c = (floor(u / PIPE_PACKET) + 0.5) * PIPE_PACKET;
+      xs = c + (u - c) * 0.55;
+      float w0 = pipeWindow(t);
+      e = 0.8 + 0.9 * step(w0, u) * step(u, w0 + PIPE_WIN);
+    }
+    // lanes enter from the left edge; the clock line leaves a bright trail
+    float edge = smoothstep(0.0, 0.05, u) * smoothstep(1.0, 0.94, u);
+    e = (e + (stage == 0 ? 1.4 * exp(-pow((u - cx) / 0.012, 2.0)) : 0.0)) * edge;
+    float y = pipeY(lf) + laneWave(j, u + skew, t) * amp + (v - 0.5) * thick;
+    return vec4(pipeX(xs), y, (r - 0.5) * 0.3, e);
+  }
+
+  if (stage == 2) {
+    if (!fast) {
+      // slow lanes aren't transformed: thin context lines along the bottom
+      return vec4(pipeX(u), pipeY(0.03 + slowRank(j) * 0.03) + (v - 0.5) * 0.004 * uL2.z, 0.0, 0.7);
+    }
+    if (u < 0.3) {
+      // packets travelling to the prism
+      float uu = u / 0.3;
+      float c = (floor(uu / PIPE_PACKET) + 0.5) * PIPE_PACKET;
+      float xs = c + (uu - c) * 0.55;
+      float y = pipeY(lf) + laneWave(j, uu, t) * amp + (v - 0.5) * thick;
+      return vec4(pipeX(xs * PIPE_PRISM), y, (r - 0.5) * 0.3, 1.0);
+    }
+    // the wall: x is time, y is frequency, brightness is this source's energy there
+    float tx = (u - 0.3) / 0.7;
+    float x = PIPE_WALL0 + tx * (PIPE_WALL1 - PIPE_WALL0);
+    float y = pipeY(PIPE_WALL_LO + v * (PIPE_WALL_HI - PIPE_WALL_LO));
+    // each source owns a stretch of frequency (crank low, acoustic broad, current mid, vibration
+    // high), so the wall is banded in their colours and mixes where they overlap
+    float centre = j < 0.5 ? 0.38 : j < 1.5 ? 0.68 : j < 2.5 ? 0.14 : 0.5;
+    float width = j < 0.5 ? 0.3 : j < 1.5 ? 0.24 : j < 2.5 ? 0.16 : 0.2;
+    float own = exp(-pow((v - centre) / width, 2.0));
+    float en = fakeSpectrum(v, t - tx * 0.9) * own;
+    float band = step(KNOCK_LO, v) * step(v, KNOCK_HI);
+    // the knock band (5.5-8 kHz) lights up and pulses on Knock
+    en *= 1.0 + band * uKnock * (1.6 + 0.8 * sin(t * 9.0));
+    // particle density follows the energy, so the wall shows its structure (harmonic lines, the
+    // bands, the knock band) instead of a uniform speckle
+    float shown = step(fract(r * 53.17 + v * 3.1), clamp(pow(en, 0.8) * 1.6, 0.0, 1.0));
+    return vec4(pipeX(x), y, (r - 0.5) * 0.4, (0.35 + en * 1.4) * shown);
+  }
+
+  // 3: the fingerprint, 28 glowing bars (the feature vector); the four slow lanes are the last bars
+  // each fast lane owns six of the first 24 bars (acoustic, vibration, crank, current), so the
+  // barcode is banded in its sources' colours
+  float rank = j < 0.5 ? 0.0 : j < 1.5 ? 1.0 : j < 2.5 ? 2.0 : 3.0;
+  float k = fast ? rank * 6.0 + floor(fract(r * 61.0 + v * 7.3) * 6.0) : 24.0 + slowRank(j);
+  float h = (0.22 + 0.62 * hash11(k * 7.77 + 3.0) + uKnock * step(10.0, k) * step(k, 16.0) * 0.5) * (0.9 + 0.1 * sin(t * 1.7 + k)) * (fast ? 1.0 : 0.6);
+  float x = 0.2 + (k + 0.5) / 28.0 * 0.6 + (fract(r * 91.0) - 0.5) * 0.008;
+  return vec4(pipeX(x), pipeY(PIPE_WALL_LO + v * h * 0.75), (r - 0.5) * 0.2, fast ? 1.35 : 0.7);
+}
+
+vec4 shapeSignatures(vec4 d, float t) {
+  gFlow = 1.0; // its particles track their (moving) homes, like the Sensor Array flows
+  float f = clamp(uStage, 0.0, 3.0);
+  float i0 = floor(min(f, 2.999));
+  float tm = smoothstep(d.w * 0.3, 0.7 + d.w * 0.3, f - i0);
+  vec4 a = sigStage(int(i0), d, t);
+  if (tm <= 0.0) return a;
+  return mix(a, sigStage(int(i0) + 1, d, t), tm);
 }
 
 // Recognition: four clusters with permanent identities. Each moves on its own clock and never on
@@ -298,7 +396,7 @@ vec4 shapeRing(vec4 d, float t) {
 vec4 shape(float sec, vec4 d, float t) {
   if (sec < 0.5) return shapeHero(d, t);
   if (sec < 1.5) return shapeSensors(d, t);
-  if (sec < 2.5) return shapeSpectrum(d, t);
+  if (sec < 2.5) return shapeSignatures(d, t);
   if (sec < 3.5) return shapeClusters(d, t);
   return shapeRing(d, t);
 }

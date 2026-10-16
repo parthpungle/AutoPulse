@@ -1,6 +1,8 @@
 // Shader sources live in .glsl files and are imported as strings; shared chunks are joined here.
 import noise from './common/noise.glsl?raw';
 import state from './common/state.glsl?raw';
+import pipeline from './common/pipeline.glsl?raw';
+import pipelineOverlay from './pipelineOverlay.frag.glsl?raw';
 import shapes from './particles/shapes.glsl?raw';
 import velocity from './particles/velocity.frag.glsl?raw';
 import position from './particles/position.frag.glsl?raw';
@@ -32,7 +34,8 @@ export const GLSL = {
   copy,
   backdrop: join(noise, backdrop),
   composite: join(noise, composite),
-  velocity: join(noise, state, shapes, velocity),
+  velocity: join(noise, state, pipeline, shapes, velocity),
+  pipelineOverlay: join(pipeline, pipelineOverlay),
   position,
   pointsVert: join(state, pointsVert),
   pointsFrag,

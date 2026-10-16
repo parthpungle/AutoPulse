@@ -17,6 +17,7 @@ uniform float uActiveSensor;
 uniform vec3 uActiveTip;        // world position of the active sensor's tip
 
 uniform sampler2D tClusters;    // the section-3 target (cluster id in .w)
+uniform sampler2D tSignals;     // the section-2 target (sensor lane in .x)
 uniform vec3 uClusterColors[4];
 
 attribute vec2 aRef;
@@ -37,6 +38,8 @@ void main() {
   float w3 = (abs(uSecA - 3.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 3.0) < 0.5 ? m : 0.0);
   // the global engine state never styles the clusters
   float global = 1.0 - w3;
+  // the signal pipeline (Signatures) colours every particle by the sensor lane it came from
+  float w2 = (abs(uSecA - 2.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 2.0) < 0.5 ? m : 0.0);
 
   float e = V.w;
   float sp = clamp(length(V.xyz) * 0.16, 0.0, 1.0);
@@ -96,8 +99,12 @@ void main() {
     base = mix(uColor, c * 1.25, w1);
   }
   base = mix(base, clColor * 1.2, w3);
+  if (w2 > 0.0) {
+    int lane = int(texture2D(tSignals, aRef).x + 0.5);
+    base = mix(base, uSensorColors[lane] * 1.25, w2);
+  }
 
-  float accentMix = clamp(sp * 0.85 + max(e - 1.0, 0.0) * 0.7 + kp * 0.6, 0.0, 1.0) * (1.0 - w1) * global;
+  float accentMix = clamp(sp * 0.85 + max(e - 1.0, 0.0) * 0.7 + kp * 0.6, 0.0, 1.0) * (1.0 - w1) * (1.0 - w2) * global;
   float bright = (0.45 + 0.55 * aRand.w) * (0.35 + 0.65 * min(e, 2.5)) * (1.0 + sp * 1.4 + kp * 1.2) * mix(1.0, clBright, w3);
   vColor = mix(base, uAccent, accentMix) * bright * a;
 }

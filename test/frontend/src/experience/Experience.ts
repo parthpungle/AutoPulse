@@ -1,6 +1,6 @@
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Color, HalfFloatType, MathUtils, Mesh, Scene, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three';
+import { Color, HalfFloatType, MathUtils, Mesh, Scene, Vector2, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three';
 import { preloadFont } from 'troika-three-text';
 import { SENSORS, SENSOR_COUNT } from '../content/sensors';
 import { Cards, FONT_DISPLAY, FONT_MONO, SCRAMBLE } from './carousel/Cards';
@@ -28,11 +28,14 @@ import type { Palette } from './theme';
 import { BackdropScene } from './scenes/BackdropScene';
 import { CAMERA_BASE_Z, CAMERA_FOV, MainScene } from './scenes/MainScene';
 import { ClusterRing } from './scenes/ClusterRing';
+import { Handoff } from './scenes/Handoff';
+import { PipelineOverlay } from './scenes/PipelineOverlay';
+import { Prism } from './scenes/Prism';
 import { SensorRig } from './sensors/SensorRig';
 import { SyntheticSignals } from './signals/SyntheticSignals';
 import { FluidSim } from './sim/FluidSim';
 import { ParticleSim } from './sim/ParticleSim';
-import { generateTargets } from './sim/Targets';
+import { CLUSTERS, generateTargets } from './sim/Targets';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -45,6 +48,8 @@ export interface ExperienceOptions {
   onSection?: (index: number) => void;
   /** Active sensor card in the Sensor Array, called when it changes. */
   onCard?: (index: number) => void;
+  /** Active stage of the signal pipeline (Signatures), called when it changes. */
+  onStage?: (index: number) => void;
   /** The active card was clicked (open its detail panel). */
   onOpenCard?: (index: number) => void;
 }
@@ -97,6 +102,17 @@ export class Experience {
   composite!: Composite;
   rig!: SensorRig;
   ring!: ClusterRing;
+  /** The signal pipeline (Signatures): its four stages, thin lines, prism and the hand-off comet. */
+  stages!: CarouselState;
+  private overlay!: PipelineOverlay;
+  private prism!: Prism;
+  private handoff!: Handoff;
+  private activeStage = -1;
+  /** The Recognition cluster the fingerprint lands in, and a flash (1 -> 0) once it has. */
+  private landCluster = 0;
+  private landFlash = 0;
+  private readonly landPos = new Vector2();
+  private readonly landColor = new Color();
   /** The selected Recognition cluster (-1: none), and the last one (the ring fades out there). */
   selectedCluster = -1;
   private ringCluster = -1;
@@ -143,6 +159,8 @@ export class Experience {
     container.appendChild(this.canvas);
     this.scroll = new ScrollState(options.sections, this.reduced);
     this.carousel = new CarouselState(this.scroll, 1, SENSOR_COUNT);
+    // the signal pipeline: 4 stages, scrubbed by scroll inside the pinned Signatures section
+    this.stages = new CarouselState(this.scroll, 2, 4);
     this.pointer.ghost = !this.reduced;
     this.ready = this.init();
   }
@@ -195,6 +213,10 @@ export class Experience {
     this.rig.attach(this.main.scene);
     this.ring = new ClusterRing(this.shared.uTime);
     this.main.scene.add(this.ring.mesh);
+    this.overlay = new PipelineOverlay(this.shared, this.layout.L2);
+    this.main.scene.add(this.overlay.mesh);
+    this.handoff = new Handoff(this.layout.L2);
+    this.main.scene.add(this.handoff.points);
     // flows: the sim reads the paths and phases; the draw pass colours by pool (sharing the morph
     // uniforms and the active sensor)
     const su = this.sim.uniforms;
@@ -209,10 +231,13 @@ export class Experience {
     pu.uMorph = su.uMorph;
     pu.tStreams.value = set.targets[1];
     pu.tClusters.value = set.targets[3];
+    pu.tSignals.value = set.targets[2];
     this.cards = new Cards(this.main.glassRT.texture, this.shared);
     this.cards.setOctaves(CARD_OCTAVES[this.settings.tier]);
     this.main.cardScene.add(this.cards.group);
     this.main.setBackdrop(this.backdrop.rt.texture);
+    this.prism = new Prism(this.shared, this.layout.L2, this.main.glassRT.texture, this.cards.glassTexel);
+    this.main.cardScene.add(this.prism.mesh);
     r.info.autoReset = false;
     this.composite = new Composite(r, this.main.camera, this.backdrop.rt.texture, this.main.rt.texture, this.shared, this.palette);
     this.composite.setBloom(this.settings.bloom);
@@ -272,6 +297,8 @@ export class Experience {
     }
     r.setRenderTarget(scratch);
     await r.compileAsync(tmp, this.quad.camera);
+    // the pipeline's meshes start hidden: show them while the programs compile
+    this.overlay.mesh.visible = this.handoff.points.visible = this.prism.mesh.visible = true;
     r.setRenderTarget(scratch);
     await r.compileAsync(this.main.scene, this.main.camera);
     // both material tiers for the rig, so a quality drop only swaps materials
@@ -291,6 +318,7 @@ export class Experience {
     await r.compileAsync(this.main.cardScene, this.main.camera);
     r.render(this.main.cardScene, this.main.camera);
     this.cards.setWarm(false);
+    this.overlay.mesh.visible = this.handoff.points.visible = this.prism.mesh.visible = false;
     this.main.cardsVisible = true;
     this.main.renderLayers(r, this.quad);
     this.main.cardsVisible = false;
@@ -406,6 +434,7 @@ export class Experience {
     this.sim.setSections(sc.secA, sc.secB, sc.morph);
     this.sim.uniforms.uIntro.value = this.intro.value;
     this.sim.uniforms.uReduced.value = this.reduced ? 1 : 0;
+    this.updatePipeline(dt, sf);
     this.sim.step(dt, this.fluid.texture);
 
     const pu = this.main.material.uniforms;
@@ -415,7 +444,9 @@ export class Experience {
 
     const near = 1 - Math.abs(sf - 1);
     this.backdrop.update(sc.progress, near > 0 ? near : 0);
-    this.ring.update(dt, this.layout, this.ringCluster, s.uAnySel.value, Math.max(0, 1 - Math.abs(sf - 3) * 2));
+    // the ring marks the selected cluster, or flashes at the cluster the fingerprint lands in
+    const selAmt = s.uAnySel.value;
+    this.ring.update(dt, this.layout, selAmt > 0.01 ? this.ringCluster : this.landCluster, Math.max(selAmt, this.landFlash), Math.max(0, 1 - Math.abs(sf - 3) * 2));
     this.backdrop.render(r);
     const before = r.info.render.calls;
     this.rig.renderShadow(r, this.quad, this.main.scene);
@@ -432,6 +463,41 @@ export class Experience {
       this.section = idx;
       this.options.onSection?.(idx);
     }
+  }
+
+  /**
+   * The signal pipeline: the stage (scroll, snapping to the nearest), the thin lines, the prism
+   * and the fingerprint's hand-off to Recognition (a comet from the barcode to the cluster of the
+   * current engine state, scrubbed by the morph; that cluster flashes when it lands).
+   */
+  private updatePipeline(dt: number, sf: number) {
+    const sc = this.scroll;
+    this.stages.update(dt);
+    const stage = this.stages.value;
+    this.sim.uniforms.uStage.value = stage;
+    const on = Math.max(0, 1 - Math.abs(sf - 2) / 0.5);
+    this.overlay.update(stage, on);
+    // the prism stands in the TRANSFORM stage (and the glass pass runs for it)
+    const prismAmt = on * Math.max(0, 1 - Math.abs(stage - 2) * 0.9);
+    this.prism.update(prismAmt);
+    this.main.cardsVisible = this.main.cardsVisible || prismAmt > 0.004;
+    if (this.stages.active !== this.activeStage) {
+      this.activeStage = this.stages.active;
+      this.options.onStage?.(this.activeStage);
+    }
+    // hand-off: only on the way from Signatures to Recognition
+    const k = sc.secA === 2 && sc.secB === 3 ? MathUtils.smoothstep(sc.morph, 0.1, 0.95) : sc.secA >= 3 ? 1 : 0;
+    const idx = this.state === 'baseline' ? 0 : Math.max(0, ['healthy', 'knock', 'misfire', 'valve'].indexOf(this.state));
+    this.landCluster = idx;
+    const L = this.layout.L3;
+    const c = this.layout.clusterC[idx];
+    this.landPos.set(L.x + c.x * L.z, L.y + c.y * L.w);
+    this.landColor.set(CLUSTERS[idx].color);
+    this.handoff.update(sc.secA === 2 && sc.secB === 3 ? k : 0, this.landPos, this.landColor, this.main.material.uniforms.uPointScale.value);
+    // a flash once it has landed (it decays; scrolling back through resets it)
+    if (sc.secA === 2 && sc.secB === 3 && sc.morph > 0.9) this.landFlash = 1;
+    else this.landFlash *= Math.exp(-dt * 1.6);
+    if (this.landFlash < 0.01) this.landFlash = 0;
   }
 
   /** Sensor Array: card placement, hover, the active card (glitch reveal, DOM, backdrop tint). */
@@ -546,6 +612,11 @@ export class Experience {
     }
   }
 
+  /** Go to stage i of the signal pipeline (scrolls the page to it). */
+  goToStage(i: number) {
+    this.stages.goToCard(i, 0.9);
+  }
+
   /** Bring sensor card i to the front (scrolls the page to it). */
   goToCard(i: number) {
     this.carousel.goToCard(i);
@@ -657,6 +728,10 @@ export class Experience {
     window.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('click', this.onClick);
     this.carousel.dispose();
+    this.stages?.dispose();
+    this.overlay?.dispose();
+    this.prism?.dispose();
+    this.handoff?.dispose();
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     this.scroll.dispose();

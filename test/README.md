@@ -66,7 +66,7 @@ Vehicle-only installs can use the smaller `requirements-vehicle.txt` (no PyTorch
 
 ## Landing page
 
-`/` is the TorqueTwin intro: one fixed WebGL canvas behind the page, telling the story as you scroll (raw signal → the Sensor Array → spectrogram → four fault clusters → launch). The dashboard moved to `/dashboard`; `/vehicle.html` is unchanged.
+`/` is the TorqueTwin intro: one fixed WebGL canvas behind the page, telling the story as you scroll (raw signal → the Sensor Array → the signal pipeline → four fault clusters → launch). The dashboard moved to `/dashboard`; `/vehicle.html` is unchanged.
 
 | Route | Page | Entry |
 |-------|------|-------|
@@ -103,6 +103,7 @@ Vite's dev server and `backend/app.py` (single-port mode) both serve `/dashboard
   - OBD-II/CAN: packets from every sensor converging on the port.
 
   Thin dashes carry the active sensor's data down its cable to the OBD-II port. Every other sensor keeps a faint trickle, so all eight colours always show. Knock, Misfire and Valve wear each change the flows they affect, and the sensor's tip glows as its flow arrives.
+- **Signal pipeline** ("Raw signal in. Fingerprint out."): a pinned section with four stages, scrolled or clicked through (01 Ingest, 02 Window, 03 Transform, 04 Fingerprint), each with one line and one stat. The particles are the eight sensors' signals in their own colours: lanes time-aligned by a sweeping clock line, chopped into 512-sample packets that overlap by half, fanned out by a glass prism into a spectrogram wall banded by source (the 5.5–8 kHz knock band lights up under Knock), and compressed into 28 bars, the fingerprint. On the way into Recognition a bright comet carries it to the cluster of the current engine state, which flashes where it lands.
 - All sensor copy lives in `src/content/sensors.ts`, split into those three levels. A hidden list mirrors it for screen readers.
 
 **How it works** (`src/experience/`): framework-agnostic TypeScript classes, mounted by one React `<Experience/>` component and disposed on unmount.

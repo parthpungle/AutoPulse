@@ -6,14 +6,15 @@ interface Props {
   onProgress: (p: number) => void;
   onSection: (index: number) => void;
   onCard: (index: number) => void;
+  onStage: (index: number) => void;
   onOpenCard: (index: number) => void;
 }
 
 /** Mounts the WebGL engine behind the page: created on mount, disposed (with every GPU resource) on unmount. */
-export function Experience({ onCreate, onProgress, onSection, onCard, onOpenCard }: Props) {
+export function Experience({ onCreate, onProgress, onSection, onCard, onStage, onOpenCard }: Props) {
   const host = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onCreate, onProgress, onSection, onCard, onOpenCard });
-  cb.current = { onCreate, onProgress, onSection, onCard, onOpenCard };
+  const cb = useRef({ onCreate, onProgress, onSection, onCard, onStage, onOpenCard });
+  cb.current = { onCreate, onProgress, onSection, onCard, onStage, onOpenCard };
 
   useEffect(() => {
     const el = host.current;
@@ -25,6 +26,7 @@ export function Experience({ onCreate, onProgress, onSection, onCard, onOpenCard
       onProgress: (p) => cb.current.onProgress(p),
       onSection: (i) => cb.current.onSection(i),
       onCard: (i) => cb.current.onCard(i),
+      onStage: (i) => cb.current.onStage(i),
       onOpenCard: (i) => cb.current.onOpenCard(i),
     });
     cb.current.onCreate(engine);

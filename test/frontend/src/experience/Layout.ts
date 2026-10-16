@@ -25,12 +25,13 @@ export class Layout {
     this.wide = wide;
     this.L0.set(0.62 * w, 0.17 * u, 0.022 * u, wide ? 0.06 * h : 0.12 * h);
     if (wide) {
-      this.L2.set(0.26 * w, 0.44 * w, 0.42 * h, -0.24 * h);
+      // the signal pipeline fills the right 58% of the screen (the copy takes the left)
+      this.L2.set(0.21 * w, 0.54 * w, 0.5 * h, -0.25 * h);
       this.L3.set(0.2 * w, 0, 0.25 * w, 0.36 * h);
       this.L4.set(0, 0, 0.31 * m, 0.022 * m);
     } else {
       // portrait: every shape lives in the top third, above the copy
-      this.L2.set(0, 0.9 * w, 0.16 * h, 0.25 * h);
+      this.L2.set(0, 0.9 * w, 0.2 * h, 0.22 * h);
       this.L3.set(0, 0.28 * h, 0.42 * w, 0.13 * h);
       this.L4.set(0, 0.25 * h, 0.26 * m, 0.022 * m);
     }

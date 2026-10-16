@@ -64,6 +64,7 @@ export class ParticleSim {
         tB: { value: set.targets[0] },
         tFluid: { value: null },
         uRes: res,
+        uStage: { value: 0 },
         uSecA: { value: 0 },
         uSecB: { value: 0 },
         uMorph: { value: 0 },
