@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { AudioWaveform, FlaskConical, Gauge, HeartPulse, LayoutDashboard, Link2, TrendingUp } from 'lucide-react';
+import { AudioWaveform, FlaskConical, Gauge, ChevronRight, HeartPulse, LayoutDashboard, Link2, TrendingUp } from 'lucide-react';
 import { LiveProvider, useLive } from './live.jsx';
 import { CAR_INFO, carName } from './cars.js';
 import PairDrawer from './components/PairDrawer.jsx';
-import { LinkPill } from './components/LinkPill.jsx';
+import { LinkButton } from './components/LinkPill.jsx';
 import { AlarmShape, PRIORITY, prio } from './components/hmi.jsx';
 import Ask from './assistant/Ask.jsx';
 import { spotlight } from './assistant/nav.js';
@@ -51,7 +51,7 @@ function NoVehicle({ onPair }) {
 }
 
 // single-screen views fit the window exactly and never scroll
-const FIT = new Set(['overview', 'check']);
+const FIT = new Set(['overview', 'check', 'insights']);
 
 const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -101,21 +101,19 @@ function Shell() {
       </aside>
 
       <header className="statusbar">
-        <span className="brandmark">AUTOPULSE</span>
-        <span className="sep" />
+        <span className="brandmark">AutoPulse</span>
+        <ChevronRight size={14} className="crumb" />
         <span className="page-title">{P.name}</span>
         <span className="sep" />
         {v ? (
           <>
-            <span className="kv"><span className="label">Vehicle</span><b>{carName(v.car_type)}</b><span className="muted">unit {v.unit}</span></span>
-            <span className="kv opt" title={CAR_INFO[v.car_type]?.spec}><span className="label">Node</span><b>{v.name}</b></span>
+            <span className="kv" title={CAR_INFO[v.car_type]?.spec}><b className="car">{carName(v.car_type)}</b><span className="muted">unit {v.unit}</span></span>
             {latest && <span className="kv"><span className="label">Trip</span><b>{latest.row.ignition ? mmss(latest.row.t) : 'engine off'}</b></span>}
           </>
         ) : <span className="label">No vehicle</span>}
         <div className="right">
-          <Ask />
-          <span className="kv opt"><span className="label">Frames</span><b>{link.frames ?? 0}</b></span>
-          <LinkPill onClick={() => setDrawer(true)} />
+          <Ask page={page} />
+          <LinkButton onClick={() => setDrawer(true)} />
         </div>
       </header>
 

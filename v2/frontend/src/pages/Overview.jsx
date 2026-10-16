@@ -1,7 +1,7 @@
 // Cockpit, polished: no boxes. The car floats on the page, the sensors and the recognition sit in
 // open columns divided by hairlines, the live signature runs under the car. Everything fits the
 // screen: nothing on this page scrolls, and nothing is drawn over the car.
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Power, Wrench } from 'lucide-react';
 import Car3D from '../components/Car3D.jsx';
 import { AlarmShape, LinearGauge, RANGES, Sparkline, prio, prioColor } from '../components/hmi.jsx';
@@ -9,6 +9,7 @@ import { AlertCard, Tabs } from '../components/ui.jsx';
 import { CAR_INFO, carName } from '../cars.js';
 import { series, useLive } from '../live.jsx';
 import { Plot } from './Signatures.jsx';
+import { useSize } from '../components/charts/useWidth.js';
 
 const SIG_VIEWS = [['time', 'Waveform'], ['spectrum', 'Spectrum'], ['spectrogram', 'Spectrogram'], ['orders', 'Orders'], ['crank', 'Crank']];
 const SIG_WHY = {
@@ -19,16 +20,6 @@ const SIG_WHY = {
   crank: 'A misfiring cylinder stops pushing, so the crank slows on its turn.',
 };
 
-function useSize(ref) {
-  const [s, setS] = useState({ w: 0, h: 0 });
-  useEffect(() => {
-    if (!ref.current) return undefined;
-    const ro = new ResizeObserver(([e]) => setS({ w: Math.floor(e.contentRect.width), h: Math.floor(e.contentRect.height) }));
-    ro.observe(ref.current);
-    return () => ro.disconnect();
-  }, [ref]);
-  return s;
-}
 
 function Section({ title, meta, priority, right, children, className = '', spot }) {
   const color = prioColor(priority);
@@ -97,6 +88,8 @@ export default function Overview() {
             <span className="name">{carName(v.car_type)}</span>
             <span className="spec">{CAR_INFO[v.car_type]?.spec} · unit {v.unit}</span>
           </div>
+          {/* Ask AutoPulse opens here, above the car, between the name and the readouts */}
+          <div className="ask-slot" id="ask-slot" />
           <div className="readouts" data-spot="readouts">
             <div><span className="label">Speed</span><b className="num">{row.speed_kph?.toFixed(0) ?? '—'}</b><small>km/h</small></div>
             <div><span className="label">Engine</span><b className="num">{row.rpm?.toFixed(0) ?? '—'}</b><small>rpm</small></div>

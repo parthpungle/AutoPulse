@@ -1,5 +1,5 @@
 // One-glance state of the link to the vehicle: colour + icon + words, never colour alone.
-import { CircleDot, Link2Off, LoaderCircle, OctagonAlert, TriangleAlert } from 'lucide-react';
+import { CircleDot, Link2Off, LoaderCircle, OctagonAlert, RadioTower, TriangleAlert } from 'lucide-react';
 import { useLive } from '../live.jsx';
 import { carName } from '../cars.js';
 
@@ -22,5 +22,22 @@ export function LinkPill({ onClick }) {
       <span>{text}</span>
       {live.live && live.link.latency_ms != null && <small>{live.link.latency_ms} ms</small>}
     </Tag>
+  );
+}
+
+/** The status-bar version: the vehicle link is a demo detail, so while it is healthy it is only a quiet
+ *  icon with a dot (details in the tooltip and the drawer). It only speaks up when something is wrong. */
+export function LinkButton({ onClick }) {
+  const live = useLive();
+  const { link } = live;
+  const { tone, text, spin } = linkView(live);
+  const tip = [text, link.vehicle?.name, link.host && `${link.host}:${link.port}`,
+    live.live && link.latency_ms != null && `${link.latency_ms} ms`, link.frames ? `${link.frames} frames` : null].filter(Boolean).join(' · ');
+  return (
+    <button className={`link-btn-q ${tone}`} onClick={onClick} title={`Vehicle link: ${tip}`} aria-label={`Vehicle link: ${text}`}>
+      {spin ? <LoaderCircle size={15} className="spin" /> : <RadioTower size={15} />}
+      <i className="dot" />
+      {tone !== 'good' && <span>{text}</span>}
+    </button>
   );
 }
