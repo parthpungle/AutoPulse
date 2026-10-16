@@ -45,3 +45,17 @@ export function useApi(path, body) {
   }, [path, key]);
   return state;
 }
+
+/** Multipart upload for /api/vibration/analyze. Resolves to the JSON body; rejects with Error(message, {code}). */
+export async function analyzeVibration(form) {
+  let r;
+  try { r = await fetch('/api/vibration/analyze', { method: 'POST', body: form }); }
+  catch { throw new Error('Could not reach the AutoPulse API. Is the backend running?'); }
+  const body = await r.json().catch(() => null);
+  if (!r.ok) {
+    const e = new Error(body?.message || (typeof body?.detail === 'string' ? body.detail : `Analysis failed (HTTP ${r.status})`));
+    e.code = body?.code;
+    throw e;
+  }
+  return body;
+}

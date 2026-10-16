@@ -13,7 +13,7 @@ function colorAt(t) {
   return STOPS[i].map((a, k) => Math.round(a + (STOPS[i + 1][k] - a) * f));
 }
 
-export default function Heatmap({ f, t, z, height = 300, fmtF = (v) => `${(v / 1000).toFixed(0)}k` }) {
+export default function Heatmap({ f, t, z, height = 300, fmtF = (v) => `${(v / 1000).toFixed(0)}k`, fTicks: fTicksProp, fmtT = (v) => v.toFixed(2), unit = 'dB' }) {
   const ref = useRef(null);
   const canvas = useRef(null);
   const width = useWidth(ref);
@@ -43,7 +43,7 @@ export default function Heatmap({ f, t, z, height = 300, fmtF = (v) => `${(v / 1
     ctx.drawImage(off, 0, 0, c.width, c.height);
   }, [z, pw, ph, lo, hi]);
 
-  const fTicks = [0, 2000, 4000, 6000, 8000, 10000, 12000].filter((v) => v <= f[f.length - 1]);
+  const fTicks = fTicksProp || [0, 2000, 4000, 6000, 8000, 10000, 12000].filter((v) => v <= f[f.length - 1]);
   const tMax = t[t.length - 1];
   return (
     <div className="chart" ref={ref}>
@@ -61,15 +61,15 @@ export default function Heatmap({ f, t, z, height = 300, fmtF = (v) => `${(v / 1
             <text key={v} x={M.l - 8} y={M.t + ph - (v / f[f.length - 1]) * ph} textAnchor="end" dominantBaseline="middle">{fmtF(v)}</text>
           ))}
           {[0, 0.25, 0.5, 0.75, 1].map((p) => (
-            <text key={p} x={M.l + p * pw} y={H - M.b + 16} textAnchor="middle">{(p * tMax).toFixed(2)}</text>
+            <text key={p} x={M.l + p * pw} y={H - M.b + 16} textAnchor="middle">{fmtT(p * tMax)}</text>
           ))}
           <text x={W - M.r} y={H - 2} textAnchor="end">s</text>
           <text x={M.l - 8} y={M.t - 0} textAnchor="end" dominantBaseline="hanging">Hz</text>
         </svg>
         {hover && (
           <div className="tip" style={{ left: Math.min(hover.x + 12, W - 160), top: hover.y }}>
-            <div className="tx">{t[hover.j].toFixed(3)} s · {Math.round(f[hover.i])} Hz</div>
-            <div className="tr">Power<b>{z[hover.i][hover.j].toFixed(1)} dB</b></div>
+            <div className="tx">{t[hover.j].toFixed(3)} s · {f[hover.i].toFixed(f[f.length - 1] < 100 ? 2 : 0)} Hz</div>
+            <div className="tr">Power<b>{z[hover.i][hover.j].toFixed(1)} {unit}</b></div>
           </div>
         )}
       </div>

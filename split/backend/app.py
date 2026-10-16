@@ -14,9 +14,9 @@ from pathlib import Path
 import joblib
 import numpy as np
 import soundfile as sf
-from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -26,7 +26,10 @@ from autopulse.generator import CAR_TYPES, ENGINE_FAULTS, FAULT_LABELS
 from autopulse.models import HAS_TORCH, make_cnn
 from autopulse.telemetry import OBD_FAULTS
 from autopulse.wire import STREAM_PORT
+from autopulse import vibration
 from autopulse.realdata import estimate_rpm
+from autopulse.vibclassify import make_classifier
+from autopulse.vibstream import run_session
 from backend.live import LiveHub, build_sig
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -114,6 +117,54 @@ async def live(ws: WebSocket):
         pass
     finally:
         hub.ui.discard(ws)
+
+
+# ------------------------------------------------------------------ vibration analysis
+classify_native = make_classifier(models)
+
+
+@app.websocket("/api/vibration/live")
+async def vibration_live(ws: WebSocket):
+    """Rolling analysis of a SIMULATED accelerometer (source=simulator) or of the paired vehicle's windows (source=vehicle)."""
+    await ws.accept()
+    q = asyncio.Queue(maxsize=20)
+    hub.vib_queues.add(q)
+    try:
+        await run_session(ws, classify_native, q)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        hub.vib_queues.discard(q)
+
+
+@app.post("/api/vibration/analyze")
+async def vibration_analyze(
+    file: UploadFile = File(...), sampling_rate_hz: float | None = Form(None), axes: str = Form(""),
+    units: str = Form("unknown"), rpm: float | None = Form(None), sensor_location: str = Form(""),
+    notes: str = Form(""), time_unit: str = Form("s"), detrend: str = Form("mean"),
+    highpass_hz: float | None = Form(None), lowpass_hz: float | None = Form(None), envelope: bool = Form(False),
+):
+    """Recorded accelerometer CSV -> validated signatures (same code as the single-laptop app)."""
+    try:
+        if units not in vibration.UNITS:
+            raise vibration.VibrationError("bad_units", f"units must be one of {list(vibration.UNITS)}.")
+        raw = await file.read(vibration.MAX_BYTES + 1)
+        axis_list = [a.strip() for a in axes.split(",") if a.strip()]
+        channels, fs, meta, warns = vibration.parse_csv(raw, axis_list, sampling_rate_hz, time_unit)
+        res = vibration.analyze(channels, fs, detrend=detrend, highpass_hz=highpass_hz, lowpass_hz=lowpass_hz,
+                                rpm=rpm, envelope=envelope)
+        classification = vibration.classify(res["features"], fs)
+    except vibration.VibrationError as e:
+        return JSONResponse({"status": "error", "code": e.code, "message": e.message}, status_code=e.status)
+    if units == "unknown":
+        warns.append("Acceleration units were not specified; amplitudes are reported in the file's own units.")
+    return {"status": "success", "source": "uploaded_recording",
+            "recording": {"filename": file.filename, "size_bytes": len(raw), "units": units,
+                          "sensor_location": sensor_location or None, "notes": notes or None, "rpm": rpm, **meta},
+            "sampling_rate_hz": fs, "channels": res["channels"], "analysis_channels": res["analysis_channels"],
+            "features": res["features"], "waveform": res["waveform"], "spectrum": res["spectrum"],
+            "spectrogram": res["spectrogram"], "envelope": res.get("envelope"), "orders": res.get("orders"),
+            "settings": res["settings"], "classification": classification, "warnings": warns + res["warnings"]}
 
 
 # ------------------------------------------------------------------ insights

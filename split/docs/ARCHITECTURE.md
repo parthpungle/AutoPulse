@@ -127,6 +127,8 @@ frame
 | Dashboard | `POST /api/serviced` | Reset the learned baseline |
 | Dashboard | `WS /api/ws/live` | Diagnosed frames for the UI |
 | Dashboard | `GET /api/baseline` · `/api/wear` · `/api/results` · `/api/meta` | Insights and Evidence data |
+| Dashboard | `WS /api/vibration/live` | Insights → Vibration analysis: `source` `"simulator"` (Live simulation) or `"vehicle"` (Paired vehicle). One run per socket, cancelled when it closes |
+| Dashboard | `POST /api/vibration/analyze` | Insights → Vibration analysis → Recorded CSV |
 
 ---
 

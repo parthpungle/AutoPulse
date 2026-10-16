@@ -65,7 +65,7 @@ export default function Overview({ go }) {
 
         <div className="stage-mid" />
         <div className="stage-car">
-          <Car3D type={v.car_type} zones={zones} distance={0.98} />
+          <Car3D type={v.car_type} zones={zones} distance={0.98} speed={row.ignition ? row.speed_kph || 0 : 0} />
         </div>
 
         <div className="stage-facts">

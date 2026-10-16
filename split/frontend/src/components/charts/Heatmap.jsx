@@ -15,7 +15,8 @@ function colorAt(t) {
 }
 
 export default function Heatmap({ f, t, z, height = 300, fmtF = (v) => `${(v / 1000).toFixed(0)}k`,
-  rowLabels, colLabels, cellText, tip, xTitle, yTitle, legend = ['low', 'high power'] }) {
+  rowLabels, colLabels, cellText, tip, xTitle, yTitle, legend = ['low', 'high power'],
+  fTicks: fTicksProp, fmtT = (v) => v.toFixed(2), unit = 'dB' }) {
   const cat = !!rowLabels;                         // categorical: row 0 at the top, labels instead of axes
   const M = cat ? { l: 92, r: 12, t: 8, b: 58 } : MS;
   const ref = useRef(null);
@@ -47,7 +48,7 @@ export default function Heatmap({ f, t, z, height = 300, fmtF = (v) => `${(v / 1
     ctx.drawImage(off, 0, 0, c.width, c.height);
   }, [z, pw, ph, lo, hi, cat]);
 
-  const fTicks = cat ? [] : [0, 2000, 4000, 6000, 8000, 10000, 12000].filter((v) => v <= f[f.length - 1]);
+  const fTicks = cat ? [] : fTicksProp || [0, 2000, 4000, 6000, 8000, 10000, 12000].filter((v) => v <= f[f.length - 1]);
   const tMax = cat ? 0 : t[t.length - 1];
   return (
     <div className="chart" ref={ref}>
@@ -82,7 +83,7 @@ export default function Heatmap({ f, t, z, height = 300, fmtF = (v) => `${(v / 1
             <text key={v} x={M.l - 8} y={M.t + ph - (v / f[f.length - 1]) * ph} textAnchor="end" dominantBaseline="middle">{fmtF(v)}</text>
           ))}
           {!cat && [0, 0.25, 0.5, 0.75, 1].map((p) => (
-            <text key={p} x={M.l + p * pw} y={H - M.b + 16} textAnchor="middle">{(p * tMax).toFixed(2)}</text>
+            <text key={p} x={M.l + p * pw} y={H - M.b + 16} textAnchor="middle">{fmtT(p * tMax)}</text>
           ))}
           {!cat && <text x={W - M.r} y={H - 2} textAnchor="end">s</text>}
           {!cat && <text x={M.l - 8} y={M.t - 0} textAnchor="end" dominantBaseline="hanging">Hz</text>}
@@ -90,8 +91,8 @@ export default function Heatmap({ f, t, z, height = 300, fmtF = (v) => `${(v / 1
         {hover && (
           <div className="tip" style={{ left: Math.min(hover.x + 12, W - 160), top: hover.y }}>
             {tip ? tip(hover.i, hover.j) : (<>
-              <div className="tx">{t[hover.j].toFixed(3)} s · {Math.round(f[hover.i])} Hz</div>
-              <div className="tr">Power<b>{z[hover.i][hover.j].toFixed(1)} dB</b></div></>)}
+              <div className="tx">{t[hover.j].toFixed(3)} s · {f[hover.i].toFixed(f[f.length - 1] < 100 ? 2 : 0)} Hz</div>
+              <div className="tr">Power<b>{z[hover.i][hover.j].toFixed(1)} {unit}</b></div></>)}
           </div>
         )}
       </div>

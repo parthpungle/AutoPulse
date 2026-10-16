@@ -50,6 +50,15 @@ def stft_image(x, fs, n_freq=64):
     return f[:256].reshape(n_freq, pool).mean(1), t, S.reshape(n_freq, pool, -1).mean(1)
 
 
+def stft_power(x, fs, nperseg=1024, overlap=0.5):
+    """Generic STFT power in dB (Hann window, unpooled) for arbitrary-rate recordings.
+    Returns frequency bins (Hz), time bins (s), power (dB re 1 unit^2) and the settings used."""
+    nperseg = int(min(nperseg, len(x)))
+    noverlap = int(nperseg * overlap)
+    f, t, Z = signal.stft(x, fs, nperseg=nperseg, noverlap=noverlap, boundary=None, padded=False)
+    return f, t, 10 * np.log10(np.abs(Z) ** 2 + 1e-12), {"nperseg": nperseg, "noverlap": noverlap, "window": "hann"}
+
+
 FEATURE_NAMES = (
     ["log_rms", "crest_factor", "kurtosis", "skewness", "zero_cross_rate"]
     + [f"band_{lo}_{hi}" for lo, hi in BANDS]

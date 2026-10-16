@@ -58,6 +58,25 @@ export default function LineChart({
     setHover({ px: x(rows[0].xv), xv: rows[0].xv, rows });
   };
 
+  // Marker labels: each goes on the first row where it clears every label already placed, and flips to the
+  // left of its line near the right edge. Markers that land on the same pixel with the same text are drawn once.
+  const placed = useMemo(() => {
+    const rows = [];
+    const out = [];
+    for (const m of [...markers].sort((a, b) => a.x - b.x)) {
+      const px = x(m.x);
+      if (out.some((o) => o.label === m.label && Math.abs(o.px - px) < 3)) continue;
+      const w = String(m.label).length * 6.4 + 12;          // text width + breathing room
+      const left = px + 4 + w > W - M.r;
+      const x0 = left ? px - 4 - w : px + 4, x1 = x0 + w;
+      let row = rows.findIndex((spans) => spans.every(([a, b]) => x1 < a || x0 > b));
+      if (row < 0) { row = rows.length; rows.push([]); }
+      rows[row].push([x0, x1]);
+      out.push({ ...m, px, row, left });
+    }
+    return out;
+  }, [markers, x, W]);
+
   const xt = x.ticks(Math.max(3, Math.floor(W / 110)));
   const yt = yLog ? y.ticks(4).filter((v, i, a) => a.length < 8 || i % 2 === 0) : y.ticks(5);
 
@@ -87,11 +106,12 @@ export default function LineChart({
         {xt.map((v) => <text key={v} x={x(v)} y={H - M.b + 16} textAnchor="middle">{fmtX(v)}</text>)}
         {xTitle && <text x={W - M.r} y={H - 2} textAnchor="end">{xTitle}</text>}
         {yTitle && <text x={M.l} y={M.t - 2} textAnchor="start" dy="-0.2em" style={{ fill: 'var(--muted)' }}>{''}</text>}
-        {markers.map((m) => (
-          <g key={m.label}>
-            <line x1={x(m.x)} x2={x(m.x)} y1={M.t} y2={H - M.b} stroke="var(--line-2)" />
-            <text x={x(m.x) + 4} y={M.t + 10 + (m.row || 0) * 12} style={{ fill: 'var(--ink-2)' }}>{m.label}</text>
-          </g>
+        {placed.map((m) => (
+          <line key={`l${m.label}${m.px}`} x1={m.px} x2={m.px} y1={M.t} y2={H - M.b} stroke="var(--line-2)" />
+        ))}
+        {placed.map((m) => (
+          <text key={`t${m.label}${m.px}`} x={m.left ? m.px - 4 : m.px + 4} y={M.t + 10 + m.row * 13} textAnchor={m.left ? 'end' : 'start'}
+            style={{ fill: 'var(--ink-2)', paintOrder: 'stroke', stroke: 'var(--surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{m.label}</text>
         ))}
         {hlines.map((h) => (
           <g key={h.label}>
