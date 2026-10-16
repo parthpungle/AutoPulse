@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWidth } from './useWidth.js';
 
-const RAMP = ['#14171b', '#17262a', '#1b3a3c', '#21524f', '#2c6f69', '#3d9089', '#5fb8ae', '#a9e6dd'];  // one-hue teal: data, never an alarm colour
+const RAMP = ['#1a1918', '#104281', '#184f95', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4', '#cde2fb'];
 const M = { l: 48, r: 12, t: 8, b: 30 };
 
 function hex(c) { return [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)); }

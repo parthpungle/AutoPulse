@@ -10,12 +10,12 @@ const KPIS = [
 ];
 
 const VIEWS = {
-  coolant: { name: 'Coolant', series: [['coolant_c', 'Coolant temperature (°C)', 'var(--s1)']], hlines: [{ y: 112, label: 'Critical 112 °C' }], fmt: (v) => v.toFixed(0) },
+  coolant: { name: 'Coolant', series: [['coolant_c', 'Coolant temperature (°C)', 'var(--s2)']], hlines: [{ y: 112, label: 'Critical 112 °C' }], fmt: (v) => v.toFixed(0) },
   battery: { name: 'Battery', series: [['battery_v', 'System voltage (V)', 'var(--s1)']], hlines: [{ y: 13.0, label: 'Not charging below 13 V' }], fmt: (v) => v.toFixed(1) },
-  oil: { name: 'Oil', series: [['oil_pressure_bar', 'Oil pressure (bar)', 'var(--s1)']], hlines: [{ y: 0.5, label: 'Stop below 0.5 bar' }], fmt: (v) => v.toFixed(1) },
+  oil: { name: 'Oil', series: [['oil_pressure_bar', 'Oil pressure (bar)', 'var(--s3)']], hlines: [{ y: 0.5, label: 'Stop below 0.5 bar' }], fmt: (v) => v.toFixed(1) },
   tyres: { name: 'Tyres', series: [['tyre_fl_psi', 'Front-left', 'var(--s1)'], ['tyre_fr_psi', 'Front-right', 'var(--s2)'],
     ['tyre_rl_psi', 'Rear-left', 'var(--s3)'], ['tyre_rr_psi', 'Rear-right', 'var(--s4)']], hlines: [{ y: 22, label: 'Puncture below 22 psi' }], fmt: (v) => v.toFixed(0) },
-  fuel: { name: 'Fuel', series: [['fuel_level_pct', 'Fuel level (%)', 'var(--s1)']], hlines: [], fmt: (v) => v.toFixed(1) },
+  fuel: { name: 'Fuel', series: [['fuel_level_pct', 'Fuel level (%)', 'var(--s3)']], hlines: [], fmt: (v) => v.toFixed(1) },
   speed: { name: 'Speed', series: [['speed_kph', 'Vehicle speed (km/h)', 'var(--s1)']], hlines: [], fmt: (v) => v.toFixed(0) },
 };
 const WINDOWS = [['120', '2 min'], ['300', '5 min'], ['900', '15 min']];

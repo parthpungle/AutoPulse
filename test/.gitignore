@@ -1,0 +1,45 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Public datasets: re-download with `python -I scripts/download_data.py` (not ours to redistribute)
+data/raw/
+
+# Report build intermediates (the final PDF is report/AutoPulse-Concept-Report.pdf)
+report/out/
+report/src/toc.js
+*.part
+
+# Local tool / editor settings
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# MATLAB cross-check intermediates (regenerate with scripts/matlab_crosscheck.py export + matlab -batch signature_check)
+matlab/out/audio_windows.mat
+matlab/out/matlab_features.mat
+
+# MathWorks example files and raw Simulink logs (regenerate with matlab -batch run_mw_misfire)
+matlab/mw_misfire/
+matlab/out/mw_misfire_*.mat
+matlab/out/mw_misfire_signals.csv
+slprj/
+*.slxc
+
+
+# Frontend build output and dependencies
+frontend/node_modules/
+frontend/dist/
+
+# Blender: web copies live in frontend/public/models; keep only the .blend sources here
+blender/out/*.glb
+blender/out/*.png
+*.blend1
+
+
+# Downloaded Sketchfab models (CC-BY, see README credits); converted copies live in frontend/public/models
+blender/source/
+blender/out_real/

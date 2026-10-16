@@ -3,10 +3,10 @@
 // Grey while healthy; colour appears only with an alarm, and always with its shape and number.
 
 export const PRIORITY = {
-  1: { name: 'Critical', color: 'var(--p1)', hex: '#f05a5f', shape: 'diamond' },
-  2: { name: 'High', color: 'var(--p2)', hex: '#f2811d', shape: 'triangle' },
-  3: { name: 'Medium', color: 'var(--p3)', hex: '#e8c547', shape: 'square' },
-  4: { name: 'Advisory', color: 'var(--p4)', hex: '#5ea9f0', shape: 'circle' },
+  1: { name: 'Critical', color: 'var(--p1)', hex: '#f26d6d', shape: 'diamond' },
+  2: { name: 'High', color: 'var(--p2)', hex: '#f0a64a', shape: 'triangle' },
+  3: { name: 'Medium', color: 'var(--p3)', hex: '#e9cf6a', shape: 'square' },
+  4: { name: 'Advisory', color: 'var(--p4)', hex: '#b49cff', shape: 'circle' },
 };
 /** AutoPulse statuses onto ISA-18.2 priorities. */
 export const prio = (status) => ({ critical: 1, warning: 2, info: 4 })[status] ?? null;
@@ -28,7 +28,7 @@ export function AlarmShape({ priority, size = 16, flash = false }) {
       className={flash ? 'flash' : undefined} style={{ flex: 'none' }}>
       <path d={PATHS[p.shape]} fill={p.hex} />
       <text x="12" y={p.shape === 'triangle' ? 18 : 16.2} textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontWeight="600"
-        fontSize={p.shape === 'triangle' ? 10 : 11} fill="#0e1013">{priority}</text>
+        fontSize={p.shape === 'triangle' ? 10 : 11} fill="#0b0e12">{priority}</text>
     </svg>
   );
 }

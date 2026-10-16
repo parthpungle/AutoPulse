@@ -292,13 +292,6 @@ def convert(car_type, out_dir):
     xs_f = [c[0].x for c in centres if c[0].x > xm] or [L * 0.78]
     xs_r = [c[0].x for c in centres if c[0].x <= xm] or [L * 0.2]
     xf, xr = sum(xs_f) / len(xs_f), sum(xs_r) / len(xs_r)
-    # an engine part must sit in the front bay; "mechanics" parts elsewhere (axles, exhaust) are underbody detail
-    keep, move = [], []
-    for o in groups.get("engine", []):
-        a, b = bounds([o])
-        (keep if (a.x + b.x) / 2 > xm and b.x - a.x < 0.45 * L else move).append(o)
-    groups["engine"] = keep
-    groups.setdefault("detail", []).extend(move)
     if tyres:                                                # mirrors or stray shadow planes can inflate the body width
         tl, th = bounds(tyres)
         W = min(W, th.y - tl.y + 0.12)
