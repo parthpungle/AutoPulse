@@ -1,6 +1,6 @@
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Color, DataTexture, HalfFloatType, MathUtils, Mesh, RGBAFormat, Scene, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three';
+import { Color, DataTexture, HalfFloatType, MathUtils, Matrix4, Mesh, RGBAFormat, Scene, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three';
 import { preloadFont } from 'troika-three-text';
 import { SENSORS, SENSOR_COUNT } from '../content/sensors';
 import { Cards, FONT_DISPLAY, FONT_MONO, SCRAMBLE } from './carousel/Cards';
@@ -136,6 +136,10 @@ export class Experience {
   readonly flows = new Flows();
   private readonly tipPos = new Vector3();
   private readonly liveList: number[] = [];
+  /** Each world's view-projection, for the fluid drag of its particles. */
+  private readonly viewProjs = [0, 1, 2, 3, 4].map(() => new Matrix4());
+  /** Reduced motion: crossfade between the two worlds of a cut (0..1). */
+  private cross = 0;
   private readonly visibleList: number[] = [];
   cards!: Cards;
   private activeCard = -1;
@@ -211,9 +215,9 @@ export class Experience {
     this.backdrop = new BackdropScene(this.quad.geometry, this.shared, this.palette);
     this.main = new MainScene(ranges, set.rand, this.shared, this.palette);
     this.rig = new SensorRig(r, this.palette, this.settings.tier >= 2, this.shared);
-    this.rig.attach(this.main.scene);
+    this.rig.attach(this.main.worlds[1].scene);
     this.ring = new ClusterRing(this.shared.uTime);
-    this.main.scene.add(this.ring.mesh);
+    this.main.worlds[3].scene.add(this.ring.mesh);
     // flows: the sim reads the paths and phases; the draw pass colours by pool (sharing the morph
     // uniforms and the active sensor)
     const su = this.sim.uniforms;
@@ -229,7 +233,7 @@ export class Experience {
     this.main.cardScene.add(this.cards.group);
     this.main.setBackdrop(this.backdrop.rt.texture);
     r.info.autoReset = false;
-    this.composite = new Composite(r, this.main.camera, this.backdrop.rt.texture, this.main.rt.texture, this.shared, this.palette);
+    this.composite = new Composite(r, this.main.camera, this.backdrop.rt.texture, this.main.rtA.texture, this.shared, this.palette);
     this.composite.setBloom(this.settings.bloom);
     this.setupCutTest();
     const inners = this.options.sections.map((s) => s.querySelector<HTMLElement>('.tt-sec__inner') ?? s);
@@ -292,18 +296,18 @@ export class Experience {
     }
     r.setRenderTarget(scratch);
     await r.compileAsync(tmp, this.quad.camera);
-    r.setRenderTarget(scratch);
-    await r.compileAsync(this.main.scene, this.main.camera);
-    // both material tiers for the rig, so a quality drop only swaps materials
+    // every world, with both material tiers for the rig, so a quality drop only swaps materials
     const high = this.rig.isHighTier;
-    this.rig.setHighTier(!high);
-    r.setRenderTarget(scratch);
-    await r.compileAsync(this.main.scene, this.main.camera);
-    r.render(this.main.scene, this.main.camera);
-    this.rig.setHighTier(high);
+    for (const tier of [!high, high]) {
+      this.rig.setHighTier(tier);
+      for (const w of this.main.worlds) {
+        r.setRenderTarget(scratch);
+        await r.compileAsync(w.scene, w.camera);
+      }
+    }
     // the contact shadow's silhouette and blur programs (used on tier >= 2)
-    if (high) this.rig.shadow.renderSilhouette(r, this.quad, this.main.scene, true);
-    // the glass cards, their text and the glitch copies; allocate the glass target too
+    if (high) this.rig.shadow.renderSilhouette(r, this.quad, this.main.worlds[1].scene, true);
+    // the glass cards, their text and the glitch copies
     this.cards.group.visible = true;
     this.cards.setWarm(true);
     this.cards.renderArt(r, this.quad, this.signals, 0, true);
@@ -311,12 +315,14 @@ export class Experience {
     await r.compileAsync(this.main.cardScene, this.main.camera);
     r.render(this.main.cardScene, this.main.camera);
     this.cards.setWarm(false);
+    // draw every world once into both pooled targets (allocates them and the glass target)
     this.main.cardsVisible = true;
-    this.main.renderLayers(r, this.quad);
+    for (let i = 0; i < this.main.worlds.length; i++) {
+      this.main.render(r, this.quad, i, this.main.rtA);
+      this.main.render(r, this.quad, i, this.main.rtB);
+    }
     this.main.cardsVisible = false;
     for (const m of mats) this.quad.render(r, m, scratch);
-    r.setRenderTarget(scratch);
-    r.render(this.main.scene, this.main.camera);
     r.setRenderTarget(null);
     tmp.clear();
     scratch.dispose();
@@ -395,16 +401,37 @@ export class Experience {
     p.update(dt, time);
 
     const sf = sc.sectionFloat;
+    // the worlds on screen (one, or both sides of a cut) and those kept alive near a cut
+    const visible = sc.visible(this.visibleList);
+    const live = sc.live(this.liveList);
+    const on = (i: number) => live.includes(i);
+    // during a cut the outgoing world slides up and the incoming one rises into place, in step
+    // with the DOM panels (seam/Panels.ts)
+    const H = this.sizes.height;
+    for (const w of this.main.worlds) w.drift = 0;
+    if (sc.boundary >= 0 && !this.reduced) {
+      this.main.worlds[sc.boundary].drift = SEAM.drift * H * sc.t;
+      this.main.worlds[sc.boundary + 1].drift = -SEAM.drift * H * (1 - sc.t);
+    }
+
     this.signals.update(dt, s, this.reduced);
     this.main.wide = this.layout.wide === 1;
     this.carousel.update();
     this.main.carousel = this.reduced ? 0 : this.carousel.value;
-    this.main.updateCamera(sf, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
+    const px = this.reduced ? 0 : p.nx;
+    const py = this.reduced ? 0 : p.ny;
+    for (const i of live) {
+      this.main.updateCamera(i, px, py);
+      const c = this.main.worlds[i].camera;
+      this.viewProjs[i].multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse);
+    }
     const cam = this.main.camera;
+    // the Sensor Array's world is whole while it is on screen (no rise or fly-in at the cut)
+    const sfRig = visible.includes(1) ? 1 : 99;
     // after the camera: the showcase spot is in camera space
     const active = this.carousel.active;
     this.flows.update(dt, this.signals, s, active, this.reduced);
-    this.rig.update(dt, this.signals, sf, active, this.main.wide, cam, this.cards.expansion.value, this.reduced, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny, this.flows.arrival);
+    this.rig.update(dt, this.signals, sfRig, active, this.main.wide, cam, this.cards.expansion.value, this.reduced, px, py, this.flows.arrival);
     if (this.rig.group.visible) {
       this.paths.update(this.rig);
       const su = this.sim.uniforms;
@@ -415,8 +442,7 @@ export class Experience {
       su.uDataHalf.value = this.settings.tier <= 1 ? 1 : 0;
       this.rig.tipWorld(active, this.tipPos);
     }
-    this.sim.viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
-    this.updateCards(dt, sf);
+    this.updateCards(dt, sfRig);
 
     if (!this.reduced) {
       if (p.splatStrength > 0) this.fluid.splat(p.splatX, p.splatY, p.splatDX, p.splatDY, p.splatStrength);
@@ -425,30 +451,30 @@ export class Experience {
 
     this.sim.uniforms.uIntro.value = this.intro.value;
     this.sim.uniforms.uReduced.value = this.reduced ? 1 : 0;
-    // each section's particles are stepped and drawn on their own, only while on (or near) screen
-    this.sim.step(dt, this.fluid.texture, sc.live(this.liveList));
-    this.main.setVisibleSections(sc.visible(this.visibleList));
+    // each section's particles are stepped on their own, only while on (or near) screen
+    this.sim.step(dt, this.fluid.texture, live, (i) => this.viewProjs[i]);
 
     const pu = this.main.material.uniforms;
     this.main.setTextures(this.sim.positions, this.sim.velocities);
-
     pu.uAlpha.value = this.params.alpha * this.main.densityBoost;
 
     const near = 1 - Math.abs(sf - 1);
     this.backdrop.update(sc.progress, near > 0 ? near : 0);
-    this.ring.update(dt, this.layout, this.ringCluster, s.uAnySel.value, Math.max(0, 1 - Math.abs(sf - 3) * 2));
+    this.ring.update(dt, this.layout, this.ringCluster, s.uAnySel.value, on(3) ? 1 : 0);
     this.backdrop.render(r);
     const before = r.info.render.calls;
-    this.rig.renderShadow(r, this.quad, this.main.scene);
-    this.main.renderLayers(r, this.quad);
+    if (visible.includes(1)) this.rig.renderShadow(r, this.quad, this.main.worlds[1].scene);
+    // the current (or outgoing) world into A, the incoming one into B
+    this.main.render(r, this.quad, visible[0], this.main.rtA);
+    if (visible.length > 1) this.main.render(r, this.quad, visible[1], this.main.rtB);
     this.sceneCalls = r.info.render.calls - before;
     this.composite.bloomScale = 1 - 0.8 * this.cards.expansion.value;
-    this.updateCut(time);
+    this.updateCut(time, dt);
     this.composite.update(this.reduced ? 0 : p.speed, s.uValve.value);
     this.composite.render(dt);
     this.calls = r.info.render.calls;
 
-    this.anchors.update(cam, this.sizes.width, this.sizes.height, sf);
+    this.anchors.update(this.main.worlds[3].camera, this.sizes.width, H, visible.includes(3) ? 3 : 99);
     const idx = Math.round(sf);
     if (idx !== this.section) {
       this.section = idx;
@@ -470,15 +496,23 @@ export class Experience {
   }
 
   /** The cut between sections: seam, DOM panels, composite (and the ?cut test). */
-  private updateCut(time: number) {
-    const main = this.main.rt.texture;
+  private updateCut(time: number, dt: number) {
+    const main = this.main.rtA.texture;
     const sc = this.scroll;
     if (this.cutTest === null || !this.cutTex || !this.cutEl) {
       this.seam.set(sc.boundary >= 0 ? sc.t : 0, this.sizes.width, this.sizes.height);
       if (sc.boundary >= 0) this.seam.update(time);
       this.panels?.update(sc.current, sc.boundary, sc.t, this.seam, this.sizes.height, this.reduced);
-      this.composite.setLayers(main, main);
-      this.composite.setCut(this.reduced || sc.boundary < 0 ? null : this.seam);
+      this.composite.setLayers(main, sc.boundary >= 0 ? this.main.rtB.texture : main);
+      if (this.reduced && sc.boundary >= 0) {
+        // reduced motion: a 300 ms crossfade once the scroll passes the middle of the cut
+        const goal = sc.t < 0.5 ? 0 : 1;
+        this.cross += Math.sign(goal - this.cross) * Math.min(Math.abs(goal - this.cross), dt / 0.3);
+        this.composite.setCut(null, this.cross);
+      } else {
+        this.cross = sc.t < 0.5 ? 0 : 1;
+        this.composite.setCut(sc.boundary < 0 ? null : this.seam);
+      }
       // sections coming on screen for the first time play their DOM reveals
       for (const i of sc.boundary >= 0 ? [sc.boundary, sc.boundary + 1] : [sc.current]) {
         if (!this.entered.has(i) && this.onSectionEnter) {
@@ -502,7 +536,10 @@ export class Experience {
     const near = Math.abs(sf - 1) < 1;
     this.main.cardsVisible = near;
     this.cards.group.visible = near;
-    if (!near) return;
+    if (!near) {
+      this.updateHint(dt, 99);
+      return;
+    }
     const p = this.pointer;
     if (this.hoverDirty) {
       this.hoverDirty = false;
@@ -536,7 +573,9 @@ export class Experience {
     const el = this.hintEl;
     if (!el) return;
     const c = this.carousel;
-    const settled = !this.detail && this.cards.expansion.value === 0 && Math.abs(sf - 1) < 0.05 && Math.abs(c.value - c.active) < 0.02;
+    // only while the Sensor Array holds the screen (not during a cut)
+    const sc = this.scroll;
+    const settled = !this.detail && this.cards.expansion.value === 0 && Math.abs(sf - 1) < 0.05 && sc.current === 1 && sc.boundary < 0 && Math.abs(c.value - c.active) < 0.02;
     this.settleT = settled ? this.settleT + dt : 0;
     const on = this.settleT > 1;
     if (on) {
@@ -640,7 +679,7 @@ export class Experience {
     const bw = Math.round(width * dpr);
     const bh = Math.round(height * dpr);
     this.backdrop.setSize(bw, bh);
-    this.main.setSize(bw, bh);
+    this.main.setSize(bw, bh, width, height);
     this.composite.setSize(width, height);
     this.cards.glassTexel.set(1 / this.main.glassRT.width, 1 / this.main.glassRT.height);
     const aspect = width / height;
