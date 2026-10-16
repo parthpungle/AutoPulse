@@ -364,6 +364,3 @@ input[type=text], input[type=number] {
 .vib-axes label { display: inline-flex; gap: 6px; align-items: center; }
 pre.vib-code { font: 12px var(--mono); background: var(--surface-2); border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 6px 0 0; color: var(--ink-2); }
 @media (max-width: 800px) { .vib-grid { grid-template-columns: 1fr !important; } }
-
-/* ---------- 3D car on the road ---------- */
-.car3d-hint { position: absolute; right: 14px; bottom: 10px; pointer-events: none; font: 500 10px var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); opacity: .75; }

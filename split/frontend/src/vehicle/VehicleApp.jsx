@@ -97,7 +97,7 @@ export default function VehicleApp() {
             </label>
           </div>
           <div className="veh-car-3d">
-            <Car3D type={s.car_type} zones={zones} distance={1.05} speed={s.ignition ? o.speed_kph || 0 : 0} />
+            <Car3D type={s.car_type} zones={zones} distance={1.05} />
             <div className="veh-truth">
               <div className="eyebrow">{broken ? 'What is really broken' : 'Nothing broken'}</div>
               <div className="muted" style={{ fontSize: 12 }}>Only this laptop knows. The dashboard has to find it.</div>
