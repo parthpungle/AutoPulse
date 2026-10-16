@@ -1,4 +1,4 @@
-import { CAROUSEL } from './carousel/CarouselLayout';
+import { CAROUSEL, SHOWCASE } from './carousel/CarouselLayout';
 import type { Experience } from './Experience';
 import type { EngineState } from './States';
 import type { Tier } from './Quality';
@@ -56,14 +56,23 @@ export async function mountDebug(exp: Experience): Promise<() => void> {
   post.add(pp, 'vignette', 0, 1, 0.01);
 
   const sa = gui.addFolder('Sensor array');
-  sa.add(CAROUSEL, 'cardRadius', 2, 6, 0.01).name('helix radius');
   sa.add(CAROUSEL, 'drop', 0, 2, 0.01).name('helix spacing');
-  sa.add(CAROUSEL, 'step', 0.3, 1.4, 0.01).name('helix step (rad)');
   sa.add(CAROUSEL, 'camRadius', 5, 14, 0.05).name('camera radius');
-  sa.add(CAROUSEL, 'camLead', -0.5, 0.6, 0.01).name('camera lead');
   sa.add(exp.cards.params, 'tilt', 0, 20, 0.5).name('card tilt (deg)');
   sa.add(exp.cards.params, 'refraction', 0, 4, 0.01).name('glass refraction');
   sa.add(exp.sim.uniforms.uStreamDensity, 'value', 0, 1.5, 0.01).name('stream density');
+
+  const fs = gui.addFolder('Flows & Showcase');
+  const W = SHOWCASE.wide;
+  fs.add(W.spot, 'x', 0, 1, 0.01).name('spot x');
+  fs.add(W.spot, 'y', 0, 1, 0.01).name('spot y');
+  fs.add(W.spot, 'h', 0.1, 0.6, 0.01).name('spot height');
+  fs.add(SHOWCASE, 'spotDist', 2, 9, 0.05).name('spot distance');
+  fs.add(W.card, 'x', 0, 1, 0.01).name('card x');
+  fs.add(W.card, 'w', 0.15, 0.6, 0.01).name('card width');
+  fs.add(W.stack, 'y', 0, 0.6, 0.01).name('card stack spacing');
+  fs.add(exp.rig.key, 'intensity', 0, 8, 0.05).name('key light');
+  fs.add(exp.rig.fill, 'intensity', 0, 4, 0.05).name('fill light');
 
   const atm = gui.addFolder('Atmosphere');
   const hv = exp.backdrop.hazeViolet;

@@ -7,11 +7,10 @@ import type { Sensor } from '../../content/sensors';
 import type { SyntheticSignals } from '../signals/SyntheticSignals';
 import { GLSL } from '../shaders';
 import type { Shared } from '../Uniforms';
-import { CAROUSEL, cardPose } from './CarouselLayout';
+import { cardSlot } from './CarouselLayout';
+import type { CardSlot } from './CarouselLayout';
 
 export const CARD_W = 2.56;
-/** Cards never turn further than this from facing the camera. */
-const FACE_LIMIT = (55 * Math.PI) / 180;
 export const CARD_H = 1.6;
 const CARD_R = 0.16;
 const CARD_D = 0.06;
@@ -123,7 +122,8 @@ export class Cards {
   private readonly hits: Intersection<Object3D>[] = [];
   private readonly meshes: Mesh[] = [];
   private readonly ndc = new Vector2();
-  private readonly tmp = new Vector3();
+  private readonly slot: CardSlot = { scale: 1, opacity: 1 };
+  private readonly tiltQ = new Quaternion();
   private readonly order = new Int8Array(8);
   private readonly dist = new Float32Array(8);
   private hovered = -1;
@@ -242,7 +242,7 @@ export class Cards {
       }
       const code = makeText(this.textBase, FONT_MONO, 0.058, sensor.color, { text: sensor.code, letterSpacing: 0.14 });
       code.position.set(0, 0.42, front);
-      const line = makeText(this.textBase, FONT_DISPLAY, 0.074, '#A9AFC2', { text: sensor.hearsShort, maxWidth: CARD_W * 0.7, lineHeight: 1.25 });
+      const line = makeText(this.textBase, FONT_DISPLAY, 0.085, '#B9BED0', { text: sensor.hearsShort, maxWidth: CARD_W * 0.7, lineHeight: 1.25 });
       line.position.set(0, -0.44, front);
       mesh.add(titleR, titleB, title, code, line);
 
@@ -384,7 +384,7 @@ export class Cards {
 
   private readonly eSize = new Vector2();
 
-  update(dt: number, c: number, wide: boolean, reduced: boolean, camera: Camera, px: number, py: number) {
+  update(dt: number, c: number, wide: boolean, reduced: boolean, camera: PerspectiveCamera, px: number, py: number) {
     this.updateGlitch(dt);
     const k = 1 - Math.exp(-dt * 8);
     const tiltMax = (this.params.tilt * Math.PI) / 180;
@@ -392,33 +392,28 @@ export class Cards {
       const card = this.cards[i];
       const u = card.mat.uniforms;
       const d = Math.abs(i - c);
-      const helixY = cardPose(reduced ? 0 : i, reduced ? 0 : c, wide, card.mesh.position);
-      // cards always show their front: keep the helix angle, but never more than 55 degrees away
-      // from facing the camera
-      const toCam = Math.atan2(camera.position.x - card.mesh.position.x, camera.position.z - card.mesh.position.z);
-      let rel = helixY - toCam;
-      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
-      const rotY = toCam + Math.max(-FACE_LIMIT, Math.min(FACE_LIMIT, rel));
+      // camera-space slot (see CarouselLayout); reduced motion crossfades in place instead
+      const slot = cardSlot(reduced ? 0 : i - c, wide, camera, CARD_W, card.mesh.position, this.cQuat, this.slot);
       const hoverTarget = this.hovered === i ? 1 : 0;
       card.hover += (hoverTarget - card.hover) * k;
       const tx = card.hover * -py * tiltMax;
       const ty = card.hover * px * tiltMax;
       card.tiltX += (tx - card.tiltX) * k;
       card.tiltY += (ty - card.tiltY) * k;
-      card.mesh.rotation.set(card.tiltX, rotY + card.tiltY, 0);
-      card.mesh.scale.setScalar(wide ? 1 : CAROUSEL.rowScale);
+      this.tiltQ.setFromEuler(this.euler.set(card.tiltX, card.tiltY, 0));
+      card.mesh.quaternion.copy(this.cQuat).multiply(this.tiltQ);
+      card.mesh.scale.setScalar(slot.scale);
 
       const active = d < 1 ? 1 - d : 0;
-      let opacity = reduced ? Math.max(0, 1 - d * 1.6) : d < 2.2 ? 1 : Math.max(0, 1 - (d - 2.2) / 0.9);
+      let opacity = reduced ? Math.max(0, 1 - d * 1.6) : slot.opacity;
       // expansion: this card turns square to the camera and grows onto the panel; the rest fade
       const e = i === this.expandIndex ? this.expansion.value : 0;
       const grow = u.uGrow.value as Vector2;
       let textDim = 1;
       if (e > 0) {
-        this.expandedPose(camera as PerspectiveCamera, this.eSize);
+        this.expandedPose(camera, this.eSize);
         card.mesh.position.lerp(this.ePos, e);
-        this.cQuat.setFromEuler(this.euler.copy(card.mesh.rotation));
-        card.mesh.quaternion.copy(this.cQuat).slerp(this.eQuat, e);
+        card.mesh.quaternion.slerp(this.eQuat, e);
         card.mesh.scale.setScalar(MathUtils.lerp(card.mesh.scale.x, 1, e));
         grow.set((this.eSize.x - CARD_W) * e, (this.eSize.y - CARD_H) * e);
         opacity = Math.max(opacity, e);
@@ -441,11 +436,9 @@ export class Cards {
       u.uOpacity.value = opacity;
       u.uRefract.value = this.params.refraction;
 
-      // text: full on the active card, dimmer on neighbours; dimmer still when seen from behind
-      this.tmp.copy(camera.position).sub(card.mesh.position);
-      const facing = Math.sin(rotY) * this.tmp.x + Math.cos(rotY) * this.tmp.z > 0 ? 1 : 0.35;
+      // text: full on the active card, dimmer on neighbours (whose fronts always face the viewer);
       // the expanded card's own texts make way for the HTML content
-      const textA = opacity * textDim * (0.45 + 0.55 * active) * facing * (1 - MathUtils.smoothstep(e, 0, 0.3));
+      const textA = opacity * textDim * (0.45 + 0.55 * active) * (1 - MathUtils.smoothstep(e, 0, 0.3));
       card.title.fillOpacity = textA;
       card.code.fillOpacity = textA;
       card.line.fillOpacity = textA * active;

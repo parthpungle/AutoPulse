@@ -32,6 +32,9 @@ export const SPECS: Record<MatKey, Spec> = {
   ceramic: { color: '#E6E0D3', metalness: 0, roughness: 0.7, sheen: 0 },
 };
 
+/** RoomEnvironment reflections, through PMREM. */
+const ENV_INTENSITY = 1.1;
+
 interface MatData {
   base: Color;
   sheen: { value: number };
@@ -79,7 +82,7 @@ function cutCode(cut: Cut) {
 
 function makeHigh(key: MatKey, cut: Cut): Material {
   const s = SPECS[key];
-  const params = { color: new Color(s.color), metalness: s.metalness, roughness: s.roughness, envMapIntensity: 1.1 };
+  const params = { color: new Color(s.color), metalness: s.metalness, roughness: s.roughness, envMapIntensity: ENV_INTENSITY };
   const m = s.clearcoat ? new MeshPhysicalMaterial({ ...params, clearcoat: s.clearcoat, clearcoatRoughness: 0.4 }) : new MeshStandardMaterial(params);
   if (cut !== 'none') m.side = DoubleSide;
   const data: MatData = { base: params.color.clone(), sheen: { value: s.sheen }, sheenBase: s.sheen, pulse: { value: 0 }, pulseColor: { value: new Color() } };
@@ -144,6 +147,13 @@ export function setDim(m: Material, dim: number) {
   }
   (m as MeshStandardMaterial).color.copy(d.base).multiplyScalar(dim);
   d.sheen.value = d.sheenBase * dim;
+}
+
+/** Environment reflections relative to the material's default (high tier only; the cheap path has none). */
+export function setEnv(m: Material, k: number) {
+  const d = m.userData.tt as MatData | undefined;
+  if (!d || (m as ShaderMaterial).isShaderMaterial) return;
+  (m as MeshStandardMaterial).envMapIntensity = ENV_INTENSITY * k;
 }
 
 /** Emissive pulse in a colour (rim on the cheap path), e.g. a sensor tip that "hears". */

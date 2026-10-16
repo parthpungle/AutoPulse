@@ -89,7 +89,8 @@ Vite's dev server and `backend/app.py` (single-port mode) both serve `/dashboard
 
 - Scroll, a touch swipe, arrow keys and the left index all move one carousel value; each card snaps into place.
 - Each card's ink-cloud artwork shows that sensor's synthetic signal; the title settles with a scramble and colour split.
-- Each sensor is a procedural model mounted around the crank. The active one moves forward with a rim light, and particle streams flow from every sensor into the crank and up the spine, in the sensor's colour.
+- Each sensor is a procedural model mounted around the crank. The active one flies out of its mount to a showcase spot left of centre (about a third of the screen tall). There it turns slowly, tilts toward the cursor and sits on a soft contact shadow, lit by a 3-point rig whose rim light is in the sensor's colour. The others wait on their mounts, each marked by a pulsing ring in its colour. The crank stays dimmed in the background.
+- The active card sits in the right third. The other cards fan out above and below it, smaller and fainter, and never cover the showcased sensor. On phones the sensor takes the top of the screen and the cards run along the bottom.
 - Less on the page, more on click. A card shows only its code, its name and a few words on what it hears. Click the active card (or press Enter) and that same glass card turns to face you and grows in place, a little more opaque so the text reads. It shows one plain sentence, a live trace that follows the engine-state toggles, and what the sensor catches. "Technical details" opens every checked field. On phones the card becomes a sheet along the bottom.
 - All sensor copy lives in `src/content/sensors.ts`, split into those three levels. A hidden list mirrors it for screen readers.
 

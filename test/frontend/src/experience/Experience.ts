@@ -183,7 +183,7 @@ export class Experience {
     this.sim = new ParticleSim(r, this.quad, this.settings.side, set, this.shared, this.layout);
     this.backdrop = new BackdropScene(this.quad.geometry, this.shared, this.palette);
     this.main = new MainScene(this.settings.side, this.settings.count, set.rand, this.shared, this.palette);
-    this.rig = new SensorRig(r, this.palette, this.settings.tier >= 2);
+    this.rig = new SensorRig(r, this.palette, this.settings.tier >= 2, this.shared);
     this.rig.attach(this.main.scene);
     // streams: the sim reads the paths; the draw pass tints by sensor (sharing the morph uniforms)
     const su = this.sim.uniforms;
@@ -265,6 +265,8 @@ export class Experience {
     await r.compileAsync(this.main.scene, this.main.camera);
     r.render(this.main.scene, this.main.camera);
     this.rig.setHighTier(high);
+    // the contact shadow's silhouette and blur programs (used on tier >= 2)
+    if (high) this.rig.shadow.renderSilhouette(r, this.quad, this.main.scene, true);
     // the glass cards, their text and the glitch copies; allocate the glass target too
     this.cards.group.visible = true;
     this.cards.setWarm(true);
@@ -347,10 +349,10 @@ export class Experience {
     this.main.wide = this.layout.wide === 1;
     this.carousel.update(dt);
     this.main.carousel = this.reduced ? 0 : this.carousel.value;
-    this.rig.update(dt, this.signals, sf, this.main.carousel, this.layout.wide === 1, this.main.camera);
-    const pushGoal = this.detail ? 1 : 0;
-    this.main.push += (pushGoal - this.main.push) * (1 - Math.exp(-dt * (this.reduced ? 30 : 4)));
-    if (this.main.push > 0.001) this.rig.sensors[this.carousel.active].outer.getWorldPosition(this.main.pushTarget);
+    this.main.updateCamera(sf, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
+    const cam = this.main.camera;
+    // after the camera: the showcase spot is in camera space
+    this.rig.update(dt, this.signals, sf, this.carousel.active, this.main.wide, cam, this.cards.expansion.value, this.reduced, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
     if (this.rig.group.visible) {
       this.streams.update(this.rig);
       const su = this.sim.uniforms;
@@ -359,8 +361,6 @@ export class Experience {
       (su.uAmpB.value as Vector4).set(a[4], a[5], a[6], a[7]);
       su.uCarousel.value = this.main.carousel;
     }
-    this.main.updateCamera(sf, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
-    const cam = this.main.camera;
     this.sim.viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     this.updateCards(dt, sf);
 
@@ -383,6 +383,7 @@ export class Experience {
     this.backdrop.update(sc.progress, near > 0 ? near : 0);
     this.backdrop.render(r);
     const before = r.info.render.calls;
+    this.rig.renderShadow(r, this.quad, this.main.scene);
     this.main.renderLayers(r, this.quad);
     this.sceneCalls = r.info.render.calls - before;
     this.composite.update(this.reduced ? 0 : p.speed, this.reduced ? 0 : Math.sin(Math.PI * sc.morph), s.uValve.value);
@@ -481,7 +482,7 @@ export class Experience {
 
   /**
    * Detail open/closed: the active card expands in place onto the panel (500 ms), page scroll
-   * and card snapping lock, and the camera pushes in on the active sensor. The panel gets
+   * and card snapping lock, and the showcased sensor moves into the visible area. The panel gets
    * `data-settled` once the card has finished growing, which fades its content in.
    */
   setDetail(open: boolean) {

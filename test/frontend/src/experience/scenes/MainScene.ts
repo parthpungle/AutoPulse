@@ -19,8 +19,6 @@ const KEYS = [
 
 export const CAMERA_FOV = 35;
 export const CAMERA_BASE_Z = 12;
-/** Portrait detail view: camera distance from the expanded card's sensor. */
-const PORTRAIT_PUSH = 5.2;
 
 /**
  * The main 3-D layer: one full-resolution render target with a depth buffer, drawn in three steps:
@@ -48,12 +46,6 @@ export class MainScene extends FXScene {
   private readonly pB = new Vector3();
   private readonly tA = new Vector3();
   private readonly tB = new Vector3();
-  /** 0..1 push-in toward `pushTarget` (detail panel open). */
-  push = 0;
-  readonly pushTarget = new Vector3();
-  private readonly right = new Vector3();
-  private readonly pushPos = new Vector3();
-  private readonly pushLook = new Vector3();
   private drawCount: number;
   private readonly fullCount: number;
 
@@ -166,7 +158,8 @@ export class MainScene extends FXScene {
     look.set(k.t[0], k.t[1], k.t[2]);
   }
 
-  /** Camera along the section keyframes (orbiting the crank in the Sensor Array), plus parallax. */
+  /** Camera along the section keyframes (orbiting the crank in the Sensor Array), plus parallax.
+   *  The detail view needs no camera move: the showcase spot and the card are in camera space. */
   updateCamera(sectionFloat: number, px: number, py: number) {
     const i = Math.min(KEYS.length - 2, Math.floor(sectionFloat));
     const f = Math.min(1, Math.max(0, sectionFloat - i));
@@ -174,27 +167,6 @@ export class MainScene extends FXScene {
     this.pose(i + 1, this.pB, this.tB);
     this.camera.position.lerpVectors(this.pA, this.pB, f);
     this.look.lerpVectors(this.tA, this.tB, f);
-    if (this.push > 0.001) {
-      if (this.wide) {
-        // move in on the sensor and aim past it, so it sits left of the expanded card
-        this.right.subVectors(this.look, this.camera.position).cross(this.camera.up).normalize();
-        this.pushLook.copy(this.pushTarget).addScaledVector(this.right, 0.95);
-        this.pushPos.subVectors(this.camera.position, this.pushTarget).setLength(4.6).add(this.pushTarget);
-        this.pushPos.addScaledVector(this.right, 0.95);
-        this.camera.position.lerp(this.pushPos, this.push * 0.45);
-        this.look.lerp(this.pushLook, this.push * 0.8);
-      } else {
-        // portrait: the expanded card is a sheet over the lower two thirds; slide the view down
-        // (no tilt) so the sensor sits in the band above it, about 18% from the top
-        const lift = PORTRAIT_PUSH * Math.tan(MathUtils.degToRad(CAMERA_FOV) / 2) * 2 * 0.32;
-        this.pushPos.subVectors(this.camera.position, this.pushTarget).setLength(PORTRAIT_PUSH).add(this.pushTarget);
-        this.pushPos.y -= lift;
-        this.pushLook.copy(this.pushTarget);
-        this.pushLook.y -= lift;
-        this.camera.position.lerp(this.pushPos, this.push);
-        this.look.lerp(this.pushLook, this.push);
-      }
-    }
     this.camera.position.x += px * 0.45;
     this.camera.position.y += py * 0.28;
     this.camera.lookAt(this.look);
