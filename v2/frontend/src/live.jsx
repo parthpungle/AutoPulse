@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { labStore } from './pages/lab/labStore.js';
 
 const MAX = 900;
+const RANK = { ok: 0, info: 1, warning: 2, critical: 3 };
 const Ctx = createContext(null);
 
 // Demo safety: record the raw frames (dev only, from the Signature lab), and play a saved recording
@@ -33,6 +34,7 @@ export function LiveProvider({ children }) {
   const [lastAt, setLastAt] = useState(0);
   const [now, setNow] = useState(Date.now());
   const carRef = useRef(null);
+  const eventsRef = useRef(new Map());                      // alert title -> first time it fired, worst severity
 
   useEffect(() => {
     let ws, timer, closed = false;
@@ -49,6 +51,12 @@ export function LiveProvider({ children }) {
           const changed = carRef.current !== null && carRef.current !== key;   // a different car: start the charts over
           carRef.current = key;
           setLatest(m);
+          if (changed) eventsRef.current = new Map();
+          for (const a of m.alerts || []) {
+            const e = eventsRef.current.get(a.title);
+            if (!e) eventsRef.current.set(a.title, { ...a, t: m.row.clock });
+            else if (RANK[a.severity] > RANK[e.severity]) eventsRef.current.set(a.title, { ...e, severity: a.severity, message: a.message, actions: a.actions });
+          }
           labStore.push(m);                                     // the Signature lab keeps its own rolling buffer
           if (rec.on) rec.frames.push(m);
           setHistory((h) => (changed ? [m.row] : [...(h.length >= MAX ? h.slice(h.length - MAX + 1) : h), m.row]));
@@ -94,6 +102,7 @@ export function LiveProvider({ children }) {
       live,
       stale: link.state === 'live' && !live,
       replay: REPLAY,
+      events: [...eventsRef.current.values()],
       pair: (host, port, code) => (REPLAY ? Promise.resolve(link) : post('/pair', { host, port: Number(port) || 8200, code })),
       unpair: () => (REPLAY ? Promise.resolve(link) : post('/unpair').then((l) => { setLatest(null); setHistory([]); carRef.current = null; return l; })),
       serviced: () => (REPLAY ? Promise.resolve({ ok: true }) : post('/serviced')),

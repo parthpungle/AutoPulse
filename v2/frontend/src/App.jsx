@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { AudioWaveform, ChevronRight, FlaskConical, Gauge, HeartPulse, LayoutDashboard, Link2, Mic, Moon, Sun, TrendingUp } from 'lucide-react';
+import { AudioWaveform, ChevronRight, FlaskConical, Gauge, HeartPulse, LayoutDashboard, Link2, Mic, Moon, Printer, Sun, TrendingUp } from 'lucide-react';
 import { setTheme, useTheme } from './theme.js';
 import { LiveProvider, useLive } from './live.jsx';
 import { CAR_INFO, carName } from './cars.js';
 import PairDrawer from './components/PairDrawer.jsx';
+import Report from './components/Report.jsx';
 import { LinkButton } from './components/LinkPill.jsx';
 import { AlarmShape, PRIORITY, prio } from './components/hmi.jsx';
 import Ask from './assistant/Ask.jsx';
@@ -75,6 +76,7 @@ function Shell() {
   const initial = new URLSearchParams(window.location.search).get('page');
   const [page, setPage] = useState(PAGES.some((p) => p.id === initial) ? initial : 'overview');
   const [drawer, setDrawer] = useState(false);
+  const [report, setReport] = useState(() => new URLSearchParams(window.location.search).has('report'));
   const [acked, setAcked] = useState(() => new Set());
   const live = useLive();
   const { link, latest, ready } = live;
@@ -131,6 +133,9 @@ function Shell() {
         <div className="right">
           <Ask page={page} />
           <ThemeToggle />
+          <button className="ask-trigger" onClick={() => setReport(true)} aria-label="Health report" title="Printable health report for this car">
+            <Printer size={16} />
+          </button>
           <LinkButton onClick={() => setDrawer(true)} />
         </div>
       </header>
@@ -166,6 +171,7 @@ function Shell() {
         </div>
       </main>
       {drawer && <PairDrawer onClose={() => setDrawer(false)} />}
+      {report && <Report onClose={() => setReport(false)} />}
     </div>
   );
 }
