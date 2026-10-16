@@ -2,7 +2,7 @@ import { HalfFloatType, ShaderMaterial, Uniform, Vector2 } from 'three';
 import type { Camera, Texture, WebGLRenderer, WebGLRenderTarget } from 'three';
 import { BlendFunction, BloomEffect, ChromaticAberrationEffect, Effect, EffectComposer, EffectPass, Pass, VignetteEffect } from 'postprocessing';
 import { GLSL } from './shaders';
-import type { Palette } from './palette';
+import type { Palette } from './theme';
 import type { Shared } from './Uniforms';
 
 /** Final pass 1: combines the layer render targets (and draws the intro wipe). */
@@ -87,7 +87,7 @@ export class Composite {
         uFlash: shared.uFlash,
         uTime: shared.uTime,
         uAspect: { value: 1 },
-        uBg: { value: palette.bg },
+        uBg: { value: palette.bg0 },
         uAccent: shared.uAccent,
       },
     });

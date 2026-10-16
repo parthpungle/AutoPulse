@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>TorqueTwin · Engines speak before they fail</title>
     <meta name="description" content="AutoTwin by TorqueTwin turns engine sound, vibration and OBD-II data into frequency signatures and recognises knock, misfire and valve wear." />
-    <meta name="theme-color" content="#07080A" />
+    <meta name="theme-color" content="#05060C" />
     <meta name="color-scheme" content="dark" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%2307080A'/%3E%3Cpath d='M3 12.5c2.2 0 2.6-6 4.6-6s2.4 11 4.4 11 2.3-8 4.2-8 1.6 3 4.8 3' fill='none' stroke='%23FF5A1F' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%2305060C'/%3E%3Cpath d='M3 12.5c2.2 0 2.6-6 4.6-6s2.4 11 4.4 11 2.3-8 4.2-8 1.6 3 4.8 3' fill='none' stroke='%23FF5A1F' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
     <link rel="preload" href="/fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/jetbrains-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
     <style>
@@ -34,7 +34,9 @@
         font-display: swap;
         src: url('/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');
       }
-      html { background: #07080A; color: #E9ECEF; }
+      /* First paint only: these repeat the theme tokens (--bg-0, --text, --muted, --accent from
+         src/experience/theme.ts) because this preloader is drawn before any JavaScript runs. */
+      html { background: #05060C; color: #E9ECEF; }
       body { margin: 0; }
       .tt-pre {
         position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
@@ -45,7 +47,7 @@
       .tt-pre__foot {
         position: absolute; left: 0; right: 0; bottom: max(28px, env(safe-area-inset-bottom));
         padding: 0 clamp(16px, 3.2vw, 40px); display: flex; justify-content: space-between; align-items: flex-end;
-        font: 500 11px/1 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: #7A828C;
+        font: 500 11px/1 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: #8A90A6;
       }
       .tt-pre__count { font-size: 12px; color: #E9ECEF; font-variant-numeric: tabular-nums; }
       .tt-pre__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: rgba(233, 236, 239, 0.08); }

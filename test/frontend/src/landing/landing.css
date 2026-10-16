@@ -1,12 +1,7 @@
-/* TorqueTwin landing page. The palette is defined once, here; the WebGL engine reads the same
-   variables (src/experience/palette.ts), so swapping --accent recolours the page and the shaders. */
+/* TorqueTwin landing page. Colour tokens (--bg-0, --bg-1, --haze-violet, --haze-teal, --fog, --text,
+   --muted, --accent, --cool) are defined once in src/experience/theme.ts, which writes them onto
+   :root at startup and hands the same values to the shaders. This file only uses var(...). */
 :root {
-  --bg: #07080A;
-  --text: #E9ECEF;
-  --muted: #7A828C;
-  --accent: #FF5A1F;
-  --cool: #4FD1FF;
-
   --state: var(--accent);
   --line: rgba(233, 236, 239, 0.12);
   --line-strong: rgba(233, 236, 239, 0.24);
@@ -19,10 +14,10 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
-html { background: var(--bg); color: var(--text); -webkit-text-size-adjust: 100%; }
+html { background: var(--bg-0); color: var(--text); -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--bg-0);
   color: var(--text);
   font-family: var(--font-display);
   font-size: 17px;
@@ -31,7 +26,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
 }
-::selection { background: var(--accent); color: var(--bg); }
+::selection { background: var(--accent); color: var(--bg-0); }
 a { color: inherit; }
 button { font: inherit; color: inherit; }
 
@@ -51,8 +46,9 @@ html.is-loading { overflow: hidden; }
 
 .no-webgl body {
   background:
-    radial-gradient(60% 50% at 50% 38%, rgba(255, 90, 31, 0.08), transparent 70%),
-    radial-gradient(90% 70% at 50% 50%, #0d1014, var(--bg));
+    radial-gradient(70% 60% at 12% 88%, var(--haze-violet), transparent 70%),
+    radial-gradient(60% 50% at 90% 14%, var(--haze-teal), transparent 70%),
+    linear-gradient(var(--bg-0), var(--bg-1));
   background-attachment: fixed;
 }
 
@@ -139,7 +135,7 @@ html.is-loading { overflow: hidden; }
   transform: translateY(101%); transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.1, 1);
 }
 .tt-btn:hover::before, .tt-btn:focus-visible::before { transform: translateY(0); }
-.tt-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.tt-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg-0); }
 .tt-btn--primary::before { background: var(--text); }
 .tt-btn--primary:hover { border-color: var(--text); }
 .tt-btn--ghost { border-color: transparent; padding: 0 4px; height: auto; }
@@ -168,7 +164,7 @@ html.is-loading { overflow: hidden; }
 .tt-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 36px 0 0; }
 .tt-pill {
   display: inline-flex; align-items: center; gap: 9px; height: 38px; padding: 0 14px; border-radius: 999px;
-  border: 1px solid var(--line-strong); background: rgba(7, 8, 10, 0.4); cursor: pointer; color: var(--muted);
+  border: 1px solid var(--line-strong); background: color-mix(in srgb, var(--bg-0) 40%, transparent); cursor: pointer; color: var(--muted);
   transition: color 0.3s, border-color 0.3s, background 0.3s;
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
@@ -221,12 +217,12 @@ html.is-loading { overflow: hidden; }
 }
 .tt-cursor::after { content: ''; position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; border-radius: 50%; background: var(--text); }
 .tt-cursor.is-visible { opacity: 1; }
-.tt-cursor.is-active { border-color: var(--accent); background: rgba(255, 90, 31, 0.08); }
+.tt-cursor.is-active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .tt-cursor.is-active::after { opacity: 0; }
 html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
 
 /* ---------------------------------------------------------------- debug */
-.tt-debug-fps { position: fixed; left: 12px; bottom: 12px; z-index: 60; font: 500 11px/1 var(--font-mono); color: var(--cool); background: rgba(7, 8, 10, 0.7); padding: 8px 10px; border: 1px solid var(--line); pointer-events: none; }
+.tt-debug-fps { position: fixed; left: 12px; bottom: 12px; z-index: 60; font: 500 11px/1 var(--font-mono); color: var(--cool); background: color-mix(in srgb, var(--bg-0) 70%, transparent); padding: 8px 10px; border: 1px solid var(--line); pointer-events: none; }
 
 /* ---------------------------------------------------------------- portrait / mobile */
 @media (max-aspect-ratio: 21/20) {
@@ -234,7 +230,7 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
   .tt-copy { max-width: 560px; }
   .tt-copy::before {
     content: ''; position: absolute; z-index: -1; left: calc(var(--gutter) * -1); right: calc(var(--gutter) * -1); top: -64px; bottom: -40px;
-    background: linear-gradient(to top, rgba(7, 8, 10, 0.94) 55%, rgba(7, 8, 10, 0));
+    background: linear-gradient(to top, color-mix(in srgb, var(--bg-0) 94%, transparent) 55%, color-mix(in srgb, var(--bg-0) 0%, transparent));
     pointer-events: none;
   }
   .tt-hero__meta { display: none; }

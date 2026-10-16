@@ -17,8 +17,8 @@ import { createShared } from './Uniforms';
 import type { Shared } from './Uniforms';
 import { FullscreenQuad } from './gl/FullscreenQuad';
 import { canRenderHalfFloat } from './gl/caps';
-import { readPalette } from './palette';
-import type { Palette } from './palette';
+import { themePalette } from './theme';
+import type { Palette } from './theme';
 import { BackdropScene } from './scenes/BackdropScene';
 import { CAMERA_BASE_Z, CAMERA_FOV, ParticleScene } from './scenes/ParticleScene';
 import { FluidSim } from './sim/FluidSim';
@@ -121,9 +121,9 @@ export class Experience {
     r.setClearColor(0x000000, 0);
     this.canvas.addEventListener('webglcontextlost', this.onContextLost);
 
-    this.palette = readPalette();
+    this.palette = themePalette();
     this.shared = createShared(this.palette);
-    r.setClearColor(this.palette.bg, 1);
+    r.setClearColor(this.palette.bg0, 1);
     r.clear();
     r.setClearColor(0x000000, 0);
 
@@ -284,7 +284,7 @@ export class Experience {
     pu.uAlpha.value = this.params.alpha * this.particles.densityBoost;
 
     const r = this.renderer;
-    this.backdrop.update(sf);
+    this.backdrop.update(sc.progress, 0);
     this.backdrop.render(r);
     this.particles.render(r);
     this.composite.update(this.reduced ? 0 : p.speed, this.reduced ? 0 : Math.sin(Math.PI * sc.morph), s.uValve.value);

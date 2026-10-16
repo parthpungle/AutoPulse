@@ -16,5 +16,5 @@
     "noFallthroughCasesInSwitch": true,
     "resolveJsonModule": true
   },
-  "include": ["src/landing", "src/experience", "src/vite-env.d.ts"]
+  "include": ["src/landing", "src/experience", "src/content", "src/vite-env.d.ts"]
 }

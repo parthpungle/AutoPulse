@@ -1,7 +1,7 @@
 import { AdditiveBlending, BufferAttribute, BufferGeometry, MathUtils, PerspectiveCamera, Points, ShaderMaterial, Vector3 } from 'three';
 import type { Texture } from 'three';
 import { GLSL } from '../shaders';
-import type { Palette } from '../palette';
+import type { Palette } from '../theme';
 import type { Shared } from '../Uniforms';
 import { FXScene } from './FXScene';
 

@@ -1,5 +1,5 @@
 import { gsap } from 'gsap';
-import type { Palette } from './palette';
+import type { Palette } from './theme';
 import type { Shared } from './Uniforms';
 
 export type EngineState = 'baseline' | 'healthy' | 'knock' | 'misfire' | 'valve';

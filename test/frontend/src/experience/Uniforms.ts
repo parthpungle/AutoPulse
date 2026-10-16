@@ -1,5 +1,5 @@
 import { Color, Vector4 } from 'three';
-import type { Palette } from './palette';
+import type { Palette } from './theme';
 
 /**
  * Uniforms shared by reference between every material that needs them, so a state tween
