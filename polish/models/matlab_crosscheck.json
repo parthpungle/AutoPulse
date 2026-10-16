@@ -1,0 +1,222 @@
+{
+  "crank": {
+    "source": "matlab/crank_sim.m (ode45 crankshaft dynamics, 4-cyl, firing order 1-3-4-2)",
+    "runs": 84,
+    "firing_events": 10798,
+    "detector_trained_on_python_sim": {
+      "accuracy": 1.0,
+      "confusion_[healthy,misfire]": [
+        [
+          12,
+          0
+        ],
+        [
+          0,
+          72
+        ]
+      ]
+    },
+    "cylinder_identification_accuracy": 1.0,
+    "cylinder_identification_by_rpm": {
+      "800": 1.0,
+      "1500": 1.0,
+      "2500": 1.0,
+      "3500": 1.0
+    },
+    "worst_cylinder_z": {
+      "healthy_median": -1.9608665906926839,
+      "misfire_median": -2.2912461257449612
+    }
+  },
+  "dsp": {
+    "source": "matlab/signature_check.m (MATLAB re-implementation)",
+    "windows": 60,
+    "features_compared": 23,
+    "worst_feature": "log_rms",
+    "worst_max_rel_diff": 6.041719853470599e-14,
+    "min_correlation": 0.9999999999999996,
+    "per_feature": [
+      {
+        "feature": "log_rms",
+        "max_abs_diff": 2.706168622523819e-15,
+        "max_rel_diff": 6.041719853470599e-14,
+        "correlation": 0.9999999999999998
+      },
+      {
+        "feature": "crest_factor",
+        "max_abs_diff": 6.394884621840902e-14,
+        "max_rel_diff": 9.958131627300268e-15,
+        "correlation": 1.0
+      },
+      {
+        "feature": "kurtosis",
+        "max_abs_diff": 5.3290705182007514e-14,
+        "max_rel_diff": 2.7826597166357408e-14,
+        "correlation": 1.0
+      },
+      {
+        "feature": "skewness",
+        "max_abs_diff": 8.326672684688674e-16,
+        "max_rel_diff": 1.0573266709055045e-14,
+        "correlation": 0.9999999999999997
+      },
+      {
+        "feature": "zero_cross_rate",
+        "max_abs_diff": 0.0,
+        "max_rel_diff": 0.0,
+        "correlation": 1.0
+      },
+      {
+        "feature": "band_20_200",
+        "max_abs_diff": 1.3322676295501878e-15,
+        "max_rel_diff": 9.603641443819144e-16,
+        "correlation": 1.0
+      },
+      {
+        "feature": "band_200_500",
+        "max_abs_diff": 1.3322676295501878e-15,
+        "max_rel_diff": 1.0546607053831444e-15,
+        "correlation": 1.0
+      },
+      {
+        "feature": "band_500_1000",
+        "max_abs_diff": 1.3322676295501878e-15,
+        "max_rel_diff": 1.03613510004618e-15,
+        "correlation": 1.0
+      },
+      {
+        "feature": "band_1000_2000",
+        "max_abs_diff": 1.6653345369377348e-15,
+        "max_rel_diff": 1.7640639090805087e-15,
+        "correlation": 1.0
+      },
+      {
+        "feature": "band_2000_3000",
+        "max_abs_diff": 1.3322676295501878e-15,
+        "max_rel_diff": 1.2125752555881744e-15,
+        "correlation": 0.9999999999999998
+      },
+      {
+        "feature": "band_3000_4000",
+        "max_abs_diff": 1.4432899320127035e-15,
+        "max_rel_diff": 1.2805854327026864e-15,
+        "correlation": 1.0
+      },
+      {
+        "feature": "band_4000_5000",
+        "max_abs_diff": 1.3322676295501878e-15,
+        "max_rel_diff": 1.06427752713621e-15,
+        "correlation": 1.0
+      },
+      {
+        "feature": "band_5000_6000",
+        "max_abs_diff": 1.1102230246251565e-15,
+        "max_rel_diff": 7.621595931750204e-16,
+        "correlation": 1.0
+      },
+      {
+        "feature": "band_6000_7500",
+        "max_abs_diff": 1.4432899320127035e-15,
+        "max_rel_diff": 1.1554112963477526e-15,
+        "correlation": 0.9999999999999999
+      },
+      {
+        "feature": "band_7500_10000",
+        "max_abs_diff": 1.1102230246251565e-15,
+        "max_rel_diff": 8.022558548993973e-16,
+        "correlation": 1.0
+      },
+      {
+        "feature": "order_0.5",
+        "max_abs_diff": 2.353672812205332e-14,
+        "max_rel_diff": 9.241200055865481e-15,
+        "correlation": 0.9999999999999997
+      },
+      {
+        "feature": "order_1.0",
+        "max_abs_diff": 4.529709940470639e-14,
+        "max_rel_diff": 1.847970830461566e-14,
+        "correlation": 0.9999999999999999
+      },
+      {
+        "feature": "order_1.5",
+        "max_abs_diff": 3.108624468950438e-14,
+        "max_rel_diff": 1.295889033408093e-14,
+        "correlation": 0.9999999999999996
+      },
+      {
+        "feature": "order_2.0",
+        "max_abs_diff": 2.1760371282653068e-14,
+        "max_rel_diff": 1.1458742646142776e-14,
+        "correlation": 0.9999999999999998
+      },
+      {
+        "feature": "order_3.0",
+        "max_abs_diff": 3.9968028886505635e-15,
+        "max_rel_diff": 2.1518605680793617e-15,
+        "correlation": 1.0
+      },
+      {
+        "feature": "order_4.0",
+        "max_abs_diff": 1.4654943925052066e-14,
+        "max_rel_diff": 9.340186322890218e-15,
+        "correlation": 1.0
+      },
+      {
+        "feature": "spectral_centroid_khz",
+        "max_abs_diff": 1.5987211554602254e-14,
+        "max_rel_diff": 5.807867134693295e-15,
+        "correlation": 0.9999999999999998
+      },
+      {
+        "feature": "spectral_flatness",
+        "max_abs_diff": 2.6645352591003757e-15,
+        "max_rel_diff": 1.8914750167538524e-14,
+        "correlation": 1.0
+      }
+    ],
+    "filter_features": [
+      {
+        "feature": "env_peak_order",
+        "median_rel_diff": 0.0,
+        "exact_match_share": 1.0,
+        "correlation": 0.9999999999999999
+      },
+      {
+        "feature": "env_peak_prominence",
+        "median_rel_diff": 1.2322921997268258e-08,
+        "exact_match_share": 1.0,
+        "correlation": 0.9999999999999226
+      },
+      {
+        "feature": "knock_band_kurtosis",
+        "median_rel_diff": 2.331597957533947e-05,
+        "exact_match_share": 1.0,
+        "correlation": 0.9999999982847191
+      }
+    ],
+    "crank_features": {
+      "runs": 84,
+      "max_rel_diff": 4.161725829952467e-12
+    },
+    "total_features_checked": 28
+  },
+  "mathworks": {
+    "source": "MathWorks Powertrain Blockset example autoblkSICoreOBDMisfire (Simulink), 1 s at 2841 rpm, misfires injected on cylinder 3",
+    "power_strokes": 93,
+    "misfire_events": 11,
+    "detected_events": 11,
+    "detection_rate": 1.0,
+    "false_alarm_strokes": 2,
+    "healthy_strokes": 71,
+    "slot_of_detected_misfires": {
+      "0": 2,
+      "1": 9
+    },
+    "speed_gain_rpm": {
+      "healthy_median": 0.8328281522349243,
+      "misfire_median": -22.766802127370283
+    },
+    "note": "firing slots counted from the TDC found at the indicated-torque minimum; with firing order 1-3-4-2, slot 1 is cylinder 3"
+  }
+}
