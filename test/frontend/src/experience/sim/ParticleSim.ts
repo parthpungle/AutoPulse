@@ -1,20 +1,17 @@
-import { Matrix4, NearestFilter, RGBAFormat, ShaderMaterial, Vector2, Vector3 } from 'three';
-import type { Texture, WebGLRenderer } from 'three';
+import { Matrix4, NearestFilter, RGBAFormat, ShaderMaterial, Vector2 } from 'three';
+import type { DataTexture, Texture, WebGLRenderer } from 'three';
 import { DoubleFBO } from '../gl/DoubleFBO';
 import type { FullscreenQuad } from '../gl/FullscreenQuad';
 import { simTextureType } from '../gl/caps';
 import type { Layout } from '../Layout';
 import type { Shared } from '../Uniforms';
 import { GLSL } from '../shaders';
-import type { Range, Ranges } from './Ranges';
 import type { TargetSet } from './Targets';
 
 /**
  * GPGPU particles: position and velocity live in float textures and are advanced by ping-pong
  * fragment passes (the GPUComputationRenderer pattern from three.js, MIT). The CPU only swaps
- * targets and sets uniforms. Each section owns a block of rows (Ranges.ts) and is stepped in its
- * own scissored pass, so only the sections on screen cost anything; rows that are not stepped just
- * keep their last state until they come back.
+ * targets and sets uniforms.
  */
 export class ParticleSim {
   readonly side: number;
@@ -33,20 +30,19 @@ export class ParticleSim {
   private pos: DoubleFBO;
   private vel: DoubleFBO;
   private readonly velMat: ShaderMaterial;
-  private readonly homeMat: ShaderMaterial;
   private readonly posMat: ShaderMaterial;
-  readonly ranges: Ranges;
   private readonly copyMat: ShaderMaterial;
   private readonly renderer: WebGLRenderer;
   private readonly quad: FullscreenQuad;
+  private readonly targets: DataTexture[];
   private readonly set: TargetSet;
 
-  constructor(renderer: WebGLRenderer, quad: FullscreenQuad, ranges: Ranges, set: TargetSet, shared: Shared, layout: Layout) {
+  constructor(renderer: WebGLRenderer, quad: FullscreenQuad, side: number, set: TargetSet, shared: Shared, layout: Layout) {
     this.renderer = renderer;
     this.quad = quad;
-    this.ranges = ranges;
-    const side = (this.side = ranges.side);
+    this.side = side;
     this.set = set;
+    this.targets = set.targets;
 
     const opts = { type: simTextureType(renderer), format: RGBAFormat, minFilter: NearestFilter, magFilter: NearestFilter, depthBuffer: false };
     this.pos = new DoubleFBO(side, side, opts);
@@ -64,10 +60,13 @@ export class ParticleSim {
         tPos: { value: null },
         tVel: { value: null },
         tRand: { value: set.randTexture },
-        tParams: { value: set.params },
+        tA: { value: set.targets[0] },
+        tB: { value: set.targets[0] },
         tFluid: { value: null },
         uRes: res,
-        uSection: { value: 0 },
+        uSecA: { value: 0 },
+        uSecB: { value: 0 },
+        uMorph: { value: 0 },
         uDt: { value: 0 },
         uSpring: { value: 0 },
         uDamping: { value: 0 },
@@ -85,24 +84,15 @@ export class ParticleSim {
         uL4: { value: layout.L4 },
         uClusterC: { value: layout.clusterC },
         tPaths: { value: null },
-        uRigOffset: { value: new Vector3() },
+        uRigOffset: { value: null },
         uActiveSensor: { value: 0 },
-        uFlowPhase: { value: new Float32Array(8) },
+        uFlowPhase: { value: null },
         uDataPhase: { value: 0 },
         uThrottle: { value: 0 },
         uLambda: { value: 0 },
         uFlowDensity: { value: 1 },
         uDataHalf: { value: 0 },
       },
-    });
-
-    // same uniforms (shared objects), another shader: positions straight onto the home shape
-    this.homeMat = new ShaderMaterial({
-      vertexShader: GLSL.fullscreenVert,
-      fragmentShader: GLSL.home,
-      depthTest: false,
-      depthWrite: false,
-      uniforms: this.velMat.uniforms,
     });
 
     this.posMat = new ShaderMaterial({
@@ -125,7 +115,7 @@ export class ParticleSim {
   }
 
   get materials(): ShaderMaterial[] {
-    return [this.velMat, this.homeMat, this.posMat, this.copyMat];
+    return [this.velMat, this.posMat, this.copyMat];
   }
 
   get positions(): Texture {
@@ -140,11 +130,9 @@ export class ParticleSim {
     return this.velMat.uniforms;
   }
 
-  /** Back to the start: the hero's particles at the spawn seed, every other section on its shape,
-   *  all at rest. */
+  /** Back to the spawn seed, at rest. */
   reset() {
     const r = this.renderer;
-    this.scissor(null);
     this.copyMat.uniforms.tSource.value = this.set.spawn;
     this.quad.render(r, this.copyMat, this.pos.read);
     this.quad.render(r, this.copyMat, this.pos.write);
@@ -152,29 +140,19 @@ export class ParticleSim {
       r.setRenderTarget(t);
       r.clear(true, false, false);
     }
-    for (const range of this.ranges.list) if (range.section > 0) this.snapHome(range);
     r.setRenderTarget(null);
   }
 
-  /** Put one section's particles on their home shape, at rest. */
-  snapHome(range: Range) {
-    this.velMat.uniforms.uSection.value = range.section;
-    this.scissor(range);
-    this.quad.render(this.renderer, this.homeMat, this.pos.read);
-    this.quad.render(this.renderer, this.homeMat, this.pos.write);
-    this.scissor(null);
+  setSections(a: number, b: number, morph: number) {
+    const u = this.velMat.uniforms;
+    u.uSecA.value = a;
+    u.uSecB.value = b;
+    u.uMorph.value = morph;
+    u.tA.value = this.targets[a];
+    u.tB.value = this.targets[b];
   }
 
-  /** Limit the passes to a range's rows (null: the whole texture). */
-  private scissor(range: Range | null) {
-    for (const t of [this.pos.read, this.pos.write, this.vel.read, this.vel.write]) {
-      if (range) t.scissor.set(0, range.rowStart, this.side, this.ranges.activeRows(range));
-      t.scissorTest = !!range;
-    }
-  }
-
-  /** Advance the given sections by dt. `viewProj` (per section) projects for the fluid drag. */
-  step(dt: number, fluid: Texture, sections: readonly number[], viewProj?: (section: number) => Matrix4) {
+  step(dt: number, fluid: Texture) {
     const u = this.velMat.uniforms;
     const p = this.params;
     u.tPos.value = this.pos.read.texture;
@@ -187,28 +165,14 @@ export class ParticleSim {
     u.uCurlFreq.value = p.curlFreq;
     u.uCurlSpeed.value = p.curlSpeed;
     u.uFluidAmp.value = p.fluidAmp;
-    const list = this.ranges.list;
-    for (const s of sections) {
-      const range = list[s];
-      if (!range || range.count <= 0) continue;
-      u.uSection.value = s;
-      if (viewProj) (u.uViewProj.value as Matrix4).copy(viewProj(s));
-      this.scissor(range);
-      this.quad.render(this.renderer, this.velMat, this.vel.write);
-    }
+    this.quad.render(this.renderer, this.velMat, this.vel.write);
     this.vel.swap();
 
     const q = this.posMat.uniforms;
     q.tPos.value = this.pos.read.texture;
     q.tVel.value = this.vel.read.texture;
     q.uDt.value = dt;
-    for (const s of sections) {
-      const range = list[s];
-      if (!range || range.count <= 0) continue;
-      this.scissor(range);
-      this.quad.render(this.renderer, this.posMat, this.pos.write);
-    }
-    this.scissor(null);
+    this.quad.render(this.renderer, this.posMat, this.pos.write);
     this.pos.swap();
   }
 
@@ -216,10 +180,9 @@ export class ParticleSim {
     this.pos.dispose();
     this.vel.dispose();
     this.velMat.dispose();
-    this.homeMat.dispose();
     this.posMat.dispose();
     this.copyMat.dispose();
-    this.set.params.dispose();
+    for (const t of this.set.targets) t.dispose();
     this.set.spawn.dispose();
     this.set.randTexture.dispose();
   }

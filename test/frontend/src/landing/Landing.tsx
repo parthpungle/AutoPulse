@@ -107,8 +107,7 @@ export function Landing() {
       let ok = true;
       try {
         await engine.ready;
-      } catch (err) {
-        console.error('TorqueTwin: the WebGL engine could not start', err);
+      } catch {
         ok = false;
         pre.current?.setEngine(1);
       }

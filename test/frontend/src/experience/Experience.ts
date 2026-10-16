@@ -34,7 +34,6 @@ import { SensorRig } from './sensors/SensorRig';
 import { SyntheticSignals } from './signals/SyntheticSignals';
 import { FluidSim } from './sim/FluidSim';
 import { ParticleSim } from './sim/ParticleSim';
-import { Ranges } from './sim/Ranges';
 import { generateTargets } from './sim/Targets';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -135,8 +134,6 @@ export class Experience {
   readonly paths = new FlowPaths();
   readonly flows = new Flows();
   private readonly tipPos = new Vector3();
-  private readonly liveList: number[] = [];
-  private readonly visibleList: number[] = [];
   cards!: Cards;
   private activeCard = -1;
   private detail = false;
@@ -195,10 +192,9 @@ export class Experience {
     this.progress(0.1);
     if (this.disposed) return;
 
-    const ranges = new Ranges(this.settings.count);
-    const set = await generateTargets(ranges, (done, total) => this.progress(0.1 + 0.35 * (done / total)));
+    const set = await generateTargets(this.settings.side, (done, total) => this.progress(0.1 + 0.35 * (done / total)));
     if (this.disposed) {
-      set.params.dispose();
+      for (const t of set.targets) t.dispose();
       return;
     }
 
@@ -207,9 +203,9 @@ export class Experience {
     this.quad = new FullscreenQuad();
     this.fluid = new FluidSim(r, this.quad, this.settings.fluidRes, aspect);
     this.fluid.params.iterations = this.settings.jacobi;
-    this.sim = new ParticleSim(r, this.quad, ranges, set, this.shared, this.layout);
+    this.sim = new ParticleSim(r, this.quad, this.settings.side, set, this.shared, this.layout);
     this.backdrop = new BackdropScene(this.quad.geometry, this.shared, this.palette);
-    this.main = new MainScene(ranges, set.rand, this.shared, this.palette);
+    this.main = new MainScene(this.settings.side, this.settings.count, set.rand, this.shared, this.palette);
     this.rig = new SensorRig(r, this.palette, this.settings.tier >= 2, this.shared);
     this.rig.attach(this.main.scene);
     this.ring = new ClusterRing(this.shared.uTime);
@@ -223,7 +219,11 @@ export class Experience {
     su.uFlowPhase.value = this.flows.phase;
     pu.uActiveSensor = su.uActiveSensor;
     pu.uActiveTip.value = this.tipPos;
-    pu.tParams.value = set.params;
+    pu.uSecA = su.uSecA;
+    pu.uSecB = su.uSecB;
+    pu.uMorph = su.uMorph;
+    pu.tStreams.value = set.targets[1];
+    pu.tClusters.value = set.targets[3];
     this.cards = new Cards(this.main.glassRT.texture, this.shared);
     this.cards.setOctaves(CARD_OCTAVES[this.settings.tier]);
     this.main.cardScene.add(this.cards.group);
@@ -239,7 +239,7 @@ export class Experience {
     this.onResize();
     this.applyFluidSize();
 
-    r.initTexture(set.params);
+    for (const t of set.targets) r.initTexture(t);
     r.initTexture(set.spawn);
     r.initTexture(set.randTexture);
     this.paths.update(this.rig);
@@ -423,15 +423,14 @@ export class Experience {
       this.fluid.step(dt);
     }
 
+    this.sim.setSections(sc.secA, sc.secB, sc.morph);
     this.sim.uniforms.uIntro.value = this.intro.value;
     this.sim.uniforms.uReduced.value = this.reduced ? 1 : 0;
-    // each section's particles are stepped and drawn on their own, only while on (or near) screen
-    this.sim.step(dt, this.fluid.texture, sc.live(this.liveList));
-    this.main.setVisibleSections(sc.visible(this.visibleList));
+    this.sim.step(dt, this.fluid.texture);
 
     const pu = this.main.material.uniforms;
     this.main.setTextures(this.sim.positions, this.sim.velocities);
-
+    pu.uFade.value = this.reduced ? Math.abs(2 * sc.morph - 1) : 1;
     pu.uAlpha.value = this.params.alpha * this.main.densityBoost;
 
     const near = 1 - Math.abs(sf - 1);

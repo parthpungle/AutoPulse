@@ -124,10 +124,9 @@ export async function mountDebug(exp: Experience): Promise<() => void> {
 
 /** Particles drawn per Sensor Array pool at the current tier: dust / trickles / active flow / data. */
 export function poolShares(exp: Experience) {
-  const d = (exp.main.material.uniforms.tParams.value as DataTexture).image.data as unknown as Float32Array;
-  const r = exp.sim.ranges.list[1];
+  const d = (exp.main.material.uniforms.tStreams.value as DataTexture).image.data as unknown as Float32Array;
   const c = [0, 0, 0, 0];
-  for (let i = r.start; i < r.start + r.count; i++) {
+  for (let i = 0; i < exp.main.count; i++) {
     const x = d[i * 4];
     if (x < 9) c[0]++;
     else if (x < 19) c[1]++;

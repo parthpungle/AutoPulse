@@ -142,27 +142,6 @@ export class ScrollState {
     return this.holdStart[i] + this.holdLen[i] * t;
   }
 
-  /** Sections on screen: the current one, or both sides of a cut. */
-  visible(out: number[]) {
-    out.length = 0;
-    if (this.boundary >= 0) out.push(this.boundary, this.boundary + 1);
-    else out.push(this.current);
-    return out;
-  }
-
-  /** Sections to simulate: those on screen, plus a neighbour within 30vh of its cut (so it is
-   *  already alive when the seam reaches it). */
-  live(out: number[]) {
-    this.visible(out);
-    if (this.boundary >= 0) return out;
-    const i = this.current;
-    const pre = 0.3 * this.vh;
-    const n = this.sections.length;
-    if (i < n - 1 && this.y > this.holdStart[i] + this.holdLen[i] - pre) out.push(i + 1);
-    if (i > 0 && this.y < this.holdStart[i] + pre) out.push(i - 1);
-    return out;
-  }
-
   update() {
     const y = (this.y = this.lenis.animatedScroll);
     const limit = this.lenis.limit;
