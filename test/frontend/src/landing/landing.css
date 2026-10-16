@@ -455,3 +455,7 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
   .tt-index__list button.on { opacity: 1; border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
   .tt-index__list button.on .tt-index__label::after { display: none; }
 }
+
+/* the cut: text and controls caught in the torn band shift with their strip and split their
+   colours (seam/Panels.ts sets --gx and --gc from the same strip table as the WebGL seam) */
+.is-tearing { translate: var(--gx, 0px) 0; text-shadow: var(--gc, 1px) 0 rgba(255, 40, 90, 0.7), calc(var(--gc, 1px) * -1) 0 rgba(40, 200, 255, 0.7); }

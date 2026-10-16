@@ -109,13 +109,14 @@ export class ScrollState {
     this.cut = CUT_VH * vh;
     let y = 0;
     for (let i = 0; i < n; i++) {
-      const hold = (HOLD_VH[i] ?? 60) * vh;
+      // whole pixels throughout, so hold starts match where the spacers really begin
+      const hold = Math.round((HOLD_VH[i] ?? 60) * vh);
       this.holdStart[i] = y;
       this.holdLen[i] = hold;
-      const h = i < n - 1 ? hold + this.cut : hold + this.vh;
-      const px = `${Math.round(h)}px`;
+      const h = i < n - 1 ? hold + Math.round(this.cut) : hold + Math.round(this.vh);
+      const px = `${h}px`;
       if (this.sections[i].style.height !== px) this.sections[i].style.height = px;
-      y += hold + this.cut;
+      y += hold + Math.round(this.cut);
     }
   };
 
@@ -169,10 +170,10 @@ export class ScrollState {
     this.progress = limit > 0 ? y / limit : 0;
     const n = this.sections.length;
     let i = 0;
-    while (i < n - 1 && y >= this.holdStart[i + 1]) i++;
+    while (i < n - 1 && y >= this.holdStart[i + 1] - 0.5) i++; // half a px of slack: a jump to a section lands on its hold
     const holdEnd = this.holdStart[i] + this.holdLen[i];
     let t = 0;
-    if (i < n - 1 && y > holdEnd) t = Math.min(1, (y - holdEnd) / this.cut);
+    if (i < n - 1 && y > holdEnd + 0.5) t = Math.min(1, (y - holdEnd) / this.cut);
     this.current = i;
     this.boundary = t > 0 ? i : -1;
     this.t = t;

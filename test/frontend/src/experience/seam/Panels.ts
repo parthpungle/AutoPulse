@@ -2,6 +2,8 @@ import { SEAM } from './Seam';
 import type { Seam } from './Seam';
 
 const HIDDEN = 'inset(0 0 100% 0)';
+/** DOM pieces that tear with the band (lines of text and small controls). */
+const TEAR = '.tt-eyebrow, .tt-lede, .tt-line, .tt-h3, .tt-btn, .tt-pill, .tt-stat, .tt-states li, .tt-model, .tt-index__head, .tt-index__list li, .tt-hero__meta span, .tt-cta .tt-h2 > span';
 
 interface PanelStyle {
   clip: string;
@@ -24,6 +26,8 @@ export class Panels {
   private readonly extras: { el: HTMLElement; section: number }[];
   private readonly last: PanelStyle[];
   private readonly lastExtra: string[];
+  /** Elements currently shifted by the band. */
+  private readonly tearing = new Set<HTMLElement>();
 
   constructor(panels: HTMLElement[], extras: { el: HTMLElement; section: number }[]) {
     this.panels = panels;
@@ -34,6 +38,7 @@ export class Panels {
 
   update(current: number, boundary: number, t: number, seam: Seam, vh: number, reduced: boolean) {
     const n = this.panels.length;
+    this.tear(boundary >= 0 && !reduced ? this.panels[boundary] : null, seam);
     for (let i = 0; i < n; i++) {
       let clip = HIDDEN;
       let transform = 'none';
@@ -95,6 +100,47 @@ export class Panels {
     }
   }
 
+  /**
+   * The outgoing panel's text and controls tear like the GL layer: while an element sits in the
+   * band above the seam it shifts sideways by its strip's offset (the same strip table as the
+   * composite) with a little RGB split; the jagged clip polygon chops it at the seam.
+   */
+  private tear(panel: HTMLElement | null, seam: Seam | null) {
+    const now = new Set<HTMLElement>();
+    if (panel && seam) {
+      const band = (seam.h * SEAM.band);
+      for (const el of panel.querySelectorAll<HTMLElement>(TEAR)) {
+        const r = el.getBoundingClientRect();
+        if (r.height === 0) continue;
+        const cy = r.top + r.height / 2;
+        const d = seam.yAt(r.left + r.width / 2) - cy; // px above the seam
+        if (d < -r.height / 2 || d > band + r.height / 2) continue;
+        let shift = 0;
+        let split = 0;
+        for (let k = 0; k < seam.count; k++) {
+          if (Math.max(0, d) < seam.strips[k * 4]) {
+            shift = seam.strips[k * 4 + 1];
+            split = seam.strips[k * 4 + 3];
+            break;
+          }
+        }
+        if (shift === 0 && split === 0) continue;
+        now.add(el);
+        el.style.setProperty('--gx', `${shift.toFixed(1)}px`);
+        el.style.setProperty('--gc', `${Math.max(1, split * 0.5).toFixed(1)}px`);
+        el.classList.add('is-tearing');
+      }
+    }
+    for (const el of this.tearing) {
+      if (now.has(el)) continue;
+      el.classList.remove('is-tearing');
+      el.style.removeProperty('--gx');
+      el.style.removeProperty('--gc');
+    }
+    this.tearing.clear();
+    for (const el of now) this.tearing.add(el);
+  }
+
   /** Which section's panel holds an element (-1: none). */
   sectionOf(el: Element | null) {
     for (let i = 0; i < this.panels.length; i++) if (el && this.panels[i].contains(el)) return i;
@@ -103,6 +149,7 @@ export class Panels {
 
   /** Back to plain document styles (no clip, no drift). */
   reset() {
+    this.tear(null, null);
     for (const el of this.panels) {
       el.style.clipPath = '';
       el.style.transform = '';
