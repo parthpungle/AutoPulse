@@ -28,6 +28,7 @@ import type { Palette } from './theme';
 import { BackdropScene } from './scenes/BackdropScene';
 import { CAMERA_BASE_Z, CAMERA_FOV, MainScene } from './scenes/MainScene';
 import { ClusterRing } from './scenes/ClusterRing';
+import { Panels } from './seam/Panels';
 import { SEAM, Seam } from './seam/Seam';
 import { SensorRig } from './sensors/SensorRig';
 import { SyntheticSignals } from './signals/SyntheticSignals';
@@ -100,6 +101,11 @@ export class Experience {
   ring!: ClusterRing;
   /** The cut between sections (seam position and torn strips). */
   readonly seam = new Seam();
+  /** The section panels (DOM), clipped and drifted by the cut. */
+  private panels: Panels | null = null;
+  /** Called once per section, the first time it comes on screen (DOM reveals). */
+  onSectionEnter: ((i: number) => void) | null = null;
+  private readonly entered = new Set<number>();
   /** ?cut=0..1 (or ?cut=sweep): a fixed seam over a flat debug colour, with a DOM overlay clipped
    *  by the same polygon, to check that GL and DOM cut in the same place. */
   private cutTest: number | 'sweep' | null = null;
@@ -226,6 +232,9 @@ export class Experience {
     this.composite = new Composite(r, this.main.camera, this.backdrop.rt.texture, this.main.rt.texture, this.shared, this.palette);
     this.composite.setBloom(this.settings.bloom);
     this.setupCutTest();
+    const inners = this.options.sections.map((s) => s.querySelector<HTMLElement>('.tt-sec__inner') ?? s);
+    const tags = document.querySelector<HTMLElement>('.tt-anchors');
+    this.panels = new Panels(inners, tags ? [{ el: tags, section: 3 }] : []);
     this.composite.setFadeReveal(this.reduced);
     this.onResize();
     this.applyFluidSize();
@@ -261,6 +270,7 @@ export class Experience {
     this.motionQuery.addEventListener('change', this.onMotion);
     window.addEventListener('pointermove', this.onPointerMove, { passive: true });
     window.addEventListener('click', this.onClick);
+    window.addEventListener('focusin', this.onFocusIn);
     document.addEventListener('visibilitychange', this.onVisibility);
     gsap.ticker.lagSmoothing(0);
     gsap.ticker.add(this.tick);
@@ -458,12 +468,23 @@ export class Experience {
     this.cutEl = el;
   }
 
-  /** The cut between sections (until the section worlds exist, only the ?cut test uses it). */
+  /** The cut between sections: seam, DOM panels, composite (and the ?cut test). */
   private updateCut(time: number) {
     const main = this.main.rt.texture;
+    const sc = this.scroll;
     if (this.cutTest === null || !this.cutTex || !this.cutEl) {
+      this.seam.set(sc.boundary >= 0 ? sc.t : 0, this.sizes.width, this.sizes.height);
+      if (sc.boundary >= 0) this.seam.update(time);
+      this.panels?.update(sc.current, sc.boundary, sc.t, this.seam, this.sizes.height, this.reduced);
       this.composite.setLayers(main, main);
-      this.composite.setCut(null);
+      this.composite.setCut(this.reduced || sc.boundary < 0 ? null : this.seam);
+      // sections coming on screen for the first time play their DOM reveals
+      for (const i of sc.boundary >= 0 ? [sc.boundary, sc.boundary + 1] : [sc.current]) {
+        if (!this.entered.has(i) && this.onSectionEnter) {
+          this.entered.add(i);
+          this.onSectionEnter(i);
+        }
+      }
       return;
     }
     const t = this.cutTest === 'sweep' ? 0.5 - 0.5 * Math.cos(time * 0.6) : this.cutTest;
@@ -541,6 +562,14 @@ export class Experience {
     this.hintOn = false;
     hint?.classList.remove('is-on');
   }
+
+  /** Tabbing into a section that isn't on screen scrolls to it, so focus is never invisible. */
+  private onFocusIn = (e: FocusEvent) => {
+    const i = this.panels?.sectionOf(e.target as Element) ?? -1;
+    const sc = this.scroll;
+    if (i < 0 || i === sc.current || (sc.boundary >= 0 && i === sc.boundary + 1)) return;
+    sc.lenis.scrollTo(sc.holdStartOf(i), { immediate: true, force: true });
+  };
 
   private onPointerMove = () => {
     this.hoverDirty = true;
@@ -708,6 +737,8 @@ export class Experience {
     this.motionQuery.removeEventListener('change', this.onMotion);
     window.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('click', this.onClick);
+    window.removeEventListener('focusin', this.onFocusIn);
+    this.panels?.reset();
     this.carousel.dispose();
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);

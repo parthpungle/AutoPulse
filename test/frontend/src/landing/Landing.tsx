@@ -123,7 +123,17 @@ export function Landing() {
         heroIntro(el, reduced, ok && !reduced ? 0.35 : 0);
         document.documentElement.classList.remove('is-loading');
         engine.reveal();
-        setupReveals(el, reduced);
+        const play = setupReveals(el, reduced);
+        const sections = Array.from(el.querySelectorAll('[data-section]'));
+        if (ok) {
+          // the engine says when a section's panel first comes on screen (the cut uncovers it)
+          engine.onSectionEnter = (i) => sections[i] && play(sections[i]);
+        } else {
+          // no WebGL: a plain document, reveal sections as they scroll into view
+          const io = new IntersectionObserver((entries) => entries.forEach((e) => e.isIntersecting && play(e.target)), { threshold: 0.15 });
+          sections.forEach((s) => io.observe(s));
+          ctx.add(() => () => io.disconnect());
+        }
       });
       if (ok && new URLSearchParams(location.search).has('debug')) {
         const { mountDebug } = await import('../experience/Debug');
