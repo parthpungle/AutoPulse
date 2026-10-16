@@ -171,14 +171,16 @@ html.is-loading { overflow: hidden; }
 }
 .tt-pill i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; transition: background 0.3s, opacity 0.3s, box-shadow 0.3s; }
 .tt-pill:hover { color: var(--text); border-color: var(--text); }
-.tt-pill[aria-pressed='true'] { color: var(--text); border-color: var(--state); }
-.tt-pill[aria-pressed='true'] i { background: var(--state); opacity: 1; box-shadow: 0 0 10px var(--state); }
+.tt-pill[aria-pressed='true'] { color: var(--text); border-color: var(--k, var(--state)); }
+.tt-pill[aria-pressed='true'] i { background: var(--k, var(--state)); opacity: 1; box-shadow: 0 0 10px var(--k, var(--state)); }
+.tt-pills .tt-pill i { background: var(--k); opacity: 0.7; }
 .tt-states { list-style: none; margin: 28px 0 0; padding: 0; display: grid; gap: 0; }
-.tt-states li { display: grid; grid-template-columns: 96px 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); color: var(--muted); transition: color 0.4s; }
-.tt-states li span { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; padding-top: 3px; }
+.tt-states li { display: grid; grid-template-columns: 96px 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); color: color-mix(in srgb, var(--text) 82%, transparent); transition: color 0.4s, opacity 0.4s; }
+.tt-states li span { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; padding-top: 3px; color: var(--k); }
 .tt-states li p { margin: 0; font-size: 14.5px; line-height: 1.45; }
+/* Default: every row readable; with a selection, its row is full and the others step back */
 .tt-states li.on { color: var(--text); }
-.tt-states li.on span { color: var(--state); }
+.tt-states.has-sel li:not(.on) { opacity: 0.4; }
 .tt-model { margin: 26px 0 0; display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; color: var(--muted); }
 .tt-model b { font-family: var(--font-mono); font-weight: 500; font-size: 22px; letter-spacing: -0.02em; color: var(--text); text-transform: none; }
 .tt-hint { margin: 14px 0 0; color: var(--muted); font-size: 13px; }
@@ -205,10 +207,11 @@ html.is-loading { overflow: hidden; }
 .tt-tag > span { position: absolute; display: flex; align-items: center; gap: 8px; }
 .tt-tag--signal > span { right: 14px; top: 0; transform: translateY(-50%); }
 .tt-tag--signal > span::after { content: ''; width: 18px; height: 1px; background: currentColor; opacity: 0.5; }
-.tt-tag--cluster > span { left: 0; top: 0; transform: translate(-50%, -100%); flex-direction: column-reverse; gap: 8px; color: rgba(233, 236, 239, 0.62); transition: color 0.4s; }
-.tt-tag--cluster > span::before { content: ''; width: 5px; height: 5px; border-radius: 50%; border: 1px solid currentColor; }
+.tt-tag--cluster > span { left: 0; top: 0; transform: translate(-50%, -100%); flex-direction: column-reverse; gap: 8px; color: rgba(233, 236, 239, 0.8); transition: color 0.4s, opacity 0.4s; }
+.tt-tag--cluster > span::before { content: ''; width: 5px; height: 5px; border-radius: 50%; border: 1px solid var(--k); background: color-mix(in srgb, var(--k) 40%, transparent); transition: background 0.4s, box-shadow 0.4s; }
 .tt-tag--cluster.on > span { color: var(--text); }
-.tt-tag--cluster.on > span::before { background: var(--state); border-color: var(--state); box-shadow: 0 0 12px var(--state); }
+.tt-tag--cluster.on > span::before { background: var(--k); box-shadow: 0 0 12px var(--k); }
+.tt-tag--cluster.off > span { opacity: 0.4; }
 
 /* ---------------------------------------------------------------- cursor */
 .tt-cursor {
@@ -258,7 +261,7 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
   .tt-pill { justify-content: center; }
   .tt-states { margin-top: 16px; }
   .tt-states li { padding: 8px 0; }
-  .tt-states li:not(.on) { display: none; }
+  .tt-states.has-sel li:not(.on) { display: none; }
   .tt-stats { margin-top: 26px; }
   .tt-footer { flex-direction: column; align-items: flex-start; gap: 8px; }
   .tt-actions { margin-top: 28px; }

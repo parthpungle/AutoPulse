@@ -6,7 +6,9 @@ uniform float uTurb;      // turbulence multiplier
 uniform float uKnock;     // 0..1
 uniform float uMisfire;   // 0..1
 uniform float uValve;     // 0..1
-uniform vec4 uStateW;     // highlight weight per cluster: healthy, knock, misfire, valve wear
+uniform vec4 uStateW;     // highlight weight per engine state: healthy, knock, misfire, valve wear
+uniform vec4 uClusterSel; // Recognition selection per cluster (only styles the clusters)
+uniform float uAnySel;    // 1 while a cluster is selected
 
 float beatPhase(float t) { return fract(t * uBeat); }
 

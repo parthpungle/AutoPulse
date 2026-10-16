@@ -240,6 +240,11 @@ vec4 shapeSpectrum(vec4 d, float t) {
   return vec4(x, y, z, e);
 }
 
+// Recognition: four clusters with permanent identities. Each moves on its own clock and never on
+// the global engine state: healthy drifts calm and tight, knock throws sharp outward spikes, misfire
+// flickers and drops a slice out every few beats, valve wear jitters (that fine jitter is added in
+// the draw pass: the spring would smooth it away here). Colour, and the selection's size and
+// brightness, are in the draw pass too.
 vec4 shapeClusters(vec4 d, float t) {
   float id = d.w;
   int i = int(id + 0.5);
@@ -247,16 +252,33 @@ vec4 shapeClusters(vec4 d, float t) {
   float sel = 0.0;
   if (i < 4) {
     c = uClusterC[i];
-    sel = uStateW[i];
+    sel = uClusterSel[i];
   }
-  float anySel = clamp(uStateW.x + uStateW.y + uStateW.z + uStateW.w, 0.0, 1.0);
-  float breathe = 1.0 + 0.035 * sin(t * 1.3 + id * 1.7);
-  vec2 p = c + (d.xy - c) * (1.0 + 0.2 * sel) * breathe;
-  float a = 0.06 * sin(t * 0.21 + id);
-  p = c + mat2(cos(a), -sin(a), sin(a), cos(a)) * (p - c);
-  vec3 pos = vec3(uL3.x + p.x * uL3.z, uL3.y + p.y * uL3.w, d.z);
-  float e = i < 4 ? mix(1.0, 0.24 + 2.0 * sel, anySel) : mix(0.5, 0.2, anySel);
-  return vec4(pos, e);
+  vec2 q = d.xy - c;
+  float h = hash12(d.xy * 731.0 + d.z * 17.0); // a constant per particle
+  float e = 1.0;
+  float spread = 1.0 + 0.15 * sel;
+  float rot = 0.0;
+  if (i == 0) {
+    spread *= 0.88 * (1.0 + 0.02 * sin(t * 0.6 + h * 6.28));
+    rot = 0.05 * sin(t * 0.12);
+  } else if (i == 1) {
+    float kb = exp(-fract(t * 1.15) * 9.0);
+    spread *= 1.0 + kb * (0.22 + 0.75 * step(0.6, h));
+    rot = 0.04 * sin(t * 0.3);
+  } else if (i == 2) {
+    float beat = floor(t * 1.4);
+    float drop = step(2.0, mod(beat, 3.0)) * step(h, 0.35);
+    e = (0.78 + 0.22 * sin(t * 21.0 + h * 40.0)) * (1.0 - drop);
+    spread *= 1.0 + 0.03 * sin(t * 1.4 + h * 6.28);
+  } else if (i == 3) {
+    spread *= 1.0 + 0.02 * sin(t * 0.9 + h * 6.28);
+  } else {
+    e = 0.5; // outliers between the clusters
+  }
+  q = mat2(cos(rot), -sin(rot), sin(rot), cos(rot)) * (q * spread);
+  vec2 p = c + q;
+  return vec4(uL3.x + p.x * uL3.z, uL3.y + p.y * uL3.w, d.z, e);
 }
 
 vec4 shapeRing(vec4 d, float t) {

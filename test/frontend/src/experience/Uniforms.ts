@@ -14,6 +14,9 @@ export function createShared(palette: Palette) {
     uMisfire: { value: 0 },
     uValve: { value: 0 },
     uStateW: { value: new Vector4() },
+    /** Recognition selection (per cluster 0..1) and whether anything is selected; never the state. */
+    uClusterSel: { value: new Vector4() },
+    uAnySel: { value: 0 },
     uAccent: { value: palette.accent.clone() as Color },
     uFlash: { value: 0 },
   };

@@ -3,6 +3,7 @@ import type { Texture, WebGLRenderer } from 'three';
 import type { FullscreenQuad } from '../gl/FullscreenQuad';
 import { SENSORS } from '../../content/sensors';
 import { orbitPose } from '../carousel/CarouselLayout';
+import { CLUSTERS } from '../sim/Targets';
 import { GLSL } from '../shaders';
 import type { Palette } from '../theme';
 import type { Shared } from '../Uniforms';
@@ -94,6 +95,10 @@ export class MainScene extends FXScene {
         uFade: { value: 1 },
         uColor: { value: palette.text },
         tStreams: { value: null },
+        tClusters: { value: null },
+        uClusterColors: { value: CLUSTERS.map((c) => new Color(c.color)) },
+        uClusterSel: shared.uClusterSel,
+        uAnySel: shared.uAnySel,
         uActiveSensor: { value: 0 },
         uActiveTip: { value: null },
         uSecA: { value: 0 },

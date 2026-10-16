@@ -13,8 +13,6 @@ import { heroIntro, setupReveals } from './reveals';
 import { CTA, DASHBOARD_URL, EVENT, GITHUB_URL, HERO, NAV_LABELS, RECOGNITION, SENSOR_ARRAY, SIGNATURES, STATE_KEYS, TEAM_NAME } from './content';
 import type { StateKey } from './content';
 
-const AUTO_CYCLE_MS = 3500;
-
 function loadFonts() {
   if (!document.fonts?.load) return Promise.resolve();
   return Promise.all([
@@ -43,7 +41,6 @@ export function Landing() {
   nav.current = { section, card, detail };
   const root = useRef<HTMLDivElement>(null);
   const pre = useRef<Preloader | null>(null);
-  const picked = useRef(false);
   const clusterTags = useRef<(HTMLDivElement | null)[]>([]);
 
   if (!pre.current) pre.current = new Preloader();
@@ -141,34 +138,17 @@ export function Landing() {
     };
   }, [engine]);
 
+  // Recognition: a pill selects its state (the clusters light up, the rest of the page reacts);
+  // clicking the selected pill again returns to the Default look (nothing selected)
   const choose = useCallback(
-    (key: StateKey | null, byUser: boolean) => {
-      if (byUser) picked.current = true;
+    (key: StateKey | null) => {
       setActive(key);
       engine?.setState(key ?? 'baseline');
+      engine?.setClusterSelection(key ? STATE_KEYS.indexOf(key) : -1);
     },
     [engine],
   );
-
-  // nobody clicked yet: cycle the states while Recognition is on screen, reset when it leaves
-  useEffect(() => {
-    if (!engine) return;
-    const id = window.setInterval(() => {
-      if (picked.current) return;
-      const near = Math.abs(engine.scroll.sectionFloat - 3) < 0.45;
-      if (near) {
-        setActive((cur) => {
-          const next = STATE_KEYS[(cur ? STATE_KEYS.indexOf(cur) + 1 : 0) % STATE_KEYS.length];
-          engine.setState(next);
-          return next;
-        });
-      } else if (engine.state !== 'baseline') {
-        setActive(null);
-        engine.setState('baseline');
-      }
-    }, AUTO_CYCLE_MS);
-    return () => window.clearInterval(id);
-  }, [engine]);
+  const toggle = useCallback((key: StateKey) => choose(active === key ? null : key), [active, choose]);
 
   const goTo = (e: MouseEvent, target: string) => {
     e.preventDefault();
@@ -220,7 +200,12 @@ export function Landing() {
 
       <div className="tt-anchors" aria-hidden="true">
         {CLUSTERS.map((c, i) => (
-          <div key={c.key} className={`tt-tag tt-tag--cluster${activeIndex === i ? ' on' : ''}`} ref={(el) => void (clusterTags.current[i] = el)}>
+          <div
+            key={c.key}
+            className={`tt-tag tt-tag--cluster${activeIndex === i ? ' on' : activeIndex >= 0 ? ' off' : ''}`}
+            style={{ '--k': c.color } as CSSProperties}
+            ref={(el) => void (clusterTags.current[i] = el)}
+          >
             <span>{c.label}</span>
           </div>
         ))}
@@ -330,17 +315,17 @@ export function Landing() {
                 {RECOGNITION.title}
               </h2>
               <div className="tt-pills" role="group" aria-label="Engine state" data-reveal="stagger">
-                {STATE_KEYS.map((k) => (
-                  <button key={k} type="button" className="tt-pill" aria-pressed={active === k} onClick={() => choose(k, true)}>
+                {STATE_KEYS.map((k, i) => (
+                  <button key={k} type="button" className="tt-pill" aria-pressed={active === k} style={{ '--k': CLUSTERS[i].color } as CSSProperties} onClick={() => toggle(k)}>
                     <i aria-hidden="true" />
                     {RECOGNITION.states[k].label}
                   </button>
                 ))}
               </div>
               {!active && <p className="tt-hint">{RECOGNITION.hint}</p>}
-              <ul className="tt-states" aria-live="polite">
-                {STATE_KEYS.map((k) => (
-                  <li key={k} className={active === k ? 'on' : ''}>
+              <ul className={`tt-states${active ? ' has-sel' : ''}`} aria-live="polite">
+                {STATE_KEYS.map((k, i) => (
+                  <li key={k} className={active === k ? 'on' : ''} style={{ '--k': CLUSTERS[i].color } as CSSProperties}>
                     <span>{RECOGNITION.states[k].label}</span>
                     <p>{RECOGNITION.states[k].text}</p>
                   </li>
@@ -399,7 +384,7 @@ export function Landing() {
         open={detail}
         onClose={closeDetail}
         state={active}
-        onState={(k) => choose(k, true)}
+        onState={toggle}
       />
     </div>
   );

@@ -27,6 +27,7 @@ import { themePalette } from './theme';
 import type { Palette } from './theme';
 import { BackdropScene } from './scenes/BackdropScene';
 import { CAMERA_BASE_Z, CAMERA_FOV, MainScene } from './scenes/MainScene';
+import { ClusterRing } from './scenes/ClusterRing';
 import { SensorRig } from './sensors/SensorRig';
 import { SyntheticSignals } from './signals/SyntheticSignals';
 import { FluidSim } from './sim/FluidSim';
@@ -95,6 +96,10 @@ export class Experience {
   main!: MainScene;
   composite!: Composite;
   rig!: SensorRig;
+  ring!: ClusterRing;
+  /** The selected Recognition cluster (-1: none), and the last one (the ring fades out there). */
+  selectedCluster = -1;
+  private ringCluster = -1;
   /** Draw calls in the last frame: everything, and the 3-D scene alone. */
   calls = 0;
   sceneCalls = 0;
@@ -189,6 +194,8 @@ export class Experience {
     this.main = new MainScene(this.settings.side, this.settings.count, set.rand, this.shared, this.palette);
     this.rig = new SensorRig(r, this.palette, this.settings.tier >= 2, this.shared);
     this.rig.attach(this.main.scene);
+    this.ring = new ClusterRing(this.shared.uTime);
+    this.main.scene.add(this.ring.mesh);
     // flows: the sim reads the paths and phases; the draw pass colours by pool (sharing the morph
     // uniforms and the active sensor)
     const su = this.sim.uniforms;
@@ -202,6 +209,7 @@ export class Experience {
     pu.uSecB = su.uSecB;
     pu.uMorph = su.uMorph;
     pu.tStreams.value = set.targets[1];
+    pu.tClusters.value = set.targets[3];
     this.cards = new Cards(this.main.glassRT.texture, this.shared);
     this.cards.setOctaves(CARD_OCTAVES[this.settings.tier]);
     this.main.cardScene.add(this.cards.group);
@@ -319,6 +327,20 @@ export class Experience {
     applyState(this.shared, this.palette, state);
   }
 
+  /**
+   * Recognition selection: cluster i lights up (100%, +15% size, a ring) and the others dim; -1 is
+   * the Default look (all four at 70%). Separate from setState, which drives the rest of the page.
+   */
+  setClusterSelection(i: number) {
+    this.selectedCluster = i;
+    if (i >= 0) this.ringCluster = i;
+    const sel = this.shared.uClusterSel.value;
+    const to = { x: i === 0 ? 1 : 0, y: i === 1 ? 1 : 0, z: i === 2 ? 1 : 0, w: i === 3 ? 1 : 0 };
+    const d = this.reduced ? 0 : 0.4;
+    gsap.to(sel, { ...to, duration: d, ease: 'power2.out', overwrite: true });
+    gsap.to(this.shared.uAnySel, { value: i >= 0 ? 1 : 0, duration: d, ease: 'power2.out', overwrite: true });
+  }
+
   anchorCluster(el: HTMLElement, index: number) {
     this.anchors.add(el, 3, (out) => this.layout.clusterAnchor(index, out));
   }
@@ -394,6 +416,7 @@ export class Experience {
 
     const near = 1 - Math.abs(sf - 1);
     this.backdrop.update(sc.progress, near > 0 ? near : 0);
+    this.ring.update(dt, this.layout, this.ringCluster, s.uAnySel.value, Math.max(0, 1 - Math.abs(sf - 3) * 2));
     this.backdrop.render(r);
     const before = r.info.render.calls;
     this.rig.renderShadow(r, this.quad, this.main.scene);
@@ -654,6 +677,7 @@ export class Experience {
     this.backdrop?.dispose();
     this.main?.dispose();
     this.rig?.dispose();
+    this.ring?.dispose();
     this.cards?.dispose();
     this.paths.dispose();
     this.composite?.dispose();

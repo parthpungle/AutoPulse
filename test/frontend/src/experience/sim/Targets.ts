@@ -7,12 +7,13 @@ import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 
 export const SECTIONS = ['hero', 'sensors', 'signatures', 'recognition', 'cta'] as const;
 
-/** Recognition clusters, in plot space (-1..1). Shared with the shader and the DOM labels. */
+/** Recognition clusters, in plot space (-1..1), with their permanent colours. Shared with the
+ *  shaders and the DOM labels. */
 export const CLUSTERS = [
-  { key: 'healthy', label: 'Healthy', c: [-0.44, 0.34], share: 0.31, lumps: [[0, 0, 0.17, 0.12, 0.4], [0.14, -0.08, 0.1, 0.07, -0.3], [-0.16, 0.06, 0.08, 0.06, 0.9]] },
-  { key: 'knock', label: 'Knock', c: [0.5, 0.5], share: 0.21, lumps: [[0, 0, 0.11, 0.08, -0.6], [0.12, 0.06, 0.07, 0.05, 0.2], [-0.1, -0.07, 0.06, 0.05, 0.0]] },
-  { key: 'misfire', label: 'Misfire', c: [0.46, -0.44], share: 0.21, lumps: [[0, 0, 0.12, 0.1, 0.8], [-0.12, -0.05, 0.07, 0.06, 0.1], [0.1, 0.1, 0.05, 0.05, 0.0]] },
-  { key: 'valve', label: 'Valve wear', c: [-0.38, -0.5], share: 0.21, lumps: [[0, 0, 0.13, 0.07, 0.15], [0.12, 0.05, 0.08, 0.05, -0.5], [-0.13, 0.04, 0.06, 0.05, 0.4]] },
+  { key: 'healthy', label: 'Healthy', color: '#4FD1FF', c: [-0.44, 0.34], share: 0.31, lumps: [[0, 0, 0.17, 0.12, 0.4], [0.14, -0.08, 0.1, 0.07, -0.3], [-0.16, 0.06, 0.08, 0.06, 0.9]] },
+  { key: 'knock', label: 'Knock', color: '#FF5A1F', c: [0.5, 0.5], share: 0.21, lumps: [[0, 0, 0.11, 0.08, -0.6], [0.12, 0.06, 0.07, 0.05, 0.2], [-0.1, -0.07, 0.06, 0.05, 0.0]] },
+  { key: 'misfire', label: 'Misfire', color: '#FF4F7B', c: [0.46, -0.44], share: 0.21, lumps: [[0, 0, 0.12, 0.1, 0.8], [-0.12, -0.05, 0.07, 0.06, 0.1], [0.1, 0.1, 0.05, 0.05, 0.0]] },
+  { key: 'valve', label: 'Valve wear', color: '#FFB547', c: [-0.38, -0.5], share: 0.21, lumps: [[0, 0, 0.13, 0.07, 0.15], [0.12, 0.05, 0.08, 0.05, -0.5], [-0.13, 0.04, 0.06, 0.05, 0.4]] },
 ] as const;
 
 export type ClusterKey = (typeof CLUSTERS)[number]['key'];

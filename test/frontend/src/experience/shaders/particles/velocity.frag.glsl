@@ -34,6 +34,10 @@ void main() {
   if (m > 0.0) home = mix(home, shape(uSecB, texture2D(tB, uv), uTime), m);
   // how much of this particle's home is a Sensor Array flow (see shapes.glsl)
   float flow = gFlow * ((abs(uSecA - 1.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 1.0) < 0.5 ? m : 0.0));
+  // and how much is a Recognition cluster: clusters keep their own motion, the global engine state
+  // (knock kicks, valve jitter, misfire stalls) never touches them
+  float w3 = (abs(uSecA - 3.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 3.0) < 0.5 ? m : 0.0);
+  float global = 1.0 - w3;
 
   if (uReduced > 0.5) {
     // no flight: ease straight to home (the draw pass fades through dark between sections)
@@ -69,11 +73,11 @@ void main() {
   // knock: a sharp kick at every beat
   float kp = knockPulse(uTime);
   vec3 kdir = normalize(vec3((R.z - 0.5) * 0.6, (R.w - 0.5) + sign(R.w - 0.5) * 0.35, (R.x - 0.5) * 0.6));
-  acc += kdir * kp * 110.0;
+  acc += kdir * kp * 110.0 * global;
   // valve wear: high-frequency jitter
-  acc += (hash33(vec3(gl_FragCoord.xy, floor(uTime * 60.0))) - 0.5) * uValve * 110.0;
+  acc += (hash33(vec3(gl_FragCoord.xy, floor(uTime * 60.0))) - 0.5) * uValve * 110.0 * global;
   // misfire: a slice of particles stalls every 4th beat
-  float stall = misfireStall(R.y, uTime);
+  float stall = misfireStall(R.y, uTime) * global;
   acc *= 1.0 - stall;
 
   vel += acc * uDt;
