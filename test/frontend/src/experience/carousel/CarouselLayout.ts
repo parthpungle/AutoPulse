@@ -50,13 +50,30 @@ export const SHOWCASE = {
   zone: { x0: 0.22, x1: 0.54, y0: 0.18, y1: 0.86 },
 };
 
-/** Camera position and look-at for carousel position c: orbiting the crank, centred on it. */
-export function orbitPose(c: number, wide: boolean, pos: Vector3, look: Vector3) {
+/** Where the crank sits across the screen (0..1 from the left): left of the active card, which
+ *  starts at about 51%, so the card no longer covers it. Portrait keeps it centred. */
+export const CRANK_X = 0.42;
+
+/**
+ * Camera position and look-at for carousel position c: orbiting the crank. The camera trucks
+ * sideways (along its own right vector, so the view direction is unchanged) to put the crank at
+ * CRANK_X on a wide screen; `aspect` is the screen's width over height.
+ */
+export function orbitPose(c: number, wide: boolean, aspect: number, fov: number, pos: Vector3, look: Vector3) {
   const a = c * CAROUSEL.step;
   const y = CAROUSEL.top - c * CAROUSEL.drop;
   const r = wide ? CAROUSEL.camRadius : CAROUSEL.camRadiusPortrait;
   pos.set(Math.sin(a) * r, y + CAROUSEL.camLift, Math.cos(a) * r);
   look.set(0, y - 0.05, 0);
+  if (!wide) return;
+  const halfW = r * Math.tan(MathUtils.degToRad(fov) / 2) * aspect;
+  const dx = (0.5 - CRANK_X) * 2 * halfW; // the camera moves right, so the crank moves left on screen
+  const rx = Math.cos(a);
+  const rz = -Math.sin(a);
+  pos.x += rx * dx;
+  pos.z += rz * dx;
+  look.x += rx * dx;
+  look.z += rz * dx;
 }
 
 const yAxis = new Vector3(0, 1, 0);

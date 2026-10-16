@@ -158,7 +158,7 @@ export class MainScene extends FXScene {
 
   private pose(i: number, pos: Vector3, look: Vector3) {
     if (i === 1) {
-      orbitPose(this.carousel, this.wide, pos, look);
+      orbitPose(this.carousel, this.wide, this.camera.aspect, CAMERA_FOV, pos, look);
       return;
     }
     const k = KEYS[i];
