@@ -42,7 +42,16 @@ Built from the three exploration reports (design language, dashboard, backend). 
     - Node, trip and frame count moved from the header into a Diagnostics popover.
     - The active nav item has `aria-current`, and nav tooltips also show on keyboard focus.
     - ACKNOWLEDGE is the primary button.
-- Phase 6: not started
+- Phase 6: done. Notes:
+  - **Switching:** a "Light / Dark" button in the dashboard header sets `data-theme` on `<html>`. It is remembered per browser (localStorage `ap-theme`) and applied before the first paint (`theme.js`, `main.jsx`).
+  - **Light tokens:** `styles.css` has a `:root[data-theme="light"]` block; the lab adds its own light tokens in `lab.css`. Measured contrast on the light surfaces: text ≥ 5.2:1 (dim text), alarm hues ≥ 4.5:1, and lines and graphics ≥ 3:1.
+  - **Hard-coded colours** became tokens:
+    - styles.css literals (including the warm-palette leftovers);
+    - the alarm shapes (`hmi.jsx`, which now uses `--p*` and `--on-alarm`);
+    - the logo;
+    - the spectrogram ramp (`--ramp-0..7`, read with `cssVar`);
+    - the 3-D car's linework (`--car-*`, rebuilt when the theme changes).
+  - The vehicle page sets no theme, so it stays dark and looks as before.
 
 ---
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AudioWaveform, FlaskConical, Gauge, HeartPulse, LayoutDashboard, Link2, TrendingUp } from 'lucide-react';
+import { AudioWaveform, FlaskConical, Gauge, HeartPulse, LayoutDashboard, Link2, Moon, Sun, TrendingUp } from 'lucide-react';
+import { setTheme, useTheme } from './theme.js';
 import { LiveProvider, useLive } from './live.jsx';
 import { carName } from './cars.js';
 import PairDrawer from './components/PairDrawer.jsx';
@@ -22,11 +23,23 @@ const PAGES = [
   { id: 'evidence', name: 'Evidence', icon: FlaskConical },
 ];
 
+/** Light for bright rooms and projectors, dark for screens. Remembered in this browser. */
+function ThemeToggle() {
+  const theme = useTheme();
+  const light = theme === 'light';
+  return (
+    <button className="btn ghost" aria-pressed={light} onClick={() => setTheme(light ? 'dark' : 'light')}
+      title={light ? 'Switch to the dark theme' : 'Switch to the light theme (bright rooms, projectors)'}>
+      {light ? <Moon size={15} /> : <Sun size={15} />}{light ? 'Dark' : 'Light'}
+    </button>
+  );
+}
+
 function Logo({ size = 26 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-label="AutoPulse">
-      <circle cx="12" cy="12" r="10.5" fill="none" stroke="#7fd4ff" strokeWidth="1.5" />
-      <path d="M3.5 12h4l2-5 3 10 2.2-7 1.3 2H20.5" fill="none" stroke="#f2f4f6" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="10.5" fill="none" stroke="var(--accent)" strokeWidth="1.5" />
+      <path d="M3.5 12h4l2-5 3 10 2.2-7 1.3 2H20.5" fill="none" stroke="var(--text-max)" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -93,6 +106,7 @@ function Shell() {
           <span className="kv"><span className="label">Vehicle</span><b>{carName(v.car_type)}</b><span className="muted">unit {v.unit}</span></span>
         ) : <span className="label">No vehicle</span>}
         <div className="right">
+          <ThemeToggle />
           <Diagnostics />
           <LinkPill onClick={() => setDrawer(true)} />
         </div>
