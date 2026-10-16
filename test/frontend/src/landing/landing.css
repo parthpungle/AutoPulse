@@ -364,3 +364,23 @@ html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
 @media (prefers-reduced-motion: reduce) {
   .tt-detail__panel, .tt-detail__scrim { transition: none; }
 }
+
+/* ---------------------------------------------------------------- sensor array on phones */
+@media (max-width: 760px) {
+  .tt-sensors__intro { max-width: none; }
+  .tt-h3 { font-size: 24px; }
+  .tt-index { left: 0; right: 0; bottom: max(16px, env(safe-area-inset-bottom)); }
+  .tt-index__head { padding: 0 var(--gutter); }
+  .tt-index__list {
+    display: flex; gap: 6px; overflow-x: auto; padding: 0 var(--gutter); margin-top: 10px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .tt-index__list::-webkit-scrollbar { display: none; }
+  .tt-index__list button {
+    flex: none; gap: 8px; padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line-strong);
+    background: color-mix(in srgb, var(--bg-0) 55%, transparent); opacity: 0.7; font-size: 10px; white-space: nowrap;
+  }
+  .tt-index__list button.on { opacity: 1; border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+  .tt-index__list button.on .tt-index__label::after { display: none; }
+  .tt-index__readout { padding: 0 var(--gutter); margin-top: 10px; font-size: 9.5px; }
+}

@@ -87,6 +87,7 @@ export class ParticleSim {
         uAmpA: { value: new Vector4(0.5, 0.5, 0.5, 0.5) },
         uAmpB: { value: new Vector4(0.5, 0.5, 0.5, 0.5) },
         uCarousel: { value: 0 },
+        uStreamDensity: { value: 1 },
       },
     });
 

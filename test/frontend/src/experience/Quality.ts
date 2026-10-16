@@ -67,13 +67,17 @@ export async function detectQuality(renderer: WebGLRenderer): Promise<QualityRes
   try {
     // detect-gpu gets its own throwaway context: on iOS it draws a probe triangle to tell Apple GPUs
     // apart (clearColor 1,1,1,1, its own viewport and program), which would desync three's GL state.
-    const r = await Promise.race([getGPUTier({ override: { loadBenchmarks } }), timeout]);
+    // The context is released right after, rather than lingering until garbage collection.
+    const probe = document.createElement('canvas').getContext('webgl', { failIfMajorPerformanceCaveat: false, powerPreference: 'high-performance' });
+    const r = await Promise.race([getGPUTier({ glContext: probe ?? undefined, override: { loadBenchmarks } }), timeout]);
+    probe?.getExtension('WEBGL_lose_context')?.loseContext();
     renderer.resetState();
     if (!r) return { tier: 2, gpu: 'unknown', mobile, source: 'timeout' };
     // detect-gpu's tier 0 means "blocklisted or too slow"; we still render, at our lowest tier
     let tier = Math.max(0, Math.min(3, r.tier)) as Tier;
-    if (r.isMobile || mobile) tier = Math.min(tier, 2) as Tier;
     if (r.type === 'FALLBACK') tier = 2;
+    // phones render at tier 1 at most (Sensor Array budget)
+    if (r.isMobile || mobile) tier = Math.min(tier, 1) as Tier;
     return { tier, gpu: r.gpu ?? 'unknown', mobile: !!r.isMobile || mobile, source: r.type };
   } catch {
     return { tier: 2, gpu: 'unknown', mobile, source: 'error' };

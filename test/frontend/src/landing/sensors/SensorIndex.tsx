@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { SENSORS } from '../../content/sensors';
 
@@ -11,12 +12,20 @@ const pad = (n: number) => String(n).padStart(2, '0');
 /** Bottom-left index of the Sensor Array: one button per sensor plus a live readout. */
 export function SensorIndex({ active, onSelect }: Props) {
   const s = SENSORS[active];
+  const list = useRef<HTMLOListElement>(null);
+  // on phones the list is a horizontal chip scroller: keep the active chip in view (sideways only)
+  useEffect(() => {
+    const el = list.current;
+    const chip = el?.children[active] as HTMLElement | undefined;
+    if (!el || !chip || el.scrollWidth <= el.clientWidth) return;
+    el.scrollTo({ left: chip.offsetLeft - (el.clientWidth - chip.offsetWidth) / 2, behavior: 'smooth' });
+  }, [active]);
   return (
     <nav className="tt-index" aria-label="Sensor array" data-ui>
       <p className="tt-index__head">
         Sensor array <span>· {pad(SENSORS.length)}</span>
       </p>
-      <ol className="tt-index__list">
+      <ol className="tt-index__list" ref={list}>
         {SENSORS.map((x) => (
           <li key={x.key}>
             <button

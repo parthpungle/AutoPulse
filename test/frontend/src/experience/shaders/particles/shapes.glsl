@@ -36,6 +36,7 @@ uniform sampler2D tCurves;  // 64 x 8, world positions
 uniform vec4 uAmpA;         // sensor activity 0-3
 uniform vec4 uAmpB;         // sensor activity 4-7
 uniform float uCarousel;
+uniform float uStreamDensity; // ?debug knob, 1 by default
 
 vec3 curveAt(float id, float u) {
   float x = clamp(u, 0.0, 1.0) * 63.0;
@@ -61,7 +62,7 @@ vec4 shapeSensors(vec4 d, float t) {
   float width = 0.03 + 0.06 * amp * (1.0 - u);
   p += vec3(cos(ang), sin(ang) * 0.6, sin(ang)) * d.z * width;
   float act = clamp(1.0 - abs(d.x - uCarousel), 0.0, 1.0);
-  float shown = step(fract(d.y * 13.37 + d.w * 7.1), 0.3 + 0.7 * amp);
+  float shown = step(fract(d.y * 13.37 + d.w * 7.1), (0.3 + 0.7 * amp) * uStreamDensity);
   float ends = smoothstep(0.0, 0.06, u) * smoothstep(1.0, 0.86, u);
   return vec4(p, (0.28 + 1.25 * act) * shown * ends);
 }

@@ -294,6 +294,31 @@ export function Landing() {
               </h2>
             </div>
             <SensorIndex active={card} onSelect={(i) => engine?.goToCard(i)} />
+            {/* the same content as the 3-D cards, for screen readers and search */}
+            <ol className="tt-visually-hidden">
+              {SENSORS.map((x) => (
+                <li key={x.key}>
+                  <h3>
+                    {x.code}: {x.title}
+                  </h3>
+                  <p>{x.oneLine}</p>
+                  <dl>
+                    {x.fields.map((f) => (
+                      <div key={f.label}>
+                        <dt>{f.label}</dt>
+                        <dd>{f.text}</dd>
+                      </div>
+                    ))}
+                    {x.reveals.lines.length > 0 && (
+                      <div>
+                        <dt>Reveals</dt>
+                        <dd>{x.reveals.lines.join(' ')}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
 

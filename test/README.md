@@ -65,7 +65,7 @@ Vehicle-only installs can use the smaller `requirements-vehicle.txt` (no PyTorch
 
 ## Landing page
 
-`/` is the TorqueTwin intro to AutoTwin: one fixed WebGL canvas behind the page, where particles tell the story as you scroll (raw signal → three sensor channels → spectrogram → four fault clusters → launch). The dashboard moved to `/dashboard`; `/vehicle.html` is unchanged.
+`/` is the TorqueTwin intro to AutoTwin: one fixed WebGL canvas behind the page, telling the story as you scroll (raw signal → the Sensor Array → spectrogram → four fault clusters → launch). The dashboard moved to `/dashboard`; `/vehicle.html` is unchanged.
 
 | Route | Page | Entry |
 |-------|------|-------|
@@ -84,6 +84,14 @@ Vite's dev server and `backend/app.py` (single-port mode) both serve `/dashboard
 | `?tier=0`…`3` | Force a quality tier instead of detecting it |
 | `?perf` | Exposes `window.__tt.perf()` (FPS, p95 frame time, long frames) for scripted checks |
 
+**Sensor Array** (`src/experience/sensors/`, `carousel/`, `src/content/sensors.ts`): a pinned section where eight glass cards orbit a procedural four-cylinder crankshaft, one per sensor (acoustic microphone, accelerometer, crank position, coolant, throttle, lambda/fuel trims, current clamp, OBD-II/CAN).
+
+- Scroll, drag/swipe, arrow keys and the left index all move one carousel value; each card snaps into place.
+- Each card's ink-cloud artwork shows that sensor's synthetic signal; the title settles with a scramble and colour split.
+- Each sensor is a procedural model mounted around the crank. The active one moves forward with a rim light, and particle streams flow from every sensor into the crank and up the spine, in the sensor's colour.
+- Click the active card (or press Enter) for a detail panel with every field and a live trace that follows the engine-state toggles.
+- All sensor copy lives in `src/content/sensors.ts`. A hidden list mirrors it for screen readers.
+
 **How it works** (`src/experience/`): framework-agnostic TypeScript classes, mounted by one React `<Experience/>` component and disposed on unmount.
 
 - `sim/FluidSim.ts`: low-resolution stable-fluids solver on half-float render targets (advect, pointer splat, vorticity confinement, divergence, Jacobi pressure, gradient subtraction). Mouse and touch both stir it; a faint "ghost" pointer keeps it moving when nobody does.
@@ -96,8 +104,8 @@ Vite's dev server and `backend/app.py` (single-port mode) both serve `/dashboard
 | Tier | Particles (`PARTICLE_SCALE` = 0.7) | Fluid grid | Jacobi | Pixel ratio cap | Bloom |
 |------|------------------------------------|------------|--------|-----------------|-------|
 | 3 | 45,875 | 128 | 10 | 2 | on |
-| 2 (mobile max) | 25,804 | 128 | 8 | 1.5 | on |
-| 1 | 11,468 | 96 | 6 | 1.25 | on |
+| 2 | 25,804 | 128 | 8 | 1.5 | on |
+| 1 (phone max) | 11,468 | 96 | 6 | 1.25 | on |
 | 0 | 6,451 | 64 | 6 | 1 | off |
 
 Shaders are pre-compiled and every texture is uploaded while the preloader counts, so nothing compiles mid-scroll. `prefers-reduced-motion` freezes the fluid, slows the noise and turns morphs into fades. The palette lives once in `src/landing/landing.css` (`--accent` etc.); the shaders read the same CSS variables.
@@ -194,7 +202,7 @@ Same models and data as the single-laptop app. Real-data rows are the numbers th
 
 ### Landing page
 
-The look and engineering bar follow studio WebGL sites such as [Active Theory](https://activetheory.net), which is credited as inspiration only: no code, shaders or assets were copied from activetheory.net or from repositories that mirror it. Every technique below was written for this project from published sources:
+The look and engineering bar follow studio WebGL sites such as [Active Theory](https://activetheory.net), which is credited as inspiration only. The Sensor Array borrows only an interaction pattern (glass cards orbiting a central sculpture, with an index list) from a studio portfolio site. No code, shaders, models, textures, typefaces, copy or UI wording was copied from those sites or from repositories that mirror them, and the reference recording used during development is not part of this repository. The crankshaft and all eight sensors are built procedurally in code. Every technique below was written for this project from published sources:
 
 | Technique | Source |
 |-----------|--------|
@@ -213,6 +221,8 @@ The look and engineering bar follow studio WebGL sites such as [Active Theory](h
 | [Lenis](https://github.com/darkroomengineering/lenis) | MIT |
 | [detect-gpu](https://github.com/pmndrs/detect-gpu) | MIT (benchmark data is bundled, so tier detection works offline) |
 | [lil-gui](https://lil-gui.georgealways.com) | MIT |
+| [troika-three-text](https://github.com/protectwise/troika) (3-D card titles) | MIT |
+| three.js `RoomEnvironment`, `PMREMGenerator`, `BufferGeometryUtils` (procedural environment lighting, merged sensor meshes) | MIT |
 | Space Grotesk, JetBrains Mono (self-hosted in `frontend/public/fonts/`) | SIL Open Font License 1.1 |
 
 ### Car models

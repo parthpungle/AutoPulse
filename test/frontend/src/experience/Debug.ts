@@ -1,3 +1,4 @@
+import { CAROUSEL } from './carousel/CarouselLayout';
 import type { Experience } from './Experience';
 import type { EngineState } from './States';
 import type { Tier } from './Quality';
@@ -54,7 +55,33 @@ export async function mountDebug(exp: Experience): Promise<() => void> {
   post.add(pp, 'grain', 0, 0.2, 0.001);
   post.add(pp, 'vignette', 0, 1, 0.01);
 
-  for (const f of [sim, fl, post]) f.close();
+  const sa = gui.addFolder('Sensor array');
+  sa.add(CAROUSEL, 'cardRadius', 2, 6, 0.01).name('helix radius');
+  sa.add(CAROUSEL, 'drop', 0, 2, 0.01).name('helix spacing');
+  sa.add(CAROUSEL, 'step', 0.3, 1.4, 0.01).name('helix step (rad)');
+  sa.add(CAROUSEL, 'camRadius', 5, 14, 0.05).name('camera radius');
+  sa.add(CAROUSEL, 'camLead', -0.5, 0.6, 0.01).name('camera lead');
+  sa.add(exp.cards.params, 'tilt', 0, 20, 0.5).name('card tilt (deg)');
+  sa.add(exp.cards.params, 'refraction', 0, 4, 0.01).name('glass refraction');
+  sa.add(exp.sim.uniforms.uStreamDensity, 'value', 0, 1.5, 0.01).name('stream density');
+
+  const atm = gui.addFolder('Atmosphere');
+  const hv = exp.backdrop.hazeViolet;
+  const ht = exp.backdrop.hazeTeal;
+  atm.add(hv, 'x', 0, 1, 0.01).name('violet x');
+  atm.add(hv, 'y', 0, 1, 0.01).name('violet y');
+  atm.add(hv, 'z', 0.1, 2, 0.01).name('violet radius');
+  atm.add(hv, 'w', 0, 1, 0.01).name('violet strength');
+  atm.add(ht, 'x', 0, 1, 0.01).name('teal x');
+  atm.add(ht, 'y', 0, 1, 0.01).name('teal y');
+  atm.add(ht, 'z', 0.1, 2, 0.01).name('teal radius');
+  atm.add(ht, 'w', 0, 1, 0.01).name('teal strength');
+  const bu = exp.backdrop.material.uniforms;
+  atm.addColor(bu.uViolet, 'value').name('violet colour');
+  atm.addColor(bu.uTeal, 'value').name('teal colour');
+  atm.add(bu.uBand, 'value', 0, 3, 0.01).name('fog band');
+
+  for (const f of [sim, fl, post, atm]) f.close();
 
   return () => {
     window.clearInterval(timer);
