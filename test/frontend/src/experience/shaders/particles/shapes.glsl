@@ -28,15 +28,42 @@ vec4 shapeHero(vec4 d, float t) {
   return vec4(s * uL0.x, y, z, 1.0 + 1.3 * pulse);
 }
 
-// Sensor Array (interim until the signal streams land): only ~12% of particles show, as slow,
-// faint deep-field dust far around the crankshaft; the rest rest on the axis, invisible (e = 0).
-// d = (angle, height, radius, random), all 0..1.
+// Sensor Array: signal streams. Each of the eight streams follows its path in tCurves (sensor
+// tip -> crank -> up the spine), flowing at a speed and density set by that sensor's activity;
+// the active card's stream is brightest. Id 8 is faint deep-field dust far around the crank.
+// d = (stream id, flow phase, tube radius, tube angle) or (8, height, radius, angle) for dust.
+uniform sampler2D tCurves;  // 64 x 8, world positions
+uniform vec4 uAmpA;         // sensor activity 0-3
+uniform vec4 uAmpB;         // sensor activity 4-7
+uniform float uCarousel;
+
+vec3 curveAt(float id, float u) {
+  float x = clamp(u, 0.0, 1.0) * 63.0;
+  float i0 = floor(x);
+  float row = (id + 0.5) / 8.0;
+  vec3 a = texture2D(tCurves, vec2((i0 + 0.5) / 64.0, row)).xyz;
+  vec3 b = texture2D(tCurves, vec2((min(i0 + 1.0, 63.0) + 0.5) / 64.0, row)).xyz;
+  return mix(a, b, x - i0);
+}
+
 vec4 shapeSensors(vec4 d, float t) {
-  if (d.w > 0.12) return vec4(0.0, mix(-6.0, 3.0, d.y), 0.0, 0.0);
-  float ang = d.x * 2.0 * PI + t * 0.02 * (0.4 + d.w * 8.0);
-  float r = 4.5 + d.z * 7.0;
-  float y = mix(-9.0, 6.0, d.y) + 0.25 * sin(t * 0.2 + d.x * 6.28);
-  return vec4(cos(ang) * r, y, sin(ang) * r, 0.12 + 0.12 * d.z);
+  if (d.x > 7.5) {
+    float ang = d.w * 2.0 * PI + t * 0.02 * (0.4 + d.z);
+    float r = 4.5 + d.z * 7.0;
+    float y = mix(-9.0, 6.0, d.y) + 0.25 * sin(t * 0.2 + d.w * 6.28);
+    return vec4(cos(ang) * r, y, sin(ang) * r, 0.1 + 0.12 * d.z);
+  }
+  int i = int(d.x + 0.5);
+  float amp = i < 4 ? uAmpA[i] : uAmpB[i - 4];
+  float u = fract(d.y + t * (0.045 + 0.13 * amp));
+  vec3 p = curveAt(d.x, u);
+  float ang = d.w * 2.0 * PI;
+  float width = 0.03 + 0.06 * amp * (1.0 - u);
+  p += vec3(cos(ang), sin(ang) * 0.6, sin(ang)) * d.z * width;
+  float act = clamp(1.0 - abs(d.x - uCarousel), 0.0, 1.0);
+  float shown = step(fract(d.y * 13.37 + d.w * 7.1), 0.3 + 0.7 * amp);
+  float ends = smoothstep(0.0, 0.06, u) * smoothstep(1.0, 0.86, u);
+  return vec4(p, (0.28 + 1.25 * act) * shown * ends);
 }
 
 // A fake engine spectrum, f in 0..1 of a 12 kHz span.

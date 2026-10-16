@@ -1,10 +1,11 @@
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Color, HalfFloatType, MathUtils, Mesh, Scene, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three';
+import { Color, HalfFloatType, MathUtils, Mesh, Scene, Vector3, Vector4, WebGLRenderer, WebGLRenderTarget } from 'three';
 import { preloadFont } from 'troika-three-text';
 import { SENSORS, SENSOR_COUNT } from '../content/sensors';
 import { Cards, FONT_DISPLAY, FONT_MONO, SCRAMBLE } from './carousel/Cards';
 import { CarouselState } from './carousel/CarouselState';
+import { StreamCurves } from './sim/Curves';
 import type { Material } from 'three';
 import { Anchors } from './Anchors';
 import { Composite } from './Composite';
@@ -110,6 +111,7 @@ export class Experience {
   private section = -1;
   private fluidResizeTimer = 0;
   readonly carousel: CarouselState;
+  readonly streams = new StreamCurves();
   cards!: Cards;
   private activeCard = -1;
   private hoverDirty = false;
@@ -173,6 +175,14 @@ export class Experience {
     this.main = new MainScene(this.settings.side, this.settings.count, set.rand, this.shared, this.palette);
     this.rig = new SensorRig(r, this.palette, this.settings.tier >= 2);
     this.rig.attach(this.main.scene);
+    // streams: the sim reads the paths; the draw pass tints by sensor (sharing the morph uniforms)
+    const su = this.sim.uniforms;
+    const pu = this.main.material.uniforms;
+    su.tCurves.value = this.streams.texture;
+    pu.uSecA = su.uSecA;
+    pu.uSecB = su.uSecB;
+    pu.uMorph = su.uMorph;
+    pu.tStreams.value = set.targets[1];
     this.cards = new Cards(this.main.glassRT.texture, this.shared);
     this.cards.setOctaves(CARD_OCTAVES[this.settings.tier]);
     this.main.cardScene.add(this.cards.group);
@@ -187,6 +197,8 @@ export class Experience {
     for (const t of set.targets) r.initTexture(t);
     r.initTexture(set.spawn);
     r.initTexture(set.randTexture);
+    this.streams.update(this.rig);
+    r.initTexture(this.streams.texture);
     // card text: lay out every string and warm the glyph atlas with the scramble set
     await Promise.all([
       this.cards.sync(),
@@ -326,6 +338,14 @@ export class Experience {
     this.carousel.update(dt);
     this.main.carousel = this.reduced ? 0 : this.carousel.value;
     this.rig.update(dt, this.signals, sf, this.main.carousel, this.layout.wide === 1, this.main.camera);
+    if (this.rig.group.visible) {
+      this.streams.update(this.rig);
+      const su = this.sim.uniforms;
+      const a = this.signals.amp;
+      (su.uAmpA.value as Vector4).set(a[0], a[1], a[2], a[3]);
+      (su.uAmpB.value as Vector4).set(a[4], a[5], a[6], a[7]);
+      su.uCarousel.value = this.main.carousel;
+    }
     this.main.updateCamera(sf, this.reduced ? 0 : p.nx, this.reduced ? 0 : p.ny);
     const cam = this.main.camera;
     this.sim.viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
@@ -529,6 +549,7 @@ export class Experience {
     this.main?.dispose();
     this.rig?.dispose();
     this.cards?.dispose();
+    this.streams.dispose();
     this.composite?.dispose();
     this.quad?.dispose();
     if (this.renderer) {

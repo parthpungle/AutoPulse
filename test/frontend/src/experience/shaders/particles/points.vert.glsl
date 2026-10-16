@@ -7,6 +7,12 @@ uniform float uAlpha;
 uniform float uFade;         // reduced-motion crossfade
 uniform vec3 uColor;
 uniform vec3 uAccent;
+// Sensor Array streams take their sensor's colour
+uniform sampler2D tStreams;     // the section-1 target (stream id in .x)
+uniform float uSecA;
+uniform float uSecB;
+uniform float uMorph;
+uniform vec3 uSensorColors[8];
 
 attribute vec2 aRef;
 attribute vec4 aRand;
@@ -38,7 +44,16 @@ void main() {
   }
   gl_PointSize = min(px, 48.0);
 
-  float accentMix = clamp(sp * 0.85 + max(e - 1.0, 0.0) * 0.7 + kp * 0.6, 0.0, 1.0);
+  // weight of the Sensor Array shape for this particle (same staggered morph as the simulation)
+  float m = smoothstep(aRand.x * 0.4, 0.6 + aRand.x * 0.4, uMorph);
+  float w1 = (abs(uSecA - 1.0) < 0.5 ? 1.0 - m : 0.0) + (abs(uSecB - 1.0) < 0.5 ? m : 0.0);
+  vec3 base = uColor;
+  if (w1 > 0.0) {
+    float id = texture2D(tStreams, aRef).x;
+    if (id < 7.5) base = mix(uColor, uSensorColors[int(id + 0.5)] * 1.25, w1);
+  }
+
+  float accentMix = clamp(sp * 0.85 + max(e - 1.0, 0.0) * 0.7 + kp * 0.6, 0.0, 1.0) * (1.0 - w1);
   float bright = (0.45 + 0.55 * aRand.w) * (0.35 + 0.65 * min(e, 2.5)) * (1.0 + sp * 1.4 + kp * 1.2);
-  vColor = mix(uColor, uAccent, accentMix) * bright * a;
+  vColor = mix(base, uAccent, accentMix) * bright * a;
 }

@@ -54,11 +54,19 @@ const FILLS: Fill[] = [
     o[i + 2] = g();
     o[i + 3] = r();
   },
-  // 1 sensor array: angle, height, radius, random (all 0..1)
-  (o, i, r) => {
-    o[i] = r();
+  // 1 sensor array: 88% signal streams (stream id 0..7, flow phase, tube radius, tube angle),
+  //   12% deep-field dust (id 8, height, radius, angle)
+  (o, i, r, g) => {
+    if (r() < 0.12) {
+      o[i] = 8;
+      o[i + 1] = r();
+      o[i + 2] = Math.pow(r(), 0.7);
+      o[i + 3] = r();
+      return;
+    }
+    o[i] = Math.floor(r() * 8);
     o[i + 1] = r();
-    o[i + 2] = Math.pow(r(), 0.7);
+    o[i + 2] = Math.min(2.2, Math.abs(g()));
     o[i + 3] = r();
   },
   // 2 spectrogram: column, height fraction, time row (more particles in the front rows), jitter

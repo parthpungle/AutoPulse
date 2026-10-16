@@ -1,6 +1,7 @@
-import { BufferAttribute, BufferGeometry, CustomBlending, HalfFloatType, LinearFilter, MathUtils, OneFactor, PerspectiveCamera, Points, Scene, ShaderMaterial, Vector2, Vector3, WebGLRenderTarget, ZeroFactor } from 'three';
+import { BufferAttribute, BufferGeometry, Color, CustomBlending, HalfFloatType, LinearFilter, MathUtils, OneFactor, PerspectiveCamera, Points, Scene, ShaderMaterial, Vector2, Vector3, WebGLRenderTarget, ZeroFactor } from 'three';
 import type { Texture, WebGLRenderer } from 'three';
 import type { FullscreenQuad } from '../gl/FullscreenQuad';
+import { SENSORS } from '../../content/sensors';
 import { orbitPose } from '../carousel/CarouselLayout';
 import { GLSL } from '../shaders';
 import type { Palette } from '../theme';
@@ -92,6 +93,11 @@ export class MainScene extends FXScene {
         uAlpha: { value: 0.62 },
         uFade: { value: 1 },
         uColor: { value: palette.text },
+        tStreams: { value: null },
+        uSecA: { value: 0 },
+        uSecB: { value: 0 },
+        uMorph: { value: 0 },
+        uSensorColors: { value: SENSORS.map((s) => new Color(s.color)) },
       },
     });
     this.glassMat = new ShaderMaterial({
