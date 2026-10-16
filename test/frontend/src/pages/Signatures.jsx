@@ -1,10 +1,16 @@
-import { useState } from 'react';
-import { Power, Wrench } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { Power } from 'lucide-react';
 import LineChart from '../components/charts/LineChart.jsx';
 import Heatmap from '../components/charts/Heatmap.jsx';
-import { HBars, VBars } from '../components/charts/Bars.jsx';
-import { Status, Tabs } from '../components/ui.jsx';
+import { VBars } from '../components/charts/Bars.jsx';
+import { Tabs } from '../components/ui.jsx';
 import { series, useLive } from '../live.jsx';
+import { labStore, useLabStore } from './lab/labStore.js';
+import { contextWords } from './lab/derive.js';
+import Verdict from './lab/Verdict.jsx';
+import Detectors from './lab/Detectors.jsx';
+import ModelDrawer from './lab/ModelDrawer.jsx';
+import './lab/lab.css';
 
 const VIEWS = [
   ['time', 'Waveform'], ['spectrum', 'Spectrum'], ['spectrogram', 'Spectrogram'],
@@ -21,7 +27,10 @@ const WHY = {
 
 export default function Signatures() {
   const { latest, history, serviced } = useLive();
+  const frames = useLabStore((s) => s.frames);
   const [view, setView] = useState('spectrum');
+  const [drawer, setDrawer] = useState(false);
+  const closeDrawer = useCallback(() => setDrawer(false), []);
   const { sig, engine } = latest;
 
   if (engine.state === 'off' || !sig) {
@@ -34,69 +43,53 @@ export default function Signatures() {
     );
   }
   const H = history.slice(-180);
-  const top = engine.ensemble.indexOf(Math.max(...engine.ensemble));
+  const onServiced = () => { serviced(); labStore.forgetBaseline(); };
 
   return (
-    <div className="grid2" style={{ gridTemplateColumns: '1fr 330px', alignItems: 'start' }}>
-      <div className="stack">
-        <div className="panel panel-pad">
-          <div className="row" style={{ marginBottom: 14 }}>
-            <Tabs items={VIEWS} value={view} onChange={setView} />
-            <div className="spacer" />
-            <span className="live-tag">live · {sig.rpm} rpm</span>
-          </div>
-          <Plot view={view} d={sig} />
-          <div className="chart-caption">{WHY[view]}</div>
+    <div className="lab">
+      <header className="lab-head">
+        <div className="lab-rpm" aria-label={`Engine speed ${sig.rpm} rpm`}>
+          <span className="num">{Math.round(sig.rpm).toLocaleString('en-US')}</span><small>rpm</small>
         </div>
+        <div className="lab-context">
+          <span className="label">Engine state</span>
+          <span>{contextWords(engine.context)}</span>
+        </div>
+        <div className="spacer" />
+        <button className="btn" onClick={() => setDrawer(true)}>Model details</button>
+      </header>
 
-        <div className="panel panel-pad">
-          <div className="row" style={{ marginBottom: 10 }}>
-            <div className="eyebrow">Deviation from this car’s own normal · last 3 min</div>
-            <div className="spacer" />
-            <button className="btn ghost" onClick={serviced} title="Forget the learned normal, e.g. after a service">
-              <Wrench size={15} />Mark serviced
-            </button>
-          </div>
-          <LineChart height={170} hlines={[{ y: engine.threshold, label: 'Alarm threshold' }]} fmtY={(v) => v.toFixed(0)}
-            fmtX={() => ''} legend={false}
-            series={[{ id: 'a', label: 'Adaptive baseline score', color: 'var(--s1)', x: series(H, 'clock'), y: series(H, 'anomaly') }]} />
-          <div className="chart-caption">
-            The baseline learns what is normal for this particular car in each engine state ({engine.context.replace('_', ', ')} now),
-            from {engine.learned} healthy seconds so far. A new fault stands out against it even when the models are unsure.
-          </div>
-        </div>
+      <div className="lab-top">
+        <Verdict latest={latest} frames={frames} />
+        <Detectors engine={engine} onServiced={onServiced} />
       </div>
 
-      <div className="stack">
-        <div className="panel panel-pad">
-          <div className="eyebrow">Verdict · last 5 s</div>
-          <div style={{ fontSize: 20, fontWeight: 600, margin: '6px 0 4px' }}>{engine.label}</div>
-          <div className="row" style={{ gap: 10 }}>
-            <Status status={engine.status} />
-            <span className="note">{Math.round(engine.confidence * 100)}% ensemble confidence</span>
-          </div>
-          <div className="note muted" style={{ marginTop: 8 }}>The vehicle never says what was injected. This comes from the vibration alone.</div>
+      <section className="panel panel-pad" aria-label="Signals">
+        <div className="row" style={{ marginBottom: 14 }}>
+          <Tabs items={VIEWS} value={view} onChange={setView} />
         </div>
-        <div className="panel panel-pad">
-          <div className="eyebrow" style={{ marginBottom: 12 }}>Ensemble probability</div>
-          <HBars items={engine.classes.map((c, k) => ({ label: c.split(' (')[0], value: engine.ensemble[k], emphasis: k === top }))
-            .sort((a, b) => b.value - a.value).slice(0, 4)} />
-          <div className="eyebrow" style={{ margin: '18px 0 10px' }}>Each model's top pick · this second</div>
-          <table className="data">
-            <tbody>
-              {Object.entries(engine.votes).map(([m, p]) => {
-                const k = p.indexOf(Math.max(...p));
-                return <tr key={m}><td>{m}</td><td>{engine.classes[k].split(' (')[0]}</td><td className="num">{Math.round(p[k] * 100)}%</td></tr>;
-              })}
-            </tbody>
-          </table>
+        <Plot view={view} d={sig} />
+        <div className="chart-caption">{WHY[view]}</div>
+      </section>
+
+      <section className="panel panel-pad" aria-label="Deviation from this car's normal, last 3 minutes">
+        <div className="eyebrow" style={{ marginBottom: 10 }}>Deviation from this car’s own normal · last 3 min</div>
+        <LineChart height={170} hlines={[{ y: engine.threshold, label: 'Deviation threshold' }]} fmtY={(v) => v.toFixed(0)}
+          fmtX={() => ''} legend={false}
+          series={[{ id: 'a', label: 'Deviation (RMS of top-5 feature z-scores)', color: 'var(--s1)', x: series(H, 'clock'), y: series(H, 'anomaly') }]} />
+        <div className="chart-caption">
+          Dashed line: the deviation threshold, {engine.threshold}. Crossing it does not raise the alarm; the classifier does (see 02 / Detectors).
         </div>
-      </div>
+      </section>
+
+      {drawer && <ModelDrawer engine={engine} onClose={closeDrawer} />}
     </div>
   );
 }
 
 export function Plot({ view, d, height = 320 }) {
+  // the backend sends log10 power (bels); the heatmap labels its values in dB
+  const zDb = useMemo(() => d.spectrogram.z.map((r) => r.map((v) => 10 * v)), [d.spectrogram.z]);
   if (view === 'time') {
     return <LineChart height={height} fmtX={(v) => `${v.toFixed(0)}`} xTitle="ms" fmtY={(v) => v.toFixed(1)} legend={false}
       series={[{ id: 'v', label: 'Block vibration', color: 'var(--s1)', x: d.time.t_ms, y: d.time.y, width: 1.2 }]} />;
@@ -106,7 +99,7 @@ export function Plot({ view, d, height = 320 }) {
       bands={[{ x0: 5500, x1: 8000, label: 'knock band' }]}
       fmtY={(v) => v.toFixed(0)} series={[{ id: 's', label: 'Power (dB)', color: 'var(--s1)', x: d.spectrum.f, y: d.spectrum.db, width: 1.6 }]} />;
   }
-  if (view === 'spectrogram') return <Heatmap f={d.spectrogram.f} t={d.spectrogram.t} z={d.spectrogram.z} height={height} />;
+  if (view === 'spectrogram') return <Heatmap f={d.spectrogram.f} t={d.spectrogram.t} z={zDb} height={height} />;
   if (view === 'envelope') {
     const marks = d.envelope.orders.map((f, k) => ({ x: f, label: ['0.5×', '1×', '1.5×', '2×'][k], row: k % 2 }));
     return <LineChart height={height} xDomain={[0, 400]} markers={marks} xTitle="Hz" fmtY={(v) => v.toFixed(1)} legend={false}

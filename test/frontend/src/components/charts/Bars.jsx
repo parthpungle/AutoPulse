@@ -15,7 +15,7 @@ export function HBars({ items, max = 1, fmt = (v) => `${Math.round(v * 100)}%` }
             <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--ink-2)' }}>{fmt(it.value)}</span>
           </div>
           <div className="meter">
-            <div style={{ width: `${Math.max(0.5, (it.value / max) * 100)}%`, background: it.color || (it.emphasis ? 'var(--s1)' : '#4a4846') }} />
+            <div style={{ width: `${Math.max(0.5, (it.value / max) * 100)}%`, background: it.color || (it.emphasis ? 'var(--s1)' : 'var(--s3)') }} />
           </div>
         </div>
       ))}

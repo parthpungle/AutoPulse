@@ -7,7 +7,11 @@ Built from the three exploration reports (design language, dashboard, backend). 
 
 **Status** (branch `signature-lab`, off `landing-page`):
 - Phase 0: done
-- Phases 1–6: not started
+- Phase 1: done. Notes for later phases:
+  - The global banner still repeats the verdict (decision 9: it stays until phase 5).
+  - After a long fault the backend baseline stays frozen, so a repaired car often reads "Sounds different" (info), not Healthy, until Mark serviced. Not a frontend bug.
+  - "Mark serviced" also forgets the lab's browser-learned baseline (labStore.forgetBaseline); the 180 s frame buffer is kept.
+- Phases 2–6: not started
 
 ---
 
