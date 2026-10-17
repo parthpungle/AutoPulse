@@ -1,0 +1,70 @@
+{
+  "source": "real: HF RashmiKarunarathne/MyDataSet",
+  "classes": [
+    "healthy",
+    "misfire",
+    "valve_tick",
+    "belt_squeal"
+  ],
+  "fs": 24000,
+  "window_s": 1.0,
+  "hop_s": 0.5,
+  "feature_names": [
+    "log_rms",
+    "crest_factor",
+    "kurtosis",
+    "skewness",
+    "zero_cross_rate",
+    "band_20_200",
+    "band_200_500",
+    "band_500_1000",
+    "band_1000_2000",
+    "band_2000_3000",
+    "band_3000_4000",
+    "band_4000_5000",
+    "band_5000_6000",
+    "band_6000_7500",
+    "band_7500_10000",
+    "order_0.5",
+    "order_1.0",
+    "order_1.5",
+    "order_2.0",
+    "order_3.0",
+    "order_4.0",
+    "spectral_centroid_khz",
+    "spectral_flatness",
+    "env_peak_order",
+    "env_peak_prominence",
+    "knock_band_kurtosis",
+    "crank_irregularity",
+    "crank_min_dip"
+  ],
+  "models": [
+    "SVM (RBF)",
+    "Softmax regression",
+    "ANN (MLP + softmax)",
+    "CNN (spectrogram)"
+  ],
+  "n_recordings": 321,
+  "n_windows": 3869,
+  "trained_at": "2026-10-16T22:11:43+05:30",
+  "note": "trained on every window of every recording; held-out scores are in real_metrics.json (audio)",
+  "threshold": {
+    "value": 0.79,
+    "target_met": true,
+    "target_healthy_fpr": 0.05,
+    "applies_to": "a clip's ensemble probability (mean over its windows); below it the verdict is 'unsure'",
+    "chosen_on": "3-fold out-of-fold predictions grouped by recording",
+    "out_of_fold": {
+      "threshold": 0.79,
+      "coverage": 0.778816199376947,
+      "n": 321,
+      "n_answered": 250,
+      "accuracy_answered": 0.948,
+      "healthy_fpr_answered": 0.04838709677419355,
+      "healthy_alarm_rate": 0.03614457831325301,
+      "healthy_answered": 62,
+      "healthy_false_alarms": 3
+    }
+  }
+}
