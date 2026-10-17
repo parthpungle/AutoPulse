@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 REM ============================================================
-REM  AutoPulse v3 launcher (Windows): one laptop is the car,
+REM  AutoPulse v4 launcher (Windows): one laptop is the car,
 REM  another is the dashboard.
 REM    1  Vehicle    sensors stream out + breakdown controls   (ports 8200, 8201/udp, 5173)
 REM    2  Dashboard  pairs with a vehicle, shows live health   (ports 8000, 5173)
@@ -21,7 +21,7 @@ set "VEHICLE_PORT=8200"
 set "UI_PORT=5173"
 
 echo ================================================
-echo   AutoPulse v3 - vehicle + dashboard
+echo   AutoPulse v4 - vehicle + dashboard
 echo ================================================
 echo.
 

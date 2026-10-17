@@ -1,6 +1,6 @@
-# AutoPulse test · v3 with a clearer visual hierarchy
+# AutoPulse v4 · v3 with a clearer visual hierarchy
 
-> **Design experiment.** A copy of [v3](../v3/) with v1's hierarchy brought back: a "Your car" eyebrow and a 40 px car name, a 76 px health score, sentence-case section titles, and a calm green for checked-and-fine (ticks on every healthy system, the score, the verdict). Alarm colours and shapes keep their ISA meaning; the layout is unchanged. v3 itself is untouched.
+> **v4 is [v3](../v3/) with v1's hierarchy brought back:** a "Your car" eyebrow and a 40 px car name, a 76 px health score, sentence-case section titles, and a calm green for checked-and-fine (ticks on every healthy system, the score, the verdict). The subsystems under the car sit in a fixed grid, and the dot floor under the car is easier to see. Alarm colours and shapes keep their ISA meaning; the layout is unchanged.
 
 **Two laptops, one car.** One laptop *is* the car: its sensors stream out and you break things on purpose. The other is the dashboard: it pairs over Wi-Fi and diagnoses everything live, from the sensor data alone.
 

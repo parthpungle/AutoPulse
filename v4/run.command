@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-#  AutoPulse v3 launcher (macOS / Linux): one laptop is the car,
+#  AutoPulse v4 launcher (macOS / Linux): one laptop is the car,
 #  another is the dashboard. Double-click in Finder, or run ./run.command [1|2|3].
 #    1  Vehicle    sensors stream out + breakdown controls   (ports 8200, 8201/udp, 5173)
 #    2  Dashboard  pairs with a vehicle, shows live health   (ports 8000, 5173)
@@ -13,7 +13,7 @@ cd "$(dirname "$0")"
 API_PORT=8000; VEHICLE_PORT=8200; UI_PORT=5173
 
 echo "================================================"
-echo "  AutoPulse v3 - vehicle + dashboard"
+echo "  AutoPulse v4 - vehicle + dashboard"
 echo "================================================"
 
 ROLE="${1:-}"

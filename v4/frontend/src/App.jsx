@@ -114,7 +114,7 @@ function Shell() {
             </button>
           ))}
         </nav>
-        <div className="rail-foot">test</div>
+        <div className="rail-foot">v4</div>
       </aside>
 
       <header className="statusbar">
