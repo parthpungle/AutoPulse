@@ -776,3 +776,11 @@ pre.vib-code { font: 12px var(--mono); background: var(--surface-2); border-radi
 @media (max-height: 760px) {
   :root { --fs-hero: 58px; --fs-display: 32px; }
 }
+
+/* systems under the car: an aligned grid, not a wrapping list */
+.systems { margin-left: auto; display: grid; grid-template-columns: repeat(4, max-content); gap: 6px 10px; align-content: end; }
+.sys { display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px 3px 8px; border-radius: 3px; white-space: nowrap;
+  font: 500 13px var(--sans); color: var(--text-2); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+.sys svg { color: var(--ok); flex: none; }
+.sys.bad { color: var(--text-max); border-color: color-mix(in srgb, var(--c) 55%, transparent); background: color-mix(in srgb, var(--c) 12%, transparent); }
+@media (max-width: 1180px) { .sys { padding: 2px 7px; font-size: 12px; } .systems { gap: 5px 6px; } }

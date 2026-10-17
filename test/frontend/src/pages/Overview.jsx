@@ -11,6 +11,7 @@ import { series, useLive } from '../live.jsx';
 import { Plot } from './Signatures.jsx';
 import { useSize } from '../components/charts/useWidth.js';
 
+const SHORT = { ecu: 'ECU', battery: 'Battery', engine: 'Engine', cooling: 'Cooling', oil: 'Oil', fuel: 'Fuel', tyres: 'Tyres', brakes: 'Brakes' };
 const SIG_VIEWS = [['time', 'Waveform'], ['spectrum', 'Spectrum'], ['spectrogram', 'Spectrogram'], ['orders', 'Orders'], ['crank', 'Crank']];
 const SIG_WHY = {
   time: 'One impulse per firing. Knock rings after each; valve wear clicks once per cycle.',
@@ -113,15 +114,18 @@ export default function Overview() {
               {row.ignition ? verdict : `Engine off · ${verdict}`}
             </span>
           </div>
-          <div className="callouts" data-spot="systems">
-            {issues.map((s) => (
-              <span key={s.id} className="callout" style={{ '--c': prioColor(prio(s.status)) }}>
-                <AlarmShape priority={prio(s.status)} size={12} />{s.name}
-              </span>
-            ))}
-            {systems.filter((s) => s.status === 'ok').map((s) => (
-              <span key={s.id} className="callout ok" title={s.detail}><CircleCheck size={13} strokeWidth={2.2} />{s.name.split(' & ')[0]}</span>
-            ))}
+          {/* every subsystem in the same place every time (a 4 x 2 grid): a green tick when it's fine, its
+              alarm shape and colour when it isn't, so a change jumps out without the list reshuffling */}
+          <div className="systems" data-spot="systems">
+            {systems.map((s) => {
+              const sp = prio(s.status);
+              return (
+                <span key={s.id} className={`sys ${sp ? 'bad' : ''}`} style={sp ? { '--c': prioColor(sp) } : undefined} title={`${s.name}: ${s.detail}`}>
+                  {sp ? <AlarmShape priority={sp} size={12} /> : <CircleCheck size={14} strokeWidth={2.2} />}
+                  {SHORT[s.id] || s.name.split(' & ')[0]}
+                </span>
+              );
+            })}
           </div>
         </div>
       </div>

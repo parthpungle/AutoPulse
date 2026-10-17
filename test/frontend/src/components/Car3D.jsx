@@ -349,7 +349,7 @@ function Floor() {
     for (let x = -R; x <= R + 1e-6; x += step) for (let z = -R; z <= R + 1e-6; z += step) {
       const r = Math.hypot(x / 1.25, z) / (R / 1.25);       // slightly oval, like the car's footprint
       if (r >= 1) continue;
-      const a = 0.42 * Math.pow(1 - r, 1.7);
+      const a = 0.8 * Math.pow(1 - r, 1.25);                // test/: a floor you can see
       pos.push(x, 0.002, z);
       col.push(ink.r, ink.g, ink.b, a);
     }
@@ -374,7 +374,7 @@ function Floor() {
         <meshBasicMaterial map={shadow} transparent depthWrite={false} fog={false} />
       </mesh>
       <points geometry={dots} renderOrder={-2}>
-        <pointsMaterial vertexColors transparent size={0.026} sizeAttenuation depthWrite={false} fog={false} />
+        <pointsMaterial vertexColors transparent size={0.04} sizeAttenuation depthWrite={false} fog={false} />
       </points>
     </group>
   );
